@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Unterweisungsmanager Online · v0.1</title>
+  <title>Unterweisungsmanager Online · v0.2</title>
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
@@ -23,7 +23,7 @@
 
   <main>
     <section class="notice">
-      <strong>Status:</strong> Das ist die erste Online-Struktur. Daten kommen später aus Azure SQL. Für lokale Tests lädt die Oberfläche die Seed-Daten aus <code>frontend/seed/essentra-startdata.json</code>, falls die API noch nicht verbunden ist.
+      <strong>Status:</strong> Online-Grundstruktur v0.2: Mandanten, Mitarbeiter, Unterweisungstypen, Statusmatrix, Planung und externe Links sind als API-Konzept vorbereitet. Fallback lädt weiterhin Seed-Daten, falls Azure SQL lokal noch nicht verbunden ist.
     </section>
 
     <nav class="tabs">
@@ -31,6 +31,8 @@
       <button data-view="companies">Firmen</button>
       <button data-view="employees">Mitarbeiter</button>
       <button data-view="instructions">Unterweisungen</button>
+      <button data-view="status">Unterweisungsstatus</button>
+      <button data-view="planning">Planung</button>
       <button data-view="external">Externe Links</button>
       <button data-view="security">Sicherheit</button>
     </nav>
@@ -39,6 +41,8 @@
     <section id="companies" class="view"></section>
     <section id="employees" class="view"></section>
     <section id="instructions" class="view"></section>
+    <section id="status" class="view"></section>
+    <section id="planning" class="view"></section>
     <section id="external" class="view"></section>
     <section id="security" class="view"></section>
   </main>
