@@ -1,5 +1,5 @@
 const $ = (id) => document.getElementById(id);
-const state = { data: null, source: 'loading', statusRows: [], apiAvailable: false, mailConfig: null, me: null, companyId: 'company-essentra', users: [] };
+const state = { data: null, source: 'loading', statusRows: [], apiAvailable: false, mailConfig: null, me: null, companyId: 'company-essentra', users: [], operations: null, backups: [], healthHistory: [], securityEvents: [], auditEvents: [] };
 
 function esc(s=''){return String(s ?? '').replace(/[&<>\"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[c]))}
 function fmtDate(d){return d ? new Date(d).toLocaleDateString('de-DE') : '—'}
@@ -106,7 +106,7 @@ function badge(status){
 }
 
 function renderAll(){render('dashboard')}
-function render(id){({dashboard:renderDashboard,companies:renderCompanies,employees:renderEmployees,instructions:renderInstructions,status:renderStatus,planning:renderPlanning,external:renderExternal,users:renderUsers,security:renderSecurity}[id]||renderDashboard)()}
+function render(id){({dashboard:renderDashboard,companies:renderCompanies,employees:renderEmployees,instructions:renderInstructions,status:renderStatus,planning:renderPlanning,external:renderExternal,users:renderUsers,operations:renderOperations,security:renderSecurity}[id]||renderDashboard)()}
 
 function renderDashboard(){
   const s=stats();
@@ -307,6 +307,95 @@ async function createUser(){
 }
 
 function renderSecurity(){
-  $('security').innerHTML=`<div class="card"><h2>Sicherheitsstatus v0.6</h2><ul><li>Mandanten-Konzept über <code>companyId</code> in allen Fach-Endpunkten.</li><li>Rollenprüfung für System Admin/Firmen Admin/HSE/Line Manager/Mitarbeiter produktiv vorbereitet.</li><li>Audit-Log bei Änderungen vorbereitet.</li><li>Statusmatrix trennt Pflicht, fällig, abgelaufen und nicht erforderlich.</li><li>Externe Links verwenden Token-Hash statt Klartext-Token in SQL.</li><li>Microsoft Graph Mailversand ist vorbereitet: Einladung, Erinnerung, geplanter Gruppentermin mit ICS. Microsoft Entra Login und DB-Freischaltung sind vorbereitet. Nachweis-Upload ist gehärtet: Dateityp-/Größenprüfung, privater Blob-Speicher, Scanstatus, Downloadrechte und Audit-Log. Nächster Schritt: Backup-/Restore-Konsole und Admin-Betriebsmonitoring.</li></ul></div>`;
+  $('security').innerHTML=`<div class="card"><h2>Sicherheitsstatus v0.6</h2><ul><li>Mandanten-Konzept über <code>companyId</code> in allen Fach-Endpunkten.</li><li>Rollenprüfung für System Admin/Firmen Admin/HSE/Line Manager/Mitarbeiter produktiv vorbereitet.</li><li>Audit-Log bei Änderungen vorbereitet.</li><li>Statusmatrix trennt Pflicht, fällig, abgelaufen und nicht erforderlich.</li><li>Externe Links verwenden Token-Hash statt Klartext-Token in SQL.</li><li>Microsoft Graph Mailversand ist vorbereitet: Einladung, Erinnerung, geplanter Gruppentermin mit ICS. Microsoft Entra Login und DB-Freischaltung sind vorbereitet. Nachweis-Upload ist gehärtet: Dateityp-/Größenprüfung, privater Blob-Speicher, Scanstatus, Downloadrechte und Audit-Log. Backup-/Restore-Konsole und Admin-Betriebsmonitoring sind eingebaut: Healthcheck, Backup-Export, Restore-Prüfung, Security-/Audit-Events.</li></ul></div>`;
 }
 loadData();
+
+
+// Betrieb / Backup / Monitoring v0.8
+async function loadOperations(){
+  if(!state.apiAvailable) throw new Error('Betrieb/Backup ist nur mit verbundener Azure API verfügbar.');
+  const [overview, backups, healthHistory, securityEvents, auditEvents] = await Promise.all([
+    api('/operations/overview'),
+    api('/operations/backups'),
+    api('/operations/health-history'),
+    api('/operations/security-events'),
+    api('/operations/audit')
+  ]);
+  state.operations = overview;
+  state.backups = backups;
+  state.healthHistory = healthHistory;
+  state.securityEvents = securityEvents;
+  state.auditEvents = auditEvents;
+}
+
+async function refreshOperations(){
+  try{ await loadOperations(); renderOperations(); }
+  catch(err){ $('operations').innerHTML = `<div class="card"><h2>Betrieb/Backup</h2><div class="notice dangerbox">${esc(err.message||err)}</div></div>`; }
+}
+
+async function runOperationsHealth(){
+  const target = $('opsActionResult');
+  target.innerHTML = 'Healthcheck läuft ...';
+  try{
+    const result = await api('/operations/health');
+    target.innerHTML = `<div class="notice"><b>Healthcheck abgeschlossen:</b> ${result.ok?'OK':'WARNUNG'}<pre>${esc(JSON.stringify(result,null,2))}</pre></div>`;
+    await loadOperations(); renderOperations();
+  }catch(err){ target.innerHTML = `<div class="notice dangerbox">Healthcheck fehlgeschlagen: ${esc(err.message||err)}</div>`; }
+}
+
+async function createBackupExport(){
+  if(!confirm('Jetzt einen manuellen JSON-Backup-Export für diese Firma erstellen?')) return;
+  const target = $('opsActionResult');
+  target.innerHTML = 'Backup wird erstellt ...';
+  try{
+    const result = await api('/operations/backup-export', {method:'POST', body: JSON.stringify({})});
+    target.innerHTML = `<div class="notice"><b>Backup erstellt.</b><br>${esc(result.fileName)}<br>Größe: ${Number(result.sizeBytes||0).toLocaleString('de-DE')} Bytes<br>SHA-256: <code>${esc(result.sha256)}</code></div>`;
+    await loadOperations(); renderOperations();
+  }catch(err){ target.innerHTML = `<div class="notice dangerbox">Backup fehlgeschlagen: ${esc(err.message||err)}</div>`; }
+}
+
+async function validateBackup(id){
+  const target = $('opsActionResult');
+  target.innerHTML = 'Restore-Prüfung läuft ...';
+  try{
+    const result = await api('/operations/restore-validate', {method:'POST', body: JSON.stringify({backupRunId:id})});
+    target.innerHTML = `<div class="notice"><b>Restore-Prüfung:</b> ${esc(result.status)}<pre>${esc(JSON.stringify(result,null,2))}</pre></div>`;
+  }catch(err){ target.innerHTML = `<div class="notice dangerbox">Restore-Prüfung fehlgeschlagen: ${esc(err.message||err)}</div>`; }
+}
+
+async function createBackupDownload(id){
+  const target = $('opsActionResult');
+  target.innerHTML = 'Download-Link wird erstellt ...';
+  try{
+    const result = await api('/operations/backup-download/'+encodeURIComponent(id));
+    target.innerHTML = `<div class="notice"><b>Download-Link gültig ${esc(result.expiresMinutes)} Minuten:</b><br><a class="btn primary" href="${esc(result.url)}" target="_blank" rel="noopener">Backup herunterladen</a></div>`;
+  }catch(err){ target.innerHTML = `<div class="notice dangerbox">Download-Link fehlgeschlagen: ${esc(err.message||err)}</div>`; }
+}
+
+function renderOperations(){
+  const el=$('operations');
+  el.innerHTML=`<div class="card"><h2>Betrieb/Backup</h2><p class="muted">Lade Betriebsdaten ...</p></div>`;
+  if(!state.apiAvailable){
+    el.innerHTML=`<div class="card"><h2>Betrieb/Backup</h2><div class="notice warning">Diese Ansicht braucht die Azure API. Im Seed-Fallback sind keine echten Backups oder Betriebsdaten verfügbar.</div></div>`;
+    return;
+  }
+  loadOperations().then(()=>{
+    const o=state.operations||{};
+    el.innerHTML=`<div class="grid">
+      <div class="card span-12"><div class="toolbar"><div><h2>Betrieb/Backup</h2><p class="muted">Healthcheck, Backup-Export, Restore-Prüfung, Security-Events und Audit-Log.</p></div><div class="filters"><button class="primary" onclick="runOperationsHealth()">Healthcheck starten</button><button onclick="createBackupExport()">Backup exportieren</button><button class="ghost" onclick="refreshOperations()">Aktualisieren</button></div></div><div id="opsActionResult"></div></div>
+      <div class="card kpi"><div class="label">Mitarbeiter aktiv</div><div class="value blue">${Number(o.activeEmployees||0)}</div></div>
+      <div class="card kpi"><div class="label">Unterweisungen</div><div class="value blue">${Number(o.activeInstructionTypes||0)}</div></div>
+      <div class="card kpi"><div class="label">Abgelaufen</div><div class="value red">${Number(o.expiredInstructions||0)}</div></div>
+      <div class="card kpi"><div class="label">Fehlend</div><div class="value yellow">${Number(o.missingInstructions||0)}</div></div>
+      <div class="card kpi"><div class="label">Offene Links</div><div class="value blue">${Number(o.openInvitations||0)}</div></div>
+      <div class="card kpi"><div class="label">Datei-Scan offen</div><div class="value orange">${Number(o.filesPendingScan||0)}</div></div>
+      <div class="card span-6"><h3>Letzte Backups</h3><div class="table-wrap"><table><thead><tr><th>Status</th><th>Gestartet</th><th>Datei</th><th>Größe</th><th>Aktion</th></tr></thead><tbody>${(state.backups||[]).map(b=>`<tr><td>${badge(b.status==='completed'?'valid':b.status==='failed'?'expired':'soon')}</td><td>${fmtDate(b.startedAt)}</td><td>${esc(b.fileName||'—')}</td><td>${Number(b.sizeBytes||0).toLocaleString('de-DE')}</td><td class="actions-cell">${b.status==='completed'?`<button class="small" onclick="createBackupDownload('${esc(b.id)}')">Download</button><button class="small ghost" onclick="validateBackup('${esc(b.id)}')">Restore prüfen</button>`:'—'}</td></tr>`).join('')||'<tr><td colspan="5" class="muted">Noch keine Backups vorhanden.</td></tr>'}</tbody></table></div></div>
+      <div class="card span-6"><h3>Health-Historie</h3><div class="table-wrap"><table><thead><tr><th>Status</th><th>Zeit</th><th>SQL</th><th>Blob</th><th>Mail</th><th>Auth</th></tr></thead><tbody>${(state.healthHistory||[]).map(h=>`<tr><td>${badge(h.status==='ok'?'valid':'expired')}</td><td>${fmtDate(h.checkedAt)}</td><td>${esc(h.databaseStatus||'—')}</td><td>${esc(h.blobStatus||'—')}</td><td>${esc(h.mailStatus||'—')}</td><td>${esc(h.authStatus||'—')}</td></tr>`).join('')||'<tr><td colspan="6" class="muted">Noch kein Healthcheck ausgeführt.</td></tr>'}</tbody></table></div></div>
+      <div class="card span-6"><h3>Sicherheitsereignisse</h3><div class="table-wrap"><table><thead><tr><th>Zeit</th><th>Schwere</th><th>Ereignis</th><th>Benutzer</th></tr></thead><tbody>${(state.securityEvents||[]).map(e=>`<tr><td>${fmtDate(e.createdAt)}</td><td>${esc(e.severity||'info')}</td><td>${esc(e.eventType||'')}</td><td>${esc(e.actorUserId||'—')}</td></tr>`).join('')||'<tr><td colspan="4" class="muted">Keine Ereignisse.</td></tr>'}</tbody></table></div></div>
+      <div class="card span-6"><h3>Audit-Log</h3><div class="table-wrap"><table><thead><tr><th>Zeit</th><th>Aktion</th><th>Objekt</th><th>Benutzer</th></tr></thead><tbody>${(state.auditEvents||[]).map(a=>`<tr><td>${fmtDate(a.createdAt)}</td><td>${esc(a.action||'')}</td><td>${esc(a.entityType||'')}/${esc(a.entityId||'')}</td><td>${esc(a.actorUserId||'—')}</td></tr>`).join('')||'<tr><td colspan="4" class="muted">Keine Audit-Einträge.</td></tr>'}</tbody></table></div></div>
+    </div>`;
+  }).catch(err=>{
+    el.innerHTML=`<div class="card"><h2>Betrieb/Backup</h2><div class="notice dangerbox">Betriebsdaten konnten nicht geladen werden: ${esc(err.message||err)}</div></div>`;
+  });
+}

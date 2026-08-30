@@ -70,6 +70,29 @@ resource sqlDb 'Microsoft.Sql/servers/databases@2023-08-01-preview' = {
   }
 }
 
+
+
+resource logAnalytics 'Microsoft.OperationalInsights/workspaces@2023-09-01' = {
+  name: '${namePrefix}-logs-${uniqueString(resourceGroup().id)}'
+  location: location
+  properties: {
+    sku: { name: 'PerGB2018' }
+    retentionInDays: 90
+    publicNetworkAccessForIngestion: 'Enabled'
+    publicNetworkAccessForQuery: 'Enabled'
+  }
+}
+
+resource appInsights 'Microsoft.Insights/components@2020-02-02' = {
+  name: '${namePrefix}-appi'
+  location: location
+  kind: 'web'
+  properties: {
+    Application_Type: 'web'
+    WorkspaceResourceId: logAnalytics.id
+  }
+}
+
 resource swa 'Microsoft.Web/staticSites@2023-12-01' = {
   name: '${namePrefix}-swa'
   location: location
@@ -89,3 +112,6 @@ output sqlServerName string = sqlServer.name
 output databaseName string = sqlDb.name
 output storageAccountName string = storage.name
 output blobContainerName string = appContainer.name
+
+output logAnalyticsName string = logAnalytics.name
+output applicationInsightsName string = appInsights.name

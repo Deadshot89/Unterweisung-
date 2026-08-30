@@ -1,66 +1,69 @@
-# Unterweisungsmanager Online v0.7
+# Unterweisungsmanager Online v0.8
 
-Diese Version härtet den **Nachweis-Upload** für den Firmenbetrieb.
+Mandantenfähiger Unterweisungsmanager für Azure Static Web Apps, Azure Functions, Azure SQL und Azure Blob Storage.
 
-## Neu in v0.7
+## Stand v0.8
 
-- sicherer Nachweis-Upload über `POST /api/proof-files`
-- erlaubte Dateitypen: PDF, JPG, PNG, WEBP
-- Dateigrößenlimit über `UPLOAD_MAX_MB`, Standard 15 MB
-- Prüfung von Dateiendung, Content-Type und Datei-Signatur/Magic Bytes
-- private Speicherung in Azure Blob Storage
-- Datei-Metadaten in SQL: Größe, SHA-256, Scanstatus, verknüpfter Datensatz
-- Download nur für berechtigte Rollen
-- gesperrte/quarantänisierte Dateien können nicht heruntergeladen werden
-- Nachweis-Upload direkt aus der Unterweisungsstatus-Ansicht
-- Gruppen-Nachweis kann auf alle Teilnehmer einer Gruppenunterweisung übernommen werden
-- neue Migration `006_secure_file_uploads.sql`
-- neue Doku `docs/UPLOAD_SECURITY.md`
+Enthalten:
 
-## Wichtig für Produktion
+- Firmen-/Mandantenstruktur
+- Mitarbeiter und Line Manager
+- Unterweisungstypen und Vorlagen
+- Unterweisungsstatus mit Fälligkeiten
+- Nicht erforderlich / Wieder erforderlich
+- Einzel- und Gruppenunterweisung
+- Planung mit Outlook-/ICS-Vorbereitung
+- externe Unterweisungslinks mit Test und Abschlussrückmeldung
+- Microsoft Graph Mailversand vorbereitet
+- Microsoft Entra / Rollen vorbereitet
+- sicherer Nachweis-Upload
+- **Betrieb/Backup-Konsole**
+- Healthcheck SQL/Blob/Mail/Auth
+- manueller Backup-Export in Blob Storage
+- Restore-Prüfung ohne gefährlichen Produktiv-Restore
+- Security-Events und Audit-Log
 
-In Produktion setzen:
-
-```env
-NODE_ENV=production
-AUTH_REQUIRE_DB_USER=true
-UPLOAD_MAX_MB=15
-UPLOAD_SCAN_STATUS=pending
-UPLOAD_SCAN_PROVIDER=manual-or-defender
-```
-
-`UPLOAD_SCAN_STATUS=pending` bedeutet: Datei ist gespeichert, aber noch nicht durch einen Virenscan bestätigt. Für den späteren Verkauf sollte Microsoft Defender for Storage oder ein vergleichbarer Scanprozess aktiviert werden.
-
-## Reihenfolge lokal / Azure
+## Start lokal
 
 ```bash
 npm install
 cd api && npm install && cd ..
+npm run start
+```
+
+## Datenbank vorbereiten
+
+```bash
 npm run db:migrate
 npm run db:seed
 npm run blob:upload-templates
-npm start
+npm run db:check
 ```
 
-## Test Nachweis-Upload
+## Backup lokal testen
 
-1. Admin-Seite öffnen
-2. Reiter „Unterweisungsstatus“
-3. Einen bestehenden erledigten Eintrag suchen
-4. „Nachweis hochladen“ klicken
-5. PDF oder Bild auswählen
-6. Danach erscheint der Nachweis beim Datensatz und kann über „Öffnen“ geladen werden
+```bash
+npm run backup:export
+node scripts/verify-backup.js backups/<datei>.json
+```
 
-## Dokumentation
+## Wichtige Dokumente
 
-- `docs/UPLOAD_SECURITY.md`
-- `docs/AUTH_ENTRA_SETUP.md`
-- `docs/MAIL_GRAPH_SETUP.md`
 - `docs/AZURE_SQL_SETUP.md`
 - `docs/BLOB_STORAGE_SETUP.md`
+- `docs/AUTH_ENTRA_SETUP.md`
+- `docs/MAIL_GRAPH_SETUP.md`
+- `docs/UPLOAD_SECURITY.md`
+- `docs/BACKUP_RESTORE_MONITORING.md`
 - `docs/SICHERHEIT_BACKUP_DATENSCHUTZ.md`
-- `docs/CHANGELOG.md`
 
 ## Nächster Schritt
 
-Nach v0.7 kommt v0.8: Backup-/Restore-Konsole, Betriebsmonitoring, Admin-Health-Dashboard und Datenexport je Firma.
+Nach v0.8 sollte als nächstes die echte Azure-Infrastruktur gehärtet werden:
+
+- Bicep/Infra erweitern
+- Monitoring Alerts
+- Storage Soft Delete und Versionierung erzwingen
+- Azure SQL Retention konfigurieren
+- Staging-Umgebung für Restore-Tests
+- DSGVO-Unterlagen / AVV / TOMs finalisieren

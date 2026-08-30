@@ -11,7 +11,7 @@ app.http('health', {
     const info = {
       ok: true,
       service: 'unterweisungsmanager-api',
-      version: '0.3.0',
+      version: '0.8.0',
       database: 'not_configured',
       blobStorage: 'not_configured'
     };

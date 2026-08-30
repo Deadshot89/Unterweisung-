@@ -17,6 +17,8 @@
     "MAIL_HSE_CC": "",
     "EXTERNAL_LINK_DEFAULT_DAYS": "14",
     "AUTH_REQUIRE_DB_USER": "false",
+    "BACKUP_RETENTION_DAYS": "35",
+    "HEALTHCHECK_RETENTION_DAYS": "90",
     "INITIAL_ADMIN_EMAIL": "TobiasLimberg@essentra.com",
     "INITIAL_ADMIN_NAME": "Tobias Limberg",
     "INITIAL_ADMIN_ROLE": "company_admin",

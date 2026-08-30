@@ -38,3 +38,15 @@
 - Einmal-Link-Unterweisung
 - Testauswertung und Abschlussbuchung
 - digitaler Nachweis vorbereitet
+
+## v0.8.0 - Backup, Restore und Betriebsmonitoring
+
+- Neuer Reiter `Betrieb/Backup` im Frontend.
+- Neue Operations-API für Healthcheck, Backup-Export, Backup-Liste, Restore-Prüfung, Security-Events und Audit-Log.
+- Neue SQL-Migration `007_operations_monitoring.sql`.
+- Neue Tabellen `BackupRuns`, `SystemHealthSnapshots`, `RestoreChecks`.
+- Neue View `vOperationsOverview`.
+- Manueller JSON-Backup-Export in privaten Blob Storage.
+- Backup-Download nur über kurz gültigen SAS-Link.
+- Restore wird bewusst nur validiert, nicht automatisch produktiv ausgeführt.
+- Lokale Scripts `backup:export` und `backup:verify` ergänzt.
