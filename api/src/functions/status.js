@@ -15,7 +15,8 @@ app.http('instructionStatus', {
         .input('companyId', sql.NVarChar(80), ctx.companyId)
         .query(`SELECT companyId, employeeId, employeeName, email, department, role, lineManagerId, lineManagerName, lineManagerEmail,
                        typeId, instructionName, category, intervalMonths, templateId,
-                       recordId, conductedAt, validUntil, recordStatus, source, instructorId, durationMinutes,
+                       recordId, conductedAt, validUntil, recordStatus, source, instructorId, durationMinutes, groupId,
+                       certificateFileId, certificateFileName, certificateScanStatus, certificateStatus,
                        exclusionId, exclusionReason, status
                 FROM dbo.vInstructionStatus
                 WHERE companyId=@companyId

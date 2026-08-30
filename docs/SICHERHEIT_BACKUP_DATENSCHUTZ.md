@@ -59,3 +59,17 @@ Vor Verkauf benötigt:
 - Backup-Konzept
 - Verarbeitungsverzeichnis
 - Support-/SLA-Regeln
+
+## Ergänzung v0.7: Nachweis-Upload
+
+Für Nachweise gilt ab v0.7:
+
+- Uploads laufen nur über die API und nicht direkt in den Blob Storage.
+- Blob Container bleibt privat.
+- Download erfolgt nur über kurzlebige SAS-URL nach Rollenprüfung.
+- Erlaubte Dateitypen sind auf PDF/JPG/PNG/WEBP begrenzt.
+- Dateiinhalt wird über Signatur/Magic Bytes geprüft.
+- Jede Datei erhält SHA-256, Größe, Scanstatus und Audit-Log.
+- Quarantäne-/Block-Status verhindert Download.
+
+Für Produktion ist zusätzlich ein Malware-Scan einzuplanen, z. B. Microsoft Defender for Storage oder ein eigener Scanprozess über Event Grid/Queue.

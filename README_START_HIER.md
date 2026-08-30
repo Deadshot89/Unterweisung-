@@ -1,30 +1,35 @@
-# Unterweisungsmanager Online v0.6
+# Unterweisungsmanager Online v0.7
 
-Diese Version ist der nächste Schritt Richtung Firmen-System / SaaS-Betrieb.
+Diese Version härtet den **Nachweis-Upload** für den Firmenbetrieb.
 
-## Neu in v0.6
+## Neu in v0.7
 
-- Microsoft-Entra-/Static-Web-Apps-Login vorbereitet
-- Benutzer-/Rollenverwaltung (`Users`)
-- produktive Freischaltung je Firma
-- Mandantenschutz: Benutzer darf nur die zugewiesene Firma laden
-- neuer Reiter „Benutzer/Rechte“ im Frontend
-- neue API `GET /api/me`
-- neue API `GET/POST/PATCH /api/users`
-- neue SQL-Migration `005_auth_rbac.sql`
-- Security-Events für Login-/Rechtevorgänge
-- `staticwebapp.config.json` schützt Admin/API-Routen
+- sicherer Nachweis-Upload über `POST /api/proof-files`
+- erlaubte Dateitypen: PDF, JPG, PNG, WEBP
+- Dateigrößenlimit über `UPLOAD_MAX_MB`, Standard 15 MB
+- Prüfung von Dateiendung, Content-Type und Datei-Signatur/Magic Bytes
+- private Speicherung in Azure Blob Storage
+- Datei-Metadaten in SQL: Größe, SHA-256, Scanstatus, verknüpfter Datensatz
+- Download nur für berechtigte Rollen
+- gesperrte/quarantänisierte Dateien können nicht heruntergeladen werden
+- Nachweis-Upload direkt aus der Unterweisungsstatus-Ansicht
+- Gruppen-Nachweis kann auf alle Teilnehmer einer Gruppenunterweisung übernommen werden
+- neue Migration `006_secure_file_uploads.sql`
+- neue Doku `docs/UPLOAD_SECURITY.md`
 
-## Wichtig
+## Wichtig für Produktion
 
 In Produktion setzen:
 
 ```env
 NODE_ENV=production
 AUTH_REQUIRE_DB_USER=true
+UPLOAD_MAX_MB=15
+UPLOAD_SCAN_STATUS=pending
+UPLOAD_SCAN_PROVIDER=manual-or-defender
 ```
 
-Dann reicht Microsoft-Login alleine nicht. Der Benutzer muss zusätzlich aktiv in der Tabelle `Users` stehen.
+`UPLOAD_SCAN_STATUS=pending` bedeutet: Datei ist gespeichert, aber noch nicht durch einen Virenscan bestätigt. Für den späteren Verkauf sollte Microsoft Defender for Storage oder ein vergleichbarer Scanprozess aktiviert werden.
 
 ## Reihenfolge lokal / Azure
 
@@ -37,18 +42,18 @@ npm run blob:upload-templates
 npm start
 ```
 
-## Initialer Admin
+## Test Nachweis-Upload
 
-Vor `npm run db:seed` setzen:
-
-```env
-INITIAL_ADMIN_EMAIL=TobiasLimberg@essentra.com
-INITIAL_ADMIN_NAME=Tobias Limberg
-INITIAL_ADMIN_ROLE=company_admin
-```
+1. Admin-Seite öffnen
+2. Reiter „Unterweisungsstatus“
+3. Einen bestehenden erledigten Eintrag suchen
+4. „Nachweis hochladen“ klicken
+5. PDF oder Bild auswählen
+6. Danach erscheint der Nachweis beim Datensatz und kann über „Öffnen“ geladen werden
 
 ## Dokumentation
 
+- `docs/UPLOAD_SECURITY.md`
 - `docs/AUTH_ENTRA_SETUP.md`
 - `docs/MAIL_GRAPH_SETUP.md`
 - `docs/AZURE_SQL_SETUP.md`
@@ -58,4 +63,4 @@ INITIAL_ADMIN_ROLE=company_admin
 
 ## Nächster Schritt
 
-Nach v0.6 kommt v0.7: Nachweis-Upload produktiv härten, Dateiprüfung, Upload-Limits, Virenscan-/Defender-Konzept und saubere Nachweisverwaltung.
+Nach v0.7 kommt v0.8: Backup-/Restore-Konsole, Betriebsmonitoring, Admin-Health-Dashboard und Datenexport je Firma.

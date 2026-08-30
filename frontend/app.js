@@ -120,7 +120,7 @@ function renderDashboard(){
     <div class="card kpi"><div class="label">Bald fällig</div><div class="value yellow">${(s.soon||0)+(s.critical||0)}</div></div>
     <div class="card kpi"><div class="label">Abgelaufen</div><div class="value red">${s.expired||0}</div></div>
     <div class="card kpi"><div class="label">Fehlend</div><div class="value yellow">${s.missing||0}</div></div>
-    <div class="card"><h2>Online-Version v0.6</h2><p>Diese Version enthält zusätzlich Microsoft-Entra-Login, Benutzer-/Rollenverwaltung, Microsoft-Graph-Mailversand und externe Unterweisungslinks.</p></div>
+    <div class="card"><h2>Online-Version v0.7</h2><p>Diese Version enthält zusätzlich Microsoft-Entra-Login, Benutzer-/Rollenverwaltung, Microsoft-Graph-Mailversand, externe Unterweisungslinks und gehärteten Nachweis-Upload.</p></div>
   </div>`;
 }
 function renderCompanies(){
@@ -145,8 +145,43 @@ function renderStatus(){
   const fType=$('typeFilter')?.value||'';
   let rows=(state.statusRows.length?state.statusRows:buildLocalStatusRows()).filter(r=>(!fStatus||r.status===fStatus)&&(!fType||r.typeId===fType));
   if(fSearch) rows=rows.filter(r=>[r.employeeName,r.email,r.department,r.lineManagerName,r.instructionName,r.category].join(' ').toLowerCase().includes(fSearch.toLowerCase()));
-  $('status').innerHTML=`<div class="card"><div class="toolbar"><h2>Unterweisungsstatus</h2><div class="filters"><input id="statusSearch" placeholder="Mitarbeiter, Bereich, Line Manager" value="${esc(fSearch)}"><select id="statusFilter"><option value="">Alle Status</option>${['missing','expired','critical','soon','valid','not_required'].map(s=>`<option value="${s}" ${fStatus===s?'selected':''}>${s}</option>`).join('')}</select><select id="typeFilter"><option value="">Alle Unterweisungen</option>${types().map(t=>`<option value="${t.id}" ${fType===t.id?'selected':''}>${esc(t.name)}</option>`).join('')}</select></div></div><div class="table-wrap"><table><thead><tr><th>Mitarbeiter</th><th>Unterweisung</th><th>Bereich</th><th>Line Manager</th><th>Letztes Datum</th><th>Fällig bis</th><th>Status</th><th>Aktion</th></tr></thead><tbody>${rows.slice(0,800).map(r=>`<tr><td><b>${esc(r.employeeName)}</b><br><span class="muted">${esc(r.email||'')}</span></td><td>${esc(r.instructionName)}</td><td>${esc(r.category)}</td><td>${esc(r.lineManagerName||'—')}</td><td>${fmtDate(r.conductedAt)}</td><td>${fmtDate(r.validUntil)}</td><td>${badge(r.status)}</td><td>${statusActions(r)}</td></tr>`).join('')}</tbody></table></div><p class="muted">${rows.length} Einträge. API-Quelle: ${state.apiAvailable?'online':'Seed-Fallback'}</p></div>`;
+  $('status').innerHTML=`<div class="card"><div class="toolbar"><h2>Unterweisungsstatus</h2><div class="filters"><input id="statusSearch" placeholder="Mitarbeiter, Bereich, Line Manager" value="${esc(fSearch)}"><select id="statusFilter"><option value="">Alle Status</option>${['missing','expired','critical','soon','valid','not_required'].map(s=>`<option value="${s}" ${fStatus===s?'selected':''}>${s}</option>`).join('')}</select><select id="typeFilter"><option value="">Alle Unterweisungen</option>${types().map(t=>`<option value="${t.id}" ${fType===t.id?'selected':''}>${esc(t.name)}</option>`).join('')}</select></div></div><div class="table-wrap"><table><thead><tr><th>Mitarbeiter</th><th>Unterweisung</th><th>Bereich</th><th>Line Manager</th><th>Letztes Datum</th><th>Fällig bis</th><th>Status</th><th>Nachweis</th><th>Aktion</th></tr></thead><tbody>${rows.slice(0,800).map(r=>`<tr><td><b>${esc(r.employeeName)}</b><br><span class="muted">${esc(r.email||'')}</span></td><td>${esc(r.instructionName)}</td><td>${esc(r.category)}</td><td>${esc(r.lineManagerName||'—')}</td><td>${fmtDate(r.conductedAt)}</td><td>${fmtDate(r.validUntil)}</td><td>${badge(r.status)}</td><td>${proofCell(r)}</td><td>${statusActions(r)}</td></tr>`).join('')}</tbody></table></div><p class="muted">${rows.length} Einträge. API-Quelle: ${state.apiAvailable?'online':'Seed-Fallback'}</p></div>`;
   ['statusSearch','statusFilter','typeFilter'].forEach(id=>$(id).addEventListener('input',renderStatus));
+}
+
+function proofCell(r){
+  if(!r.recordId) return '<span class="muted">—</span>';
+  const hasFile = r.certificateFileId;
+  const scan = r.certificateScanStatus ? ` <span class="muted">(${esc(r.certificateScanStatus)})</span>` : '';
+  const open = hasFile ? `<button class="small" onclick="openFile('${esc(r.certificateFileId)}')">Öffnen</button>${scan}` : '<span class="muted">kein Upload</span>';
+  return `${open}<br><button class="small" onclick="uploadProofForRecord('${esc(r.recordId)}','${esc(r.groupId||'')}')">Nachweis hochladen</button>`;
+}
+function fileToBase64(file){
+  return new Promise((resolve,reject)=>{
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result||'').split(',').pop());
+    reader.onerror = () => reject(reader.error || new Error('Datei konnte nicht gelesen werden'));
+    reader.readAsDataURL(file);
+  });
+}
+async function uploadProofForRecord(recordId, groupId=''){
+  if(!state.apiAvailable){alert('Seed-Fallback: Nachweis-Upload braucht API/Azure Blob Storage.'); return;}
+  const input=document.createElement('input');
+  input.type='file';
+  input.accept='application/pdf,image/jpeg,image/png,image/webp';
+  input.onchange=async()=>{
+    const file=input.files && input.files[0];
+    if(!file) return;
+    const applyGroup = groupId && confirm('Diesen Nachweis auf alle Teilnehmer der Gruppenunterweisung übernehmen?');
+    try{
+      const base64=await fileToBase64(file);
+      const body={recordId: applyGroup ? null : recordId, groupId: applyGroup ? groupId : null, fileName:file.name, contentType:file.type, base64};
+      const result=await api('/proof-files',{method:'POST',body:JSON.stringify(body)});
+      alert(`Nachweis hochgeladen. Scanstatus: ${result.scanStatus}. Aktualisierte Einträge: ${result.recordsUpdated}.`);
+      await loadData(); setView('status');
+    }catch(err){ alert('Upload fehlgeschlagen: '+(err.message||err)); }
+  };
+  input.click();
 }
 function statusActions(r){
   if(r.status==='not_required') return `<button class="small" onclick="removeExclusion('${esc(r.exclusionId||'')}')">Wieder erforderlich</button>`;
@@ -272,6 +307,6 @@ async function createUser(){
 }
 
 function renderSecurity(){
-  $('security').innerHTML=`<div class="card"><h2>Sicherheitsstatus v0.6</h2><ul><li>Mandanten-Konzept über <code>companyId</code> in allen Fach-Endpunkten.</li><li>Rollenprüfung für System Admin/Firmen Admin/HSE/Line Manager/Mitarbeiter produktiv vorbereitet.</li><li>Audit-Log bei Änderungen vorbereitet.</li><li>Statusmatrix trennt Pflicht, fällig, abgelaufen und nicht erforderlich.</li><li>Externe Links verwenden Token-Hash statt Klartext-Token in SQL.</li><li>Microsoft Graph Mailversand ist vorbereitet: Einladung, Erinnerung, geplanter Gruppentermin mit ICS. Microsoft Entra Login und DB-Freischaltung sind vorbereitet. Nächster Schritt: Nachweis-Upload, Dateiprüfung und PDF-Rendering härten.</li></ul></div>`;
+  $('security').innerHTML=`<div class="card"><h2>Sicherheitsstatus v0.6</h2><ul><li>Mandanten-Konzept über <code>companyId</code> in allen Fach-Endpunkten.</li><li>Rollenprüfung für System Admin/Firmen Admin/HSE/Line Manager/Mitarbeiter produktiv vorbereitet.</li><li>Audit-Log bei Änderungen vorbereitet.</li><li>Statusmatrix trennt Pflicht, fällig, abgelaufen und nicht erforderlich.</li><li>Externe Links verwenden Token-Hash statt Klartext-Token in SQL.</li><li>Microsoft Graph Mailversand ist vorbereitet: Einladung, Erinnerung, geplanter Gruppentermin mit ICS. Microsoft Entra Login und DB-Freischaltung sind vorbereitet. Nachweis-Upload ist gehärtet: Dateityp-/Größenprüfung, privater Blob-Speicher, Scanstatus, Downloadrechte und Audit-Log. Nächster Schritt: Backup-/Restore-Konsole und Admin-Betriebsmonitoring.</li></ul></div>`;
 }
 loadData();

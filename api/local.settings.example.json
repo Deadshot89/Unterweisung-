@@ -19,7 +19,10 @@
     "AUTH_REQUIRE_DB_USER": "false",
     "INITIAL_ADMIN_EMAIL": "TobiasLimberg@essentra.com",
     "INITIAL_ADMIN_NAME": "Tobias Limberg",
-    "INITIAL_ADMIN_ROLE": "company_admin"
+    "INITIAL_ADMIN_ROLE": "company_admin",
+    "UPLOAD_MAX_MB": "15",
+    "UPLOAD_SCAN_STATUS": "pending",
+    "UPLOAD_SCAN_PROVIDER": "manual-or-defender"
   },
   "Host": {
     "CORS": "*"

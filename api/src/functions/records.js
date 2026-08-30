@@ -38,11 +38,12 @@ app.http('records', {
         if (typeId) { req.input('typeId', sql.NVarChar(80), typeId); where += ' AND r.typeId=@typeId'; }
         const result = await req.query(`SELECT r.id,r.employeeId,r.typeId,r.conductedAt,r.validUntil,r.status,r.source,
                          r.instructorId,r.durationMinutes,r.groupId,r.confirmationText,r.certificateFileId,r.createdAt,
-                         e.name AS employeeName,t.name AS instructionName,ins.name AS instructorName
+                         e.name AS employeeName,t.name AS instructionName,ins.name AS instructorName,f.fileName AS certificateFileName,f.scanStatus AS certificateScanStatus
                   FROM InstructionRecords r
                   LEFT JOIN Employees e ON e.id=r.employeeId AND e.companyId=r.companyId
                   JOIN InstructionTypes t ON t.id=r.typeId AND t.companyId=r.companyId
                   LEFT JOIN Employees ins ON ins.id=r.instructorId AND ins.companyId=r.companyId
+                  LEFT JOIN Files f ON f.id=r.certificateFileId AND f.companyId=r.companyId
                   ${where} ORDER BY r.conductedAt DESC`);
         return json(result.recordset);
       }

@@ -34,12 +34,23 @@ export async function ensureContainer() {
   return container;
 }
 
-export async function uploadBufferToBlob(blobPath, buffer, contentType = 'application/octet-stream') {
+export async function uploadBufferToBlob(blobPath, buffer, contentType = 'application/octet-stream', options = {}) {
   const container = await ensureContainer();
   const blob = container.getBlockBlobClient(blobPath);
-  await blob.uploadData(buffer, { blobHTTPHeaders: { blobContentType: contentType } });
+  await blob.uploadData(buffer, {
+    blobHTTPHeaders: { blobContentType: contentType },
+    metadata: options.metadata || undefined,
+    tags: options.tags || undefined
+  });
   return { blobPath, url: blob.url };
 }
+
+export async function deleteBlobIfExists(blobPath) {
+  const container = await ensureContainer();
+  const blob = container.getBlockBlobClient(blobPath);
+  await blob.deleteIfExists();
+}
+
 
 export function createReadSasUrl(blobPath, minutes = 10) {
   if (!process.env.AZURE_STORAGE_CONNECTION_STRING) {

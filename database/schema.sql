@@ -198,15 +198,28 @@ CREATE TABLE Files (
   companyId NVARCHAR(80) NOT NULL,
   kind NVARCHAR(60) NOT NULL,
   fileName NVARCHAR(260) NOT NULL,
+  originalFileName NVARCHAR(260) NULL,
   blobPath NVARCHAR(500) NOT NULL,
   contentType NVARCHAR(120) NULL,
   sizeBytes BIGINT NULL,
   sha256 NVARCHAR(128) NULL,
+  extension NVARCHAR(20) NULL,
+  status NVARCHAR(40) NOT NULL DEFAULT 'active',
+  scanStatus NVARCHAR(40) NOT NULL DEFAULT 'pending',
+  scanCheckedAt DATETIME2 NULL,
+  scanProvider NVARCHAR(120) NULL,
+  uploadedIp NVARCHAR(80) NULL,
+  uploadedUserAgent NVARCHAR(500) NULL,
+  linkedEntityType NVARCHAR(80) NULL,
+  linkedEntityId NVARCHAR(80) NULL,
+  metadataJson NVARCHAR(MAX) NULL,
   createdBy NVARCHAR(120) NULL,
   createdAt DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
   CONSTRAINT FK_Files_Company FOREIGN KEY(companyId) REFERENCES Companies(id)
 );
 CREATE INDEX IX_Files_Company_Kind ON Files(companyId,kind,createdAt DESC);
+CREATE INDEX IX_Files_Company_Linked ON Files(companyId,linkedEntityType,linkedEntityId,createdAt DESC);
+CREATE INDEX IX_Files_Company_Scan ON Files(companyId,scanStatus,status,createdAt DESC);
 
 CREATE TABLE AuditLog (
   id BIGINT IDENTITY(1,1) PRIMARY KEY,

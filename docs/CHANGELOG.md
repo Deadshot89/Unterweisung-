@@ -1,5 +1,19 @@
 # Changelog
 
+## v0.7 – Nachweis-Upload gehärtet
+
+- sichere Upload-API `POST /api/proof-files`
+- Dateityp-, Content-Type-, Magic-Bytes- und Größenprüfung
+- private Blob-Speicherung mit Metadaten und Tags
+- SHA-256 Hash je Datei
+- Scanstatus je Datei: pending, clean, not_configured, quarantined, blocked
+- Downloadrechte über Rollenprüfung
+- blockierte/quarantänisierte Dateien können nicht heruntergeladen werden
+- Nachweis-Upload direkt im Unterweisungsstatus
+- Gruppen-Nachweis kann auf alle Datensätze einer Gruppenunterweisung übernommen werden
+- neue Migration `006_secure_file_uploads.sql`
+- neue Dokumentation `docs/UPLOAD_SECURITY.md`
+
 ## v0.6 – Login/Rollen/Mandantenschutz
 
 - Microsoft-Entra-/Static-Web-Apps-Auth vorbereitet
