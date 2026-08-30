@@ -45,6 +45,7 @@ function companies(){return state.data?.companies || []}
 function templates(){return state.data?.templates || []}
 function exclusions(){return state.data?.exclusions || []}
 function plannedTrainings(){return state.data?.plannedTrainings || []}
+function invitations(){return state.data?.invitations || []}
 function emp(id){return employees().find(e=>e.id===id) || {name:'—'}}
 function type(id){return types().find(t=>t.id===id) || {name:'—'}}
 
@@ -99,7 +100,7 @@ function renderDashboard(){
     <div class="card kpi"><div class="label">Bald fällig</div><div class="value yellow">${(s.soon||0)+(s.critical||0)}</div></div>
     <div class="card kpi"><div class="label">Abgelaufen</div><div class="value red">${s.expired||0}</div></div>
     <div class="card kpi"><div class="label">Fehlend</div><div class="value yellow">${s.missing||0}</div></div>
-    <div class="card"><h2>Online-Version v0.3</h2><p>Diese Version enthält jetzt echte API-Endpunkte für Mitarbeiter, Unterweisungstypen, Statusmatrix, Nicht-erforderlich-Logik, Planung und externe Einladungslinks.</p></div>
+    <div class="card"><h2>Online-Version v0.4</h2><p>Diese Version enthält die externe Unterweisungsstrecke: Einmal-Link öffnen, Unterlage ansehen, Test beantworten, Abschluss speichern und Nachweisdatei vorbereiten.</p></div>
   </div>`;
 }
 function renderCompanies(){
@@ -163,15 +164,45 @@ async function createPlannedTraining(){
   await loadData(); setView('planning');
 }
 function renderExternal(){
-  $('external').innerHTML=`<div class="grid"><div class="card"><h2>Externe Unterweisung senden</h2><p class="muted">Erzeugt einen einmaligen Link. Mailversand per Microsoft Graph wird im nächsten Schritt ergänzt; aktuell wird der Link zurückgegeben.</p><div class="form-grid"><div class="field"><label>Empfänger E-Mail</label><input id="inviteEmail" placeholder="name@firma.de"></div><div class="field"><label>Unterweisung</label><select id="inviteType">${types().map(t=>`<option value="${t.id}">${esc(t.name)}</option>`).join('')}</select></div><div class="field"><label>Sprache</label><select id="inviteLang"><option value="de">Deutsch</option><option value="en">Englisch</option><option value="pl">Polnisch</option></select></div><div class="field full"><button class="primary" onclick="createInvitation()">Einmal-Link erzeugen</button></div><div class="field full"><textarea id="inviteResult" readonly placeholder="Link erscheint hier"></textarea></div></div></div></div>`;
+  const rows=invitations();
+  $('external').innerHTML=`<div class="grid">
+    <div class="card"><h2>Externe Unterweisung senden</h2><p class="muted">Erzeugt einen sicheren Einmal-Link. Der Empfänger öffnet die Unterweisung, beantwortet den Test und der Abschluss erscheint danach hier.</p>
+      <div class="form-grid">
+        <div class="field"><label>Empfänger E-Mail</label><input id="inviteEmail" placeholder="name@firma.de"></div>
+        <div class="field"><label>Name optional</label><input id="inviteName" placeholder="Vorname Nachname"></div>
+        <div class="field"><label>Unterweisung</label><select id="inviteType">${types().map(t=>`<option value="${t.id}">${esc(t.name)}</option>`).join('')}</select></div>
+        <div class="field"><label>Sprache</label><select id="inviteLang"><option value="de">Deutsch</option><option value="en">Englisch</option><option value="pl">Polnisch</option></select></div>
+        <div class="field"><label>Gültig Tage</label><input id="inviteDays" type="number" value="14"></div>
+        <div class="field"><label>Bestehen ab %</label><input id="invitePass" type="number" value="80"></div>
+        <div class="field"><label>Test erforderlich</label><select id="inviteTest"><option value="1">Ja</option><option value="0">Nein, nur Bestätigung</option></select></div>
+        <div class="field full"><button class="primary" onclick="createInvitation()">Einmal-Link erzeugen</button></div>
+        <div class="field full"><textarea id="inviteResult" readonly placeholder="Link erscheint hier"></textarea></div>
+      </div>
+    </div>
+    <div class="card"><h2>Einladungen / externe Abschlüsse</h2>${invitationTable(rows)}</div>
+  </div>`;
+}
+function invitationTable(rows){
+  if(!rows.length) return '<p class="muted">Noch keine externen Einladungen vorhanden.</p>';
+  return `<div class="table-wrap"><table><thead><tr><th>Empfänger</th><th>Unterweisung</th><th>Sprache</th><th>Status</th><th>Ablauf</th><th>Abgeschlossen</th><th>Nachweis</th></tr></thead><tbody>${rows.map(r=>`<tr><td><b>${esc(r.recipientName||r.employeeName||r.email)}</b><br><span class="muted">${esc(r.email||'')}</span></td><td>${esc(r.instructionName)}</td><td>${esc(r.language||'de')}</td><td>${badgeInvitation(r.status)}</td><td>${fmtDate(r.expiresAt)}</td><td>${fmtDate(r.completedAt)}</td><td>${r.certificateFileId?`<button class="small" onclick="openFile('${esc(r.certificateFileId)}')">Öffnen</button>`:'—'}</td></tr>`).join('')}</tbody></table></div>`;
+}
+function badgeInvitation(status){
+  const map={sent:['info','Gesendet'],opened:['soon','Geöffnet'],failed:['bad','Test nicht bestanden'],completed:['ok','Abgeschlossen'],cancelled:['warn','Storniert']};
+  const m=map[status]||['info',status||'—']; return `<span class="badge ${m[0]}">${m[1]}</span>`;
+}
+async function openFile(id){
+  if(!state.apiAvailable){alert('Dateien werden erst mit API/Azure Blob geöffnet.'); return;}
+  const f=await api('/files/'+encodeURIComponent(id)+'/download');
+  window.open(f.url,'_blank','noopener');
 }
 async function createInvitation(){
   if(!state.apiAvailable){alert('Seed-Fallback: Externe Links brauchen API/Azure SQL.'); return;}
   const email=$('inviteEmail').value.trim(); if(!email){alert('E-Mail fehlt.'); return;}
-  const result=await api('/invitations',{method:'POST',body:JSON.stringify({email,instructionTypeId:$('inviteType').value,language:$('inviteLang').value})});
+  const result=await api('/invitations',{method:'POST',body:JSON.stringify({email,recipientName:$('inviteName').value.trim(),instructionTypeId:$('inviteType').value,language:$('inviteLang').value,validDays:Number($('inviteDays').value||14),passPercent:Number($('invitePass').value||80),testRequired:$('inviteTest').value==='1'})});
   $('inviteResult').value=result.url;
+  await loadData(); setView('external');
 }
 function renderSecurity(){
-  $('security').innerHTML=`<div class="card"><h2>Sicherheitsstatus v0.3</h2><ul><li>Mandanten-Konzept über <code>companyId</code> in allen Fach-Endpunkten.</li><li>Rollenprüfung für Admin/HSE/Line Manager vorbereitet.</li><li>Audit-Log bei Änderungen vorbereitet.</li><li>Statusmatrix trennt Pflicht, fällig, abgelaufen und nicht erforderlich.</li><li>Externe Links verwenden Token-Hash statt Klartext-Token in SQL.</li><li>Nächster Schritt: Microsoft Graph Mailversand, Blob Upload/SAS und Entra Rollen produktiv aktivieren.</li></ul></div>`;
+  $('security').innerHTML=`<div class="card"><h2>Sicherheitsstatus v0.4</h2><ul><li>Mandanten-Konzept über <code>companyId</code> in allen Fach-Endpunkten.</li><li>Rollenprüfung für Admin/HSE/Line Manager vorbereitet.</li><li>Audit-Log bei Änderungen vorbereitet.</li><li>Statusmatrix trennt Pflicht, fällig, abgelaufen und nicht erforderlich.</li><li>Externe Links verwenden Token-Hash statt Klartext-Token in SQL.</li><li>Nächster Schritt: Microsoft Graph Mailversand, echtes PDF-Rendering und Entra Rollen produktiv aktivieren.</li></ul></div>`;
 }
 loadData();

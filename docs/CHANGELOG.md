@@ -1,5 +1,19 @@
 # Changelog
 
+## v0.4
+
+- Externe Teilnehmerseite `frontend/external/instruction.html` erweitert.
+- Externe Unterweisung kann Inhalt, Vorlage und Testfragen anzeigen.
+- Testauswertung im Backend ergänzt.
+- Abschluss per Einmal-Link speichert jetzt einen `InstructionRecords`-Datensatz.
+- Einladung wechselt Status: `sent` → `opened` → `completed` oder `failed`.
+- `ExternalInvitations` erweitert: Empfängername, Startzeit, letzter Zugriff, Testpflicht, Bestehensgrenze, Nachweisdatei.
+- `vExternalInvitations` ergänzt für Admin-Übersicht.
+- Nachweisdatei wird als HTML-Drucknachweis in Blob Storage vorbereitet.
+- Datei-Download-Endpunkt `/api/files/{id}/download` ergänzt.
+- Admin-Frontend zeigt externe Einladungen und Abschlüsse an.
+- Import erzeugt automatisch 20 Testfragen je Unterweisung in Deutsch, Englisch und Polnisch, wenn keine Testfragen im Seed enthalten sind.
+
 ## v0.3
 
 - Idempotente SQL-Migrationen unter `database/migrations` ergänzt.

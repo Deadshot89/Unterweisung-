@@ -1,11 +1,11 @@
-# Unterweisungsmanager Online v3
+# Unterweisungsmanager Online v4
 
 Ziel: Firmenfähige Online-Version für Azure Static Web Apps + Azure Functions + Azure SQL + Azure Blob Storage.
 
 ## Inhalt
 
 - `frontend/` – Web-Oberfläche für Admin/HSE/Line Manager
-- `frontend/external/` – spätere Teilnehmeransicht für externe Unterweisungslinks
+- `frontend/external/` – Teilnehmeransicht für externe Unterweisungslinks
 - `api/` – Azure Functions API
 - `database/migrations/` – idempotente SQL-Migrationen
 - `database/seed_essentra_data.json` – Startdaten Essentra
@@ -20,7 +20,7 @@ Ziel: Firmenfähige Online-Version für Azure Static Web Apps + Azure Functions 
 2. Storage Account + privaten Blob Container erstellen.
 3. Verbindung in Umgebungsvariablen eintragen.
 4. Migrationen ausführen.
-5. Startdaten importieren.
+5. Startdaten importieren inklusive Testfragen.
 6. PDF-Vorlagen in Blob Storage hochladen.
 7. API testen.
 8. Frontend über Azure Static Web Apps veröffentlichen.
@@ -31,11 +31,11 @@ Ziel: Firmenfähige Online-Version für Azure Static Web Apps + Azure Functions 
 npm install
 cd api && npm install && cd ..
 
-# Umgebungsvariablen setzen
 export SQL_CONNECTION_STRING="Server=tcp:<server>.database.windows.net,1433;Initial Catalog=<db>;User ID=<user>;Password=<password>;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;"
 export AZURE_STORAGE_CONNECTION_STRING="DefaultEndpointsProtocol=https;AccountName=<storage>;AccountKey=<key>;EndpointSuffix=core.windows.net"
 export BLOB_CONTAINER="unterweisungsmanager"
 export COMPANY_ID="company-essentra"
+export PUBLIC_BASE_URL="http://localhost:4280"
 
 npm run db:migrate
 npm run db:seed
@@ -44,9 +44,19 @@ npm run db:check
 npm run start
 ```
 
-## Wichtige Änderung in v3
+## Wichtige Änderung in v4
 
-Die Datenbank ist jetzt über `database/migrations` sauber migrierbar. Die PDF-Vorlagen werden nicht mehr als Frontend-Daten behandelt, sondern in Azure Blob Storage vorbereitet. Die API kann über `/api/templates/{id}/download` später kurzfristige Download-Links erzeugen.
+Die externe Unterweisungsstrecke ist jetzt angebunden:
+
+1. Admin/HSE erzeugt einen sicheren Einmal-Link.
+2. Teilnehmer öffnet `/external/instruction.html?t=<token>`.
+3. Unterweisungsinhalt und Vorlage werden angezeigt.
+4. Der Teilnehmer bestätigt den Inhalt.
+5. Falls Testfragen vorhanden sind, beantwortet der Teilnehmer den Test.
+6. Die API bewertet den Test.
+7. Bei Bestehen wird ein Unterweisungsdatensatz gespeichert.
+8. Der Status ist danach in der Admin-Seite sichtbar.
+9. Ein digitaler Nachweis wird als HTML-Datei in Blob Storage vorbereitet.
 
 ## Aktuelle Seed-Daten
 
@@ -55,24 +65,25 @@ Die Datenbank ist jetzt über `database/migrations` sauber migrierbar. Die PDF-V
 - 21 Unterweisungstypen
 - 13 Vorlagen
 - 647 vorhandene Unterweisungseinträge
+- beim Import automatisch generierter 20-Fragenpool je Unterweisung in DE/EN/PL
 
 ## Aktueller Stand
 
-v3 ist noch kein fertiges SaaS-Produkt, aber der technische Grundaufbau ist jetzt deutlich näher an Produktion:
+v4 ist noch kein fertiges SaaS-Produkt, aber der Online-Kern ist jetzt aufgebaut:
 
 - Azure SQL Migrationen
 - Startdaten-Import
 - Blob Storage Upload für Vorlagen
-- Healthcheck mit SQL + Blob Prüfung
-- Einstellungen je Firma
-- Manager-Report-Endpunkt
-- Download-Endpunkt für Vorlagen
+- externe Unterweisungslinks
+- Testauswertung bei externem Abschluss
+- Statusrückmeldung in Admin-Seite
+- Nachweisdatei in Blob Storage vorbereitet
 
 ## Nächster Schritt
 
 Als nächstes kommen:
 
-1. echter Upload von Nachweisen in Blob Storage
-2. externe Unterweisungsseite mit Abschluss zurück in die Datenbank
-3. Microsoft Graph Mailversand für Einladungen
+1. echter PDF-Renderer für Nachweise statt HTML-Drucknachweis
+2. Microsoft Graph Mailversand für Einladungen
+3. Nachweis-Upload durch Admin/HSE
 4. Entra Login/Rollen produktiv aktivieren
