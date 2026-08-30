@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Unterweisung durchführen</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <main style="max-width:900px">
+    <section class="card" id="box">
+      <h1>Unterweisung laden …</h1>
+    </section>
+  </main>
+  <script>
+    const params = new URLSearchParams(location.search);
+    const token = params.get('t');
+    const box = document.getElementById('box');
+    function esc(s=''){return String(s).replace(/[&<>\"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+    async function load(){
+      if(!token){ box.innerHTML='<h1>Kein gültiger Link</h1>'; return; }
+      const res = await fetch('/api/external/' + encodeURIComponent(token));
+      const data = await res.json();
+      if(!res.ok){ box.innerHTML='<h1>Link nicht verfügbar</h1><p>'+esc(data.error||'Fehler')+'</p>'; return; }
+      box.innerHTML = `<h1>${esc(data.instructionName)}</h1>
+        <p class="muted">Empfänger: ${esc(data.email)}</p>
+        <h3>Inhalte</h3><pre style="white-space:pre-wrap;background:#f8fbfd;color:#172033;border:1px solid #d7e3eb">${esc(data.description||'')}</pre>
+        ${data.templatePath?`<p><a class="btn ghost" href="/${esc(data.templatePath)}" target="_blank">Vorlage öffnen</a></p>`:''}
+        <label><input type="checkbox" id="confirm"> Ich bestätige, dass ich die Inhalte gelesen und verstanden habe.</label>
+        <p><button class="primary" onclick="complete()">Unterweisung abschließen</button></p>`;
+    }
+    async function complete(){
+      if(!document.getElementById('confirm')?.checked) return alert('Bitte Bestätigung anhaken.');
+      const res = await fetch('/api/external/' + encodeURIComponent(token), {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({confirmed:true})});
+      const data = await res.json();
+      if(!res.ok) return alert(data.error||'Fehler');
+      box.innerHTML = '<h1>Abgeschlossen</h1><p>Die Unterweisung wurde gespeichert und ist bis '+esc(data.validUntil)+' gültig.</p>';
+    }
+    load();
+  </script>
+</body>
+</html>

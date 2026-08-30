@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Unterweisungsmanager Online · v0.1</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <div class="brand">UM</div>
+    </div>
+    <div class="title-block">
+      <h1>Unterweisungsmanager Online</h1>
+      <p>Mandantenfähiger Start für Firmenbetrieb · Azure Static Web Apps + Functions + SQL/Blob</p>
+    </div>
+    <div class="top-actions">
+      <a class="btn ghost" href="/.auth/login/aad">Login</a>
+      <a class="btn ghost" href="/.auth/logout">Logout</a>
+    </div>
+  </header>
+
+  <main>
+    <section class="notice">
+      <strong>Status:</strong> Das ist die erste Online-Struktur. Daten kommen später aus Azure SQL. Für lokale Tests lädt die Oberfläche die Seed-Daten aus <code>frontend/seed/essentra-startdata.json</code>, falls die API noch nicht verbunden ist.
+    </section>
+
+    <nav class="tabs">
+      <button data-view="dashboard" class="active">Dashboard</button>
+      <button data-view="companies">Firmen</button>
+      <button data-view="employees">Mitarbeiter</button>
+      <button data-view="instructions">Unterweisungen</button>
+      <button data-view="external">Externe Links</button>
+      <button data-view="security">Sicherheit</button>
+    </nav>
+
+    <section id="dashboard" class="view active"></section>
+    <section id="companies" class="view"></section>
+    <section id="employees" class="view"></section>
+    <section id="instructions" class="view"></section>
+    <section id="external" class="view"></section>
+    <section id="security" class="view"></section>
+  </main>
+
+  <template id="card-template">
+    <div class="card"></div>
+  </template>
+
+  <script src="/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,15 @@
+{
+  "name": "unterweisungsmanager-online",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Mandantenfähiger Unterweisungsmanager für Azure Static Web Apps + Azure Functions + Azure SQL/Blob Storage",
+  "scripts": {
+    "start": "swa start ./frontend --api-location ./api",
+    "api:start": "cd api && npm start",
+    "api:install": "cd api && npm install",
+    "seed:sql": "node scripts/import-startdata.js"
+  },
+  "devDependencies": {
+    "@azure/static-web-apps-cli": "^2.0.0"
+  }
+}
