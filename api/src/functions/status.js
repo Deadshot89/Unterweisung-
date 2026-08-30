@@ -1,7 +1,7 @@
 import { app } from '@azure/functions';
 import { getPool, sql } from '../lib/db.js';
 import { json, serverError } from '../lib/http.js';
-import { getRequestContext } from '../lib/auth.js';
+import { getAuthorizedContext } from '../lib/auth.js';
 
 app.http('instructionStatus', {
   methods: ['GET'],
@@ -9,7 +9,7 @@ app.http('instructionStatus', {
   route: 'instruction-status',
   handler: async (request, context) => {
     try {
-      const ctx = getRequestContext(request);
+      const ctx = await getAuthorizedContext(request);
       const pool = await getPool();
       const result = await pool.request()
         .input('companyId', sql.NVarChar(80), ctx.companyId)

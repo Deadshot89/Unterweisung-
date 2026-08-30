@@ -1,7 +1,7 @@
 import { app } from '@azure/functions';
 import { getPool, sql } from '../lib/db.js';
 import { json, serverError } from '../lib/http.js';
-import { getRequestContext } from '../lib/auth.js';
+import { getAuthorizedContext } from '../lib/auth.js';
 
 app.http('bootstrap', {
   methods: ['GET'],
@@ -9,7 +9,7 @@ app.http('bootstrap', {
   route: 'bootstrap',
   handler: async (request, context) => {
     try {
-      const { companyId } = getRequestContext(request);
+      const { companyId } = await getAuthorizedContext(request);
       const pool = await getPool();
       const [companies, employees, types, templates, records, exclusions, plannedTrainings, invitations] = await Promise.all([
         pool.request().input('companyId', sql.NVarChar(80), companyId).query('SELECT id, name, legalName, addressLine, defaultLanguage, active FROM Companies WHERE id=@companyId'),

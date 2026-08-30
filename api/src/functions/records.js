@@ -2,7 +2,7 @@ import { app } from '@azure/functions';
 import { v4 as uuidv4 } from 'uuid';
 import { getPool, sql } from '../lib/db.js';
 import { json, badRequest, serverError } from '../lib/http.js';
-import { getRequestContext, assertRole, Roles } from '../lib/auth.js';
+import { getAuthorizedContext, assertRole, Roles } from '../lib/auth.js';
 import { writeAudit } from '../lib/audit.js';
 
 function addMonths(date, months) {
@@ -25,7 +25,7 @@ app.http('records', {
   route: 'records',
   handler: async (request, context) => {
     try {
-      const ctx = getRequestContext(request);
+      const ctx = await getAuthorizedContext(request);
       const pool = await getPool();
 
       if (request.method === 'GET') {

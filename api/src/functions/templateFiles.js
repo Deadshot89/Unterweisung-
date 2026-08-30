@@ -1,7 +1,7 @@
 import { app } from '@azure/functions';
 import { getPool, sql } from '../lib/db.js';
 import { json, notFound, serverError } from '../lib/http.js';
-import { getRequestContext } from '../lib/auth.js';
+import { getAuthorizedContext } from '../lib/auth.js';
 import { createReadSasUrl } from '../lib/blob.js';
 
 app.http('templateDownload', {
@@ -10,7 +10,7 @@ app.http('templateDownload', {
   route: 'templates/{id}/download',
   handler: async (request, context) => {
     try {
-      const ctx = getRequestContext(request);
+      const ctx = await getAuthorizedContext(request);
       const id = request.params.id;
       const pool = await getPool();
       const result = await pool.request()

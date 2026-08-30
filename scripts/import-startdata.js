@@ -170,6 +170,46 @@ try {
               WHEN NOT MATCHED THEN INSERT(id,companyId,name,chipNr,email,department,role,title,active)
               VALUES(@id,@companyId,@name,@chipNr,@email,@department,@role,@title,@active);`);
   }
+
+
+  // Benutzerzugänge für produktiven Login vorbereiten.
+  // Mitarbeiterstamm bleibt fachlich getrennt; Users ist die Login-/Rechte-Tabelle.
+  function mapEmployeeRoleToUserRole(role) {
+    const r = String(role || '').toLowerCase();
+    if (r.includes('hse')) return 'hse';
+    if (r.includes('line manager') || r.includes('teamleader') || r.includes('schicht')) return 'line_manager';
+    return 'employee';
+  }
+  const adminEmail = process.env.INITIAL_ADMIN_EMAIL || data.settings?.responsibleEmail || null;
+  if (adminEmail) {
+    await new sql.Request(tx)
+      .input('id', sql.NVarChar(120), `user-admin-${String(adminEmail).toLowerCase().replace(/[^a-z0-9]+/g,'-')}`.slice(0,120))
+      .input('companyId', sql.NVarChar(80), companyId)
+      .input('email', sql.NVarChar(254), String(adminEmail).toLowerCase())
+      .input('displayName', sql.NVarChar(200), process.env.INITIAL_ADMIN_NAME || 'Initialer Firmen Admin')
+      .input('role', sql.NVarChar(60), process.env.INITIAL_ADMIN_ROLE || 'company_admin')
+      .query(`MERGE Users AS t USING (SELECT @companyId AS companyId, @email AS email) AS s
+              ON t.companyId=s.companyId AND LOWER(t.email)=LOWER(s.email)
+              WHEN MATCHED THEN UPDATE SET role=@role,displayName=@displayName,active=1,updatedAt=SYSUTCDATETIME()
+              WHEN NOT MATCHED THEN INSERT(id,companyId,email,displayName,role,active,provider,invitedAt)
+              VALUES(@id,@companyId,@email,@displayName,@role,1,'aad',SYSUTCDATETIME());`);
+  }
+  for (const e of data.employees || []) {
+    if (!e.email) continue;
+    const role = mapEmployeeRoleToUserRole(e.role);
+    await new sql.Request(tx)
+      .input('id', sql.NVarChar(120), `user-${e.id}`.slice(0,120))
+      .input('companyId', sql.NVarChar(80), companyId)
+      .input('email', sql.NVarChar(254), String(e.email).toLowerCase())
+      .input('displayName', sql.NVarChar(200), e.name)
+      .input('role', sql.NVarChar(60), role)
+      .query(`MERGE Users AS t USING (SELECT @companyId AS companyId, @email AS email) AS s
+              ON t.companyId=s.companyId AND LOWER(t.email)=LOWER(s.email)
+              WHEN MATCHED THEN UPDATE SET displayName=@displayName, role=CASE WHEN t.role='company_admin' THEN t.role ELSE @role END, active=1, updatedAt=SYSUTCDATETIME()
+              WHEN NOT MATCHED THEN INSERT(id,companyId,email,displayName,role,active,provider,invitedAt)
+              VALUES(@id,@companyId,@email,@displayName,@role,1,'aad',SYSUTCDATETIME());`);
+  }
+
   // lineManagerId separat nach allen Employees setzen
   for (const e of data.employees || []) {
     await new sql.Request(tx)
@@ -233,7 +273,8 @@ try {
     types: data.types?.length || 0,
     templates: data.templates?.length || 0,
     records: data.records?.length || 0,
-    questions: buildQuestions(data, companyId).length
+    questions: buildQuestions(data, companyId).length,
+    usersPrepared: (data.employees || []).filter(e => e.email).length + (process.env.INITIAL_ADMIN_EMAIL ? 1 : 0)
   });
 } catch (err) {
   await tx.rollback();

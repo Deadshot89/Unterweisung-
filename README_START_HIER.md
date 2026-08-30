@@ -1,87 +1,61 @@
-# Unterweisungsmanager Online v5
+# Unterweisungsmanager Online v0.6
 
-Ziel: Firmenfähige Online-Version für Azure Static Web Apps + Azure Functions + Azure SQL + Azure Blob Storage + Microsoft Graph Mailversand.
+Diese Version ist der nächste Schritt Richtung Firmen-System / SaaS-Betrieb.
 
-## Inhalt
+## Neu in v0.6
 
-- `frontend/` – Web-Oberfläche für Admin/HSE/Line Manager
-- `frontend/external/` – Teilnehmeransicht für externe Unterweisungslinks
-- `api/` – Azure Functions API
-- `database/migrations/` – idempotente SQL-Migrationen
-- `database/seed_essentra_data.json` – Startdaten Essentra
-- `templates/` – PDF-Vorlagen für den ersten Import
-- `scripts/` – Datenbank-Migration, Import, Blob-Upload, Prüfskripte
-- `infra/` – Azure Bicep Grundentwurf
-- `docs/` – Datenschutz, Backup, Sicherheit, Mail, Roadmap
+- Microsoft-Entra-/Static-Web-Apps-Login vorbereitet
+- Benutzer-/Rollenverwaltung (`Users`)
+- produktive Freischaltung je Firma
+- Mandantenschutz: Benutzer darf nur die zugewiesene Firma laden
+- neuer Reiter „Benutzer/Rechte“ im Frontend
+- neue API `GET /api/me`
+- neue API `GET/POST/PATCH /api/users`
+- neue SQL-Migration `005_auth_rbac.sql`
+- Security-Events für Login-/Rechtevorgänge
+- `staticwebapp.config.json` schützt Admin/API-Routen
 
-## Reihenfolge für den Aufbau
+## Wichtig
 
-1. Azure SQL Datenbank erstellen.
-2. Storage Account + privaten Blob Container erstellen.
-3. Microsoft Entra App Registration für Graph Mail erstellen.
-4. Verbindung in Umgebungsvariablen eintragen.
-5. Migrationen ausführen.
-6. Startdaten importieren inklusive Testfragen.
-7. PDF-Vorlagen in Blob Storage hochladen.
-8. API testen.
-9. Frontend über Azure Static Web Apps veröffentlichen.
+In Produktion setzen:
 
-## Lokaler technischer Ablauf
+```env
+NODE_ENV=production
+AUTH_REQUIRE_DB_USER=true
+```
+
+Dann reicht Microsoft-Login alleine nicht. Der Benutzer muss zusätzlich aktiv in der Tabelle `Users` stehen.
+
+## Reihenfolge lokal / Azure
 
 ```bash
 npm install
 cd api && npm install && cd ..
-
-export SQL_CONNECTION_STRING="Server=tcp:<server>.database.windows.net,1433;Initial Catalog=<db>;User ID=<user>;Password=<password>;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;"
-export AZURE_STORAGE_CONNECTION_STRING="DefaultEndpointsProtocol=https;AccountName=<storage>;AccountKey=<key>;EndpointSuffix=core.windows.net"
-export BLOB_CONTAINER="unterweisungsmanager"
-export COMPANY_ID="company-essentra"
-export PUBLIC_BASE_URL="http://localhost:4280"
-
-# Graph Mail optional, aber für echten Mailversand erforderlich
-export GRAPH_TENANT_ID="<tenant-id>"
-export GRAPH_CLIENT_ID="<app-client-id>"
-export GRAPH_CLIENT_SECRET="<client-secret>"
-export MAIL_FROM="unterweisungsmanager@firma.de"
-
 npm run db:migrate
 npm run db:seed
 npm run blob:upload-templates
-npm run db:check
-npm run start
+npm start
 ```
 
-## Wichtige Änderung in v5
+## Initialer Admin
 
-Microsoft Graph Mailversand ist vorbereitet:
+Vor `npm run db:seed` setzen:
 
-1. Externe Unterweisungslinks können direkt per Mail gesendet werden.
-2. Erinnerungen für offene/fällige Einladungen können gesendet werden.
-3. Geplante Gruppenunterweisungen können als Outlook-Mail mit `.ics`-Terminanhang an Teilnehmer gesendet werden.
-4. Jeder Mailversand wird in `MailLog` protokolliert.
-5. Beim erneuten Senden wird ein neuer sicherer Token erzeugt; der alte Link wird dadurch ungültig.
+```env
+INITIAL_ADMIN_EMAIL=TobiasLimberg@essentra.com
+INITIAL_ADMIN_NAME=Tobias Limberg
+INITIAL_ADMIN_ROLE=company_admin
+```
 
-## Aktuelle Seed-Daten
+## Dokumentation
 
-- 1 Firma
-- 40 Mitarbeiter
-- 21 Unterweisungstypen
-- 13 Vorlagen
-- 647 vorhandene Unterweisungseinträge
-- beim Import automatisch generierter 20-Fragenpool je Unterweisung in DE/EN/PL
+- `docs/AUTH_ENTRA_SETUP.md`
+- `docs/MAIL_GRAPH_SETUP.md`
+- `docs/AZURE_SQL_SETUP.md`
+- `docs/BLOB_STORAGE_SETUP.md`
+- `docs/SICHERHEIT_BACKUP_DATENSCHUTZ.md`
+- `docs/CHANGELOG.md`
 
-## Aktueller Stand
+## Nächster Schritt
 
-v5 ist noch kein fertiges SaaS-Produkt, aber der Online-Kern ist jetzt aufgebaut:
-
-- Azure SQL Migrationen
-- Startdaten-Import
-- Blob Storage Upload für Vorlagen
-- externe Unterweisungslinks
-- Testauswertung bei externem Abschluss
-- Statusrückmeldung in Admin-Seite
-- Nachweisdatei in Blob Storage vorbereitet
-- Microsoft Graph Mailversand vorbereitet
-- Mail-Log und Erinnerungen vorbereitet
-
-Nächster Schritt: Microsoft Entra Rollen produktiv anbinden und echte Firmen-/Benutzerverwaltung absichern.
+Nach v0.6 kommt v0.7: Nachweis-Upload produktiv härten, Dateiprüfung, Upload-Limits, Virenscan-/Defender-Konzept und saubere Nachweisverwaltung.

@@ -2,7 +2,7 @@ import { app } from '@azure/functions';
 import crypto from 'node:crypto';
 import { getPool, sql } from '../lib/db.js';
 import { json, badRequest, notFound, serverError } from '../lib/http.js';
-import { getRequestContext, assertRole, Roles } from '../lib/auth.js';
+import { getAuthorizedContext, assertRole, Roles } from '../lib/auth.js';
 import { writeAudit } from '../lib/audit.js';
 import { writeMailLog } from '../lib/mailLog.js';
 import {
@@ -119,7 +119,7 @@ app.http('sendExternalInvitationMail', {
   route: 'invitations/{id}/send-mail',
   handler: async (request, context) => {
     try {
-      const ctx = getRequestContext(request);
+      const ctx = await getAuthorizedContext(request);
       assertRole(ctx, [Roles.COMPANY_ADMIN, Roles.HSE, Roles.LINE_MANAGER]);
       const body = await request.json().catch(() => ({}));
       const pool = await getPool();
@@ -138,7 +138,7 @@ app.http('sendDueInvitationReminders', {
   route: 'invitations/send-reminders',
   handler: async (request, context) => {
     try {
-      const ctx = getRequestContext(request);
+      const ctx = await getAuthorizedContext(request);
       assertRole(ctx, [Roles.COMPANY_ADMIN, Roles.HSE]);
       const body = await request.json().catch(() => ({}));
       const pool = await getPool();
@@ -174,7 +174,7 @@ app.http('sendPlannedTrainingMail', {
   route: 'planned-trainings/{id}/send-mail',
   handler: async (request, context) => {
     try {
-      const ctx = getRequestContext(request);
+      const ctx = await getAuthorizedContext(request);
       assertRole(ctx, [Roles.COMPANY_ADMIN, Roles.HSE, Roles.LINE_MANAGER]);
       const pool = await getPool();
       const trainingId = request.params.id;
@@ -254,7 +254,7 @@ app.http('mailLog', {
   route: 'mail/log',
   handler: async (request, context) => {
     try {
-      const ctx = getRequestContext(request);
+      const ctx = await getAuthorizedContext(request);
       assertRole(ctx, [Roles.COMPANY_ADMIN, Roles.HSE]);
       const pool = await getPool();
       const result = await pool.request()

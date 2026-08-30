@@ -2,7 +2,7 @@ import { app } from '@azure/functions';
 import { v4 as uuidv4 } from 'uuid';
 import { getPool, sql } from '../lib/db.js';
 import { json, badRequest, serverError } from '../lib/http.js';
-import { getRequestContext, assertRole, Roles } from '../lib/auth.js';
+import { getAuthorizedContext, assertRole, Roles } from '../lib/auth.js';
 import { writeAudit } from '../lib/audit.js';
 
 app.http('trainingParticipants', {
@@ -11,7 +11,7 @@ app.http('trainingParticipants', {
   route: 'planned-trainings/{trainingId}/participants/{id?}',
   handler: async (request, context) => {
     try {
-      const ctx = getRequestContext(request);
+      const ctx = await getAuthorizedContext(request);
       const trainingId = request.params.trainingId;
       if (!trainingId) return badRequest('trainingId is required');
       const pool = await getPool();

@@ -15,7 +15,11 @@
     "GRAPH_CLIENT_SECRET": "<client-secret>",
     "MAIL_FROM": "unterweisungsmanager@deinefirma.de",
     "MAIL_HSE_CC": "",
-    "EXTERNAL_LINK_DEFAULT_DAYS": "14"
+    "EXTERNAL_LINK_DEFAULT_DAYS": "14",
+    "AUTH_REQUIRE_DB_USER": "false",
+    "INITIAL_ADMIN_EMAIL": "TobiasLimberg@essentra.com",
+    "INITIAL_ADMIN_NAME": "Tobias Limberg",
+    "INITIAL_ADMIN_ROLE": "company_admin"
   },
   "Host": {
     "CORS": "*"

@@ -1,7 +1,7 @@
 import { app } from '@azure/functions';
 import { getPool, sql } from '../lib/db.js';
 import { json, serverError } from '../lib/http.js';
-import { getRequestContext, assertRole, Roles } from '../lib/auth.js';
+import { getAuthorizedContext, assertRole, Roles } from '../lib/auth.js';
 
 app.http('managerReport', {
   methods: ['GET'],
@@ -9,7 +9,7 @@ app.http('managerReport', {
   route: 'reports/manager-training-time',
   handler: async (request, context) => {
     try {
-      const ctx = getRequestContext(request);
+      const ctx = await getAuthorizedContext(request);
       assertRole(ctx, [Roles.SYSTEM_ADMIN, Roles.COMPANY_ADMIN, Roles.HSE, Roles.LINE_MANAGER]);
       const url = new URL(request.url);
       const from = url.searchParams.get('from') || new Date(new Date().getFullYear(), 0, 1).toISOString();

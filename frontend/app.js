@@ -1,5 +1,5 @@
 const $ = (id) => document.getElementById(id);
-const state = { data: null, source: 'loading', statusRows: [], apiAvailable: false, mailConfig: null };
+const state = { data: null, source: 'loading', statusRows: [], apiAvailable: false, mailConfig: null, me: null, companyId: 'company-essentra', users: [] };
 
 function esc(s=''){return String(s ?? '').replace(/[&<>\"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[c]))}
 function fmtDate(d){return d ? new Date(d).toLocaleDateString('de-DE') : '—'}
@@ -8,7 +8,7 @@ function addMonths(dateStr, months){const d=new Date(dateStr); d.setMonth(d.getM
 function todayIso(){return new Date().toISOString().slice(0,10)}
 
 async function api(path, options={}){
-  const headers = {'Content-Type':'application/json','x-company-id':'company-essentra', ...(options.headers||{})};
+  const headers = {'Content-Type':'application/json','x-company-id': state.companyId || 'company-essentra', ...(options.headers||{})};
   const res = await fetch('/api' + path, {...options, headers});
   if(!res.ok) throw new Error(await res.text());
   return res.json();
@@ -16,19 +16,37 @@ async function api(path, options={}){
 
 async function loadData(){
   try{
+    state.me = await api('/me');
+    state.companyId = state.me.companyId || state.companyId;
+    renderUserInfo();
     state.data = await api('/bootstrap');
     state.apiAvailable = true;
     state.source = 'api';
     try { state.statusRows = await api('/instruction-status'); } catch { state.statusRows = buildLocalStatusRows(); }
     try { state.mailConfig = await api('/mail/config'); } catch { state.mailConfig = { configured:false, missing:['mail/config nicht erreichbar'] }; }
+    try { state.users = await api('/users'); } catch { state.users = []; }
   }catch(err){
+    const msg = String(err.message || err);
+    if(msg.includes('401') || msg.includes('403') || msg.includes('Nicht angemeldet') || msg.includes('freigeschaltet')){
+      document.querySelector('main').innerHTML = `<section class="card login-box"><h2>Anmeldung erforderlich</h2><p>Bitte mit Microsoft/Entra anmelden. Falls du bereits angemeldet bist, muss dein Benutzer unter <b>Benutzer/Rechte</b> für die Firma freigeschaltet sein.</p><p class="muted">Fehler: ${esc(msg)}</p><a class="btn primary" href="/.auth/login/aad">Mit Microsoft anmelden</a></section>`;
+      renderUserInfo(false);
+      return;
+    }
     const res = await fetch('/seed/essentra-startdata.json');
     state.data = await res.json();
     state.apiAvailable = false;
     state.source = 'seed';
     state.statusRows = buildLocalStatusRows();
+    renderUserInfo(false);
   }
   renderAll();
+}
+
+function renderUserInfo(ok=true){
+  const el = $('userInfo');
+  if(!el) return;
+  if(!ok || !state.me) { el.textContent = 'Nicht angemeldet / Seed-Fallback'; return; }
+  el.innerHTML = `${esc(state.me.displayName || state.me.email || 'Benutzer')} · ${esc(state.me.companyId)} · ${(state.me.roles||[]).map(r=>`<span class="role-pill">${esc(r)}</span>`).join('')}`;
 }
 
 function setView(id){
@@ -88,7 +106,7 @@ function badge(status){
 }
 
 function renderAll(){render('dashboard')}
-function render(id){({dashboard:renderDashboard,companies:renderCompanies,employees:renderEmployees,instructions:renderInstructions,status:renderStatus,planning:renderPlanning,external:renderExternal,security:renderSecurity}[id]||renderDashboard)()}
+function render(id){({dashboard:renderDashboard,companies:renderCompanies,employees:renderEmployees,instructions:renderInstructions,status:renderStatus,planning:renderPlanning,external:renderExternal,users:renderUsers,security:renderSecurity}[id]||renderDashboard)()}
 
 function renderDashboard(){
   const s=stats();
@@ -102,7 +120,7 @@ function renderDashboard(){
     <div class="card kpi"><div class="label">Bald fällig</div><div class="value yellow">${(s.soon||0)+(s.critical||0)}</div></div>
     <div class="card kpi"><div class="label">Abgelaufen</div><div class="value red">${s.expired||0}</div></div>
     <div class="card kpi"><div class="label">Fehlend</div><div class="value yellow">${s.missing||0}</div></div>
-    <div class="card"><h2>Online-Version v0.5</h2><p>Diese Version enthält zusätzlich Microsoft-Graph-Mailversand für externe Unterweisungen, Erinnerungen und geplante Gruppentermine.</p></div>
+    <div class="card"><h2>Online-Version v0.6</h2><p>Diese Version enthält zusätzlich Microsoft-Entra-Login, Benutzer-/Rollenverwaltung, Microsoft-Graph-Mailversand und externe Unterweisungslinks.</p></div>
   </div>`;
 }
 function renderCompanies(){
@@ -224,7 +242,36 @@ async function sendPlannedMail(id){
   await loadData(); setView('planning');
 }
 
+
+function renderUsers(){
+  const rows = state.users || [];
+  const canEdit = state.me?.roles?.includes('company_admin') || state.me?.roles?.includes('system_admin');
+  $('users').innerHTML=`<div class="grid">
+    <div class="card"><h2>Benutzer / Rechte</h2><p class="muted">Diese Tabelle steuert den produktiven Zugriff. Microsoft-Login allein reicht nicht: Der Benutzer muss hier aktiv für die Firma freigeschaltet sein.</p>
+      <div class="table-wrap"><table><thead><tr><th>Name</th><th>E-Mail</th><th>Rolle</th><th>Status</th><th>Letzter Zugriff</th></tr></thead><tbody>${rows.map(u=>`<tr><td><b>${esc(u.displayName)}</b></td><td>${esc(u.email)}</td><td>${esc(u.role)}</td><td>${u.active!==false?'<span class="badge ok">Aktiv</span>':'<span class="badge warn">Inaktiv</span>'}</td><td>${fmtDate(u.lastSeenAt)}</td></tr>`).join('') || '<tr><td colspan="5" class="muted">Keine Benutzer geladen oder keine Berechtigung.</td></tr>'}</tbody></table></div>
+    </div>
+    <div class="card"><h2>Benutzer anlegen</h2><p class="muted">Nur Firmen Admin/System Admin. E-Mail muss zur Microsoft-Anmeldung passen.</p>
+      <div class="form-grid">
+        <div class="field"><label>Name</label><input id="userName" placeholder="Vorname Nachname" ${canEdit?'':'disabled'}></div>
+        <div class="field"><label>E-Mail</label><input id="userEmail" placeholder="name@firma.de" ${canEdit?'':'disabled'}></div>
+        <div class="field"><label>Rolle</label><select id="userRole" ${canEdit?'':'disabled'}><option value="employee">Mitarbeiter</option><option value="line_manager">Line Manager</option><option value="hse">HSE</option><option value="company_admin">Firmen Admin</option></select></div>
+        <div class="field full"><button class="primary" onclick="createUser()" ${canEdit?'':'disabled'}>Benutzer speichern</button></div>
+      </div>
+    </div>
+  </div>`;
+}
+async function createUser(){
+  if(!state.apiAvailable){alert('API nicht verbunden.'); return;}
+  const email=$('userEmail').value.trim();
+  const displayName=$('userName').value.trim() || email;
+  const role=$('userRole').value;
+  if(!email){alert('E-Mail fehlt.'); return;}
+  await api('/users',{method:'POST',body:JSON.stringify({email,displayName,role})});
+  state.users = await api('/users');
+  renderUsers();
+}
+
 function renderSecurity(){
-  $('security').innerHTML=`<div class="card"><h2>Sicherheitsstatus v0.5</h2><ul><li>Mandanten-Konzept über <code>companyId</code> in allen Fach-Endpunkten.</li><li>Rollenprüfung für Admin/HSE/Line Manager vorbereitet.</li><li>Audit-Log bei Änderungen vorbereitet.</li><li>Statusmatrix trennt Pflicht, fällig, abgelaufen und nicht erforderlich.</li><li>Externe Links verwenden Token-Hash statt Klartext-Token in SQL.</li><li>Microsoft Graph Mailversand ist vorbereitet: Einladung, Erinnerung, geplanter Gruppentermin mit ICS. Nächster Schritt: echte Entra-Rollen produktiv aktivieren und PDF-Rendering härten.</li></ul></div>`;
+  $('security').innerHTML=`<div class="card"><h2>Sicherheitsstatus v0.6</h2><ul><li>Mandanten-Konzept über <code>companyId</code> in allen Fach-Endpunkten.</li><li>Rollenprüfung für System Admin/Firmen Admin/HSE/Line Manager/Mitarbeiter produktiv vorbereitet.</li><li>Audit-Log bei Änderungen vorbereitet.</li><li>Statusmatrix trennt Pflicht, fällig, abgelaufen und nicht erforderlich.</li><li>Externe Links verwenden Token-Hash statt Klartext-Token in SQL.</li><li>Microsoft Graph Mailversand ist vorbereitet: Einladung, Erinnerung, geplanter Gruppentermin mit ICS. Microsoft Entra Login und DB-Freischaltung sind vorbereitet. Nächster Schritt: Nachweis-Upload, Dateiprüfung und PDF-Rendering härten.</li></ul></div>`;
 }
 loadData();
