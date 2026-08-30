@@ -1,15 +1,28 @@
 {
   "name": "unterweisungsmanager-online",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "description": "Mandantenfähiger Unterweisungsmanager für Azure Static Web Apps + Azure Functions + Azure SQL/Blob Storage",
   "scripts": {
     "start": "swa start ./frontend --api-location ./api",
     "api:start": "cd api && npm start",
     "api:install": "cd api && npm install",
-    "seed:sql": "node scripts/import-startdata.js"
+    "seed:sql": "node scripts/import-startdata.js",
+    "db:migrate": "node scripts/apply-migrations.js",
+    "db:check": "node scripts/check-database.js",
+    "db:seed": "node scripts/import-startdata.js",
+    "blob:upload-templates": "node scripts/upload-templates.js",
+    "setup:essentra": "npm run db:migrate && npm run db:seed && npm run blob:upload-templates",
+    "test": "npm run api:test && node --check scripts/*.js",
+    "api:test": "cd api && npm test"
   },
   "devDependencies": {
     "@azure/static-web-apps-cli": "^2.0.0"
+  },
+  "type": "module",
+  "dependencies": {
+    "mssql": "^11.0.1",
+    "@azure/storage-blob": "^12.26.0",
+    "uuid": "^11.0.5"
   }
 }

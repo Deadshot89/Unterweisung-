@@ -4,6 +4,9 @@ param location string = resourceGroup().location
 @description('Prefix for all resources')
 param namePrefix string = 'um-online'
 
+@description('Blob container for templates, certificates and uploads')
+param blobContainerName string = 'unterweisungsmanager'
+
 @secure()
 @description('SQL administrator password. Replace with Key Vault/Entra auth before production.')
 param sqlAdminPassword string
@@ -19,8 +22,7 @@ resource storage 'Microsoft.Storage/storageAccounts@2023-05-01' = {
     allowBlobPublicAccess: false
     minimumTlsVersion: 'TLS1_2'
     supportsHttpsTrafficOnly: true
-    deleteRetentionPolicy: { enabled: true, days: 30 }
-    isVersioningEnabled: true
+    publicNetworkAccess: 'Enabled'
   }
 }
 
@@ -30,17 +32,12 @@ resource blobService 'Microsoft.Storage/storageAccounts/blobServices@2023-05-01'
   properties: {
     deleteRetentionPolicy: { enabled: true, days: 30 }
     containerDeleteRetentionPolicy: { enabled: true, days: 30 }
+    isVersioningEnabled: true
   }
 }
 
-resource templates 'Microsoft.Storage/storageAccounts/blobServices/containers@2023-05-01' = {
-  name: 'templates'
-  parent: blobService
-  properties: { publicAccess: 'None' }
-}
-
-resource certificates 'Microsoft.Storage/storageAccounts/blobServices/containers@2023-05-01' = {
-  name: 'certificates'
+resource appContainer 'Microsoft.Storage/storageAccounts/blobServices/containers@2023-05-01' = {
+  name: blobContainerName
   parent: blobService
   properties: { publicAccess: 'None' }
 }
@@ -91,3 +88,4 @@ output staticWebAppName string = swa.name
 output sqlServerName string = sqlServer.name
 output databaseName string = sqlDb.name
 output storageAccountName string = storage.name
+output blobContainerName string = appContainer.name

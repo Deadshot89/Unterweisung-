@@ -99,7 +99,7 @@ function renderDashboard(){
     <div class="card kpi"><div class="label">Bald fällig</div><div class="value yellow">${(s.soon||0)+(s.critical||0)}</div></div>
     <div class="card kpi"><div class="label">Abgelaufen</div><div class="value red">${s.expired||0}</div></div>
     <div class="card kpi"><div class="label">Fehlend</div><div class="value yellow">${s.missing||0}</div></div>
-    <div class="card"><h2>Online-Version v0.2</h2><p>Diese Version enthält jetzt echte API-Endpunkte für Mitarbeiter, Unterweisungstypen, Statusmatrix, Nicht-erforderlich-Logik, Planung und externe Einladungslinks.</p></div>
+    <div class="card"><h2>Online-Version v0.3</h2><p>Diese Version enthält jetzt echte API-Endpunkte für Mitarbeiter, Unterweisungstypen, Statusmatrix, Nicht-erforderlich-Logik, Planung und externe Einladungslinks.</p></div>
   </div>`;
 }
 function renderCompanies(){
@@ -172,6 +172,6 @@ async function createInvitation(){
   $('inviteResult').value=result.url;
 }
 function renderSecurity(){
-  $('security').innerHTML=`<div class="card"><h2>Sicherheitsstatus v0.2</h2><ul><li>Mandanten-Konzept über <code>companyId</code> in allen Fach-Endpunkten.</li><li>Rollenprüfung für Admin/HSE/Line Manager vorbereitet.</li><li>Audit-Log bei Änderungen vorbereitet.</li><li>Statusmatrix trennt Pflicht, fällig, abgelaufen und nicht erforderlich.</li><li>Externe Links verwenden Token-Hash statt Klartext-Token in SQL.</li><li>Nächster Schritt: Microsoft Graph Mailversand, Blob Upload/SAS und Entra Rollen produktiv aktivieren.</li></ul></div>`;
+  $('security').innerHTML=`<div class="card"><h2>Sicherheitsstatus v0.3</h2><ul><li>Mandanten-Konzept über <code>companyId</code> in allen Fach-Endpunkten.</li><li>Rollenprüfung für Admin/HSE/Line Manager vorbereitet.</li><li>Audit-Log bei Änderungen vorbereitet.</li><li>Statusmatrix trennt Pflicht, fällig, abgelaufen und nicht erforderlich.</li><li>Externe Links verwenden Token-Hash statt Klartext-Token in SQL.</li><li>Nächster Schritt: Microsoft Graph Mailversand, Blob Upload/SAS und Entra Rollen produktiv aktivieren.</li></ul></div>`;
 }
 loadData();

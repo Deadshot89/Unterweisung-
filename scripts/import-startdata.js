@@ -28,13 +28,26 @@ try {
             ON t.id=s.id WHEN MATCHED THEN UPDATE SET name=s.name, active=1, updatedAt=SYSUTCDATETIME()
             WHEN NOT MATCHED THEN INSERT(id,name,active) VALUES(s.id,s.name,1);`);
 
+
+  await new sql.Request(tx)
+    .input('companyId', sql.NVarChar(80), companyId)
+    .input('yellowWarningDays', sql.Int, Number(data.settings?.reminderDays || 60))
+    .input('orangeCriticalDays', sql.Int, Number(data.settings?.criticalDays || 30))
+    .input('defaultResponsibleEmail', sql.NVarChar(254), data.settings?.responsibleEmail || null)
+    .input('hseEmail', sql.NVarChar(254), data.settings?.hseEmail || 'DennisJeschick@essentra.com')
+    .query(`MERGE CompanySettings AS t USING (SELECT @companyId AS companyId) AS s ON t.companyId=s.companyId
+            WHEN MATCHED THEN UPDATE SET yellowWarningDays=@yellowWarningDays, orangeCriticalDays=@orangeCriticalDays,
+              defaultResponsibleEmail=@defaultResponsibleEmail, hseEmail=@hseEmail, updatedAt=SYSUTCDATETIME()
+            WHEN NOT MATCHED THEN INSERT(companyId,yellowWarningDays,orangeCriticalDays,defaultResponsibleEmail,hseEmail,updatedAt)
+              VALUES(@companyId,@yellowWarningDays,@orangeCriticalDays,@defaultResponsibleEmail,@hseEmail,SYSUTCDATETIME());`);
+
   for (const tpl of data.templates || []) {
     await new sql.Request(tx)
       .input('id', sql.NVarChar(80), tpl.id)
       .input('companyId', sql.NVarChar(80), companyId)
       .input('title', sql.NVarChar(240), tpl.title)
       .input('fileName', sql.NVarChar(260), tpl.fileName)
-      .input('blobPath', sql.NVarChar(500), tpl.path || `templates/${tpl.fileName}`)
+      .input('blobPath', sql.NVarChar(500), tpl.blobPath || `${companyId}/templates/${tpl.fileName}`)
       .input('category', sql.NVarChar(120), tpl.category || null)
       .input('description', sql.NVarChar(sql.MAX), tpl.description || null)
       .query(`MERGE Templates AS t USING (SELECT @id AS id) AS s ON t.id=s.id

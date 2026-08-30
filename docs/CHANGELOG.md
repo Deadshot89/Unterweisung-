@@ -1,20 +1,22 @@
 # Changelog
 
+## v0.3
+
+- Idempotente SQL-Migrationen unter `database/migrations` ergänzt.
+- `npm run db:migrate` ergänzt.
+- `npm run db:check` ergänzt.
+- `npm run blob:upload-templates` ergänzt.
+- Blob Storage Hilfsmodul für API ergänzt.
+- Vorlagen-Download per zeitlich begrenztem SAS-Link vorbereitet.
+- Healthcheck prüft jetzt SQL und Blob Storage.
+- CompanySettings ergänzt: gelbe Warnung, orange kritisch, Mail-Fallback, HSE-Mail, Aufbewahrung.
+- Statusberechnung in SQL-View `vInstructionStatus` verschoben.
+- Manager-Report-Endpunkt `/api/reports/manager-training-time` ergänzt.
+
 ## v0.2
 
-- Firmen-/Mandanten-Endpunkt ergänzt.
-- Unterweisungstyp-Endpunkt ergänzt.
-- Vorlagen-Metadaten-Endpunkt ergänzt.
-- Unterweisungsstatus-Matrix ergänzt.
-- Nicht-erforderlich-Logik als eigene API ergänzt.
-- Durchführung von Einzel- und Gruppenunterweisungen als API ergänzt.
-- Planung von Unterweisungen als API ergänzt.
-- Teilnehmerverwaltung für geplante Unterweisungen ergänzt.
-- Auth-/Rollenhelfer erweitert.
-- Audit-Log-Helfer ergänzt.
-- Frontend um Unterweisungsstatus und Planung erweitert.
-- Healthcheck kann SQL-Verbindung prüfen.
+- Erste API-Struktur für Firmen, Mitarbeiter, Unterweisungstypen, Status, Planung und externe Links.
 
 ## v0.1
 
-- Erste Online-Struktur mit Frontend, Azure Functions, SQL-Schema, Seed-Daten und Vorlagen.
+- Projektstruktur für Azure Static Web Apps + Azure Functions + Azure SQL/Blob Storage.

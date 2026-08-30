@@ -1,95 +1,78 @@
-# Unterweisungsmanager Online v0.2
+# Unterweisungsmanager Online v3
 
-Diese Version ist der nächste Schritt vom Offline-Prototyp zum Firmen-System.
+Ziel: Firmenfähige Online-Version für Azure Static Web Apps + Azure Functions + Azure SQL + Azure Blob Storage.
 
-## Neu in v0.2
+## Inhalt
 
-- API-Endpunkte für Firmen / Mandanten
-- API-Endpunkte für Mitarbeiter-Stammdaten
-- API-Endpunkte für Unterweisungstypen
-- API-Endpunkte für Unterweisungsstatus
-- API-Endpunkte für „Nicht erforderlich“ / „Wieder erforderlich“
-- API-Endpunkte für durchgeführte Einzel- und Gruppenunterweisungen
-- API-Endpunkte für geplante Unterweisungen und Teilnehmer
-- API-Endpunkte für externe Einmal-Links
-- Audit-Log für wichtige Änderungen vorbereitet
-- Rollenprüfung vorbereitet: system_admin, company_admin, hse, line_manager, employee
-- Healthcheck prüft optional die SQL-Verbindung
-- Frontend zeigt jetzt zusätzlich Unterweisungsstatus und Planung
+- `frontend/` – Web-Oberfläche für Admin/HSE/Line Manager
+- `frontend/external/` – spätere Teilnehmeransicht für externe Unterweisungslinks
+- `api/` – Azure Functions API
+- `database/migrations/` – idempotente SQL-Migrationen
+- `database/seed_essentra_data.json` – Startdaten Essentra
+- `templates/` – PDF-Vorlagen für den ersten Import
+- `scripts/` – Datenbank-Migration, Import, Blob-Upload, Prüfskripte
+- `infra/` – Azure Bicep Grundentwurf
+- `docs/` – Datenschutz, Backup, Sicherheit, Roadmap
 
-## Ordnerstruktur
+## Reihenfolge für den Aufbau
 
-```text
-frontend/                  # Azure Static Web App Frontend
-api/                       # Azure Functions API
-api/src/functions/          # HTTP-Endpunkte
-database/schema.sql         # Azure SQL Tabellenmodell
-database/seed_essentra_data.json
-scripts/import-startdata.js # Import der Startdaten
-infra/main.bicep            # Azure-Ressourcenentwurf
-docs/                       # Sicherheit, Backup, Datenschutz, Roadmap
-```
+1. Azure SQL Datenbank erstellen.
+2. Storage Account + privaten Blob Container erstellen.
+3. Verbindung in Umgebungsvariablen eintragen.
+4. Migrationen ausführen.
+5. Startdaten importieren.
+6. PDF-Vorlagen in Blob Storage hochladen.
+7. API testen.
+8. Frontend über Azure Static Web Apps veröffentlichen.
 
-## Lokaler Start
+## Lokaler technischer Ablauf
 
 ```bash
 npm install
 cd api && npm install && cd ..
-npm start
+
+# Umgebungsvariablen setzen
+export SQL_CONNECTION_STRING="Server=tcp:<server>.database.windows.net,1433;Initial Catalog=<db>;User ID=<user>;Password=<password>;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;"
+export AZURE_STORAGE_CONNECTION_STRING="DefaultEndpointsProtocol=https;AccountName=<storage>;AccountKey=<key>;EndpointSuffix=core.windows.net"
+export BLOB_CONTAINER="unterweisungsmanager"
+export COMPANY_ID="company-essentra"
+
+npm run db:migrate
+npm run db:seed
+npm run blob:upload-templates
+npm run db:check
+npm run start
 ```
 
-Ohne SQL-Verbindung lädt das Frontend automatisch die Seed-Daten.
-Mit SQL-Verbindung setzt du in `api/local.settings.json`:
+## Wichtige Änderung in v3
 
-```json
-{
-  "Values": {
-    "SQL_CONNECTION_STRING": "Server=tcp:..."
-  }
-}
-```
+Die Datenbank ist jetzt über `database/migrations` sauber migrierbar. Die PDF-Vorlagen werden nicht mehr als Frontend-Daten behandelt, sondern in Azure Blob Storage vorbereitet. Die API kann über `/api/templates/{id}/download` später kurzfristige Download-Links erzeugen.
 
-## Datenbank anlegen
+## Aktuelle Seed-Daten
 
-1. Azure SQL Datenbank erstellen.
-2. `database/schema.sql` ausführen.
-3. Startdaten importieren:
+- 1 Firma
+- 40 Mitarbeiter
+- 21 Unterweisungstypen
+- 13 Vorlagen
+- 647 vorhandene Unterweisungseinträge
 
-```bash
-SQL_CONNECTION_STRING="..." node scripts/import-startdata.js
-```
+## Aktueller Stand
 
-## Wichtige Endpunkte
+v3 ist noch kein fertiges SaaS-Produkt, aber der technische Grundaufbau ist jetzt deutlich näher an Produktion:
 
-```text
-GET  /api/health
-GET  /api/bootstrap
-GET  /api/companies
-GET  /api/employees
-POST /api/employees
-PATCH /api/employees/{id}
-GET  /api/instruction-types
-POST /api/instruction-types
-PATCH /api/instruction-types/{id}
-GET  /api/instruction-status
-GET  /api/exclusions
-POST /api/exclusions
-DELETE /api/exclusions/{id}
-GET  /api/records
-POST /api/records
-GET  /api/planned-trainings
-POST /api/planned-trainings
-PATCH /api/planned-trainings/{id}
-POST /api/invitations
-GET  /api/external/{token}
-POST /api/external/{token}
-```
+- Azure SQL Migrationen
+- Startdaten-Import
+- Blob Storage Upload für Vorlagen
+- Healthcheck mit SQL + Blob Prüfung
+- Einstellungen je Firma
+- Manager-Report-Endpunkt
+- Download-Endpunkt für Vorlagen
 
-## Nächster technischer Schritt
+## Nächster Schritt
 
-1. Azure SQL wirklich verbinden.
-2. Startdaten importieren.
-3. Static Web App auf Azure veröffentlichen.
-4. Auth / Microsoft Entra Rollen produktiv aktivieren.
-5. Blob Storage Upload für Vorlagen/Nachweise anbinden.
-6. Microsoft Graph Mailversand für Outlook-Einladungen anbinden.
+Als nächstes kommen:
+
+1. echter Upload von Nachweisen in Blob Storage
+2. externe Unterweisungsseite mit Abschluss zurück in die Datenbank
+3. Microsoft Graph Mailversand für Einladungen
+4. Entra Login/Rollen produktiv aktivieren
