@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.5
+
+- Microsoft Graph Mailversand vorbereitet.
+- Neues Modul `api/src/lib/graphMail.js` für Client-Credentials-Token, Graph `sendMail`, Einladungsmails, Erinnerungen und ICS-Termine.
+- Neues Modul `api/src/lib/mailLog.js` für Versandprotokoll.
+- Neue API-Endpunkte: `/api/mail/config`, `/api/invitations/{id}/send-mail`, `/api/invitations/send-reminders`, `/api/planned-trainings/{id}/send-mail`, `/api/mail/log`.
+- `POST /api/invitations` kann mit `sendMail:true` direkt senden.
+- Beim erneuten Versand wird ein neuer Token erzeugt und der alte Link ungültig.
+- Neue Migration `004_mail_dispatch.sql` mit `MailLog`, Mailstatus und Erinnerungsfeldern.
+- Frontend zeigt Mailkonfiguration, Mailstatus, Senden-/Erinnern-Buttons und Outlook-Mail für geplante Termine.
+- Dokumentation `docs/MAIL_GRAPH_SETUP.md` ergänzt.
+
 ## v0.4
 
 - Externe Teilnehmerseite `frontend/external/instruction.html` erweitert.

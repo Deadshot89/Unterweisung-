@@ -1,5 +1,5 @@
 const $ = (id) => document.getElementById(id);
-const state = { data: null, source: 'loading', statusRows: [], apiAvailable: false };
+const state = { data: null, source: 'loading', statusRows: [], apiAvailable: false, mailConfig: null };
 
 function esc(s=''){return String(s ?? '').replace(/[&<>\"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[c]))}
 function fmtDate(d){return d ? new Date(d).toLocaleDateString('de-DE') : '—'}
@@ -20,6 +20,7 @@ async function loadData(){
     state.apiAvailable = true;
     state.source = 'api';
     try { state.statusRows = await api('/instruction-status'); } catch { state.statusRows = buildLocalStatusRows(); }
+    try { state.mailConfig = await api('/mail/config'); } catch { state.mailConfig = { configured:false, missing:['mail/config nicht erreichbar'] }; }
   }catch(err){
     const res = await fetch('/seed/essentra-startdata.json');
     state.data = await res.json();
@@ -96,11 +97,12 @@ function renderDashboard(){
     <div class="card kpi"><div class="label">Firmen</div><div class="value blue">${companies().length}</div></div>
     <div class="card kpi"><div class="label">Mitarbeiter</div><div class="value blue">${employees().length}</div></div>
     <div class="card kpi"><div class="label">Unterweisungstypen</div><div class="value blue">${types().length}</div></div>
+    <div class="card kpi"><div class="label">Mail</div><div class="value ${state.mailConfig?.configured?'green':'yellow'}">${state.mailConfig?.configured?'OK':'OFF'}</div><div class="muted">${state.mailConfig?.from||'Graph fehlt'}</div></div>
     <div class="card kpi"><div class="label">Gültig</div><div class="value green">${s.valid||0}</div></div>
     <div class="card kpi"><div class="label">Bald fällig</div><div class="value yellow">${(s.soon||0)+(s.critical||0)}</div></div>
     <div class="card kpi"><div class="label">Abgelaufen</div><div class="value red">${s.expired||0}</div></div>
     <div class="card kpi"><div class="label">Fehlend</div><div class="value yellow">${s.missing||0}</div></div>
-    <div class="card"><h2>Online-Version v0.4</h2><p>Diese Version enthält die externe Unterweisungsstrecke: Einmal-Link öffnen, Unterlage ansehen, Test beantworten, Abschluss speichern und Nachweisdatei vorbereiten.</p></div>
+    <div class="card"><h2>Online-Version v0.5</h2><p>Diese Version enthält zusätzlich Microsoft-Graph-Mailversand für externe Unterweisungen, Erinnerungen und geplante Gruppentermine.</p></div>
   </div>`;
 }
 function renderCompanies(){
@@ -148,12 +150,12 @@ async function conductOne(employeeId,typeId){
   await loadData(); setView('status');
 }
 function renderPlanning(){
-  $('planning').innerHTML=`<div class="grid"><div class="card"><h2>Unterweisung planen</h2><p class="muted">Hier wird später zusätzlich Microsoft Graph für echte Outlook-Einladungen angebunden. Aktuell speichert die API den Termin und Teilnehmer.</p><div class="form-grid"><div class="field"><label>Unterweisung</label><select id="planType">${types().map(t=>`<option value="${t.id}">${esc(t.name)}</option>`).join('')}</select></div><div class="field"><label>Datum/Zeit</label><input id="planAt" type="datetime-local"></div><div class="field"><label>Dauer Minuten</label><input id="planDuration" type="number" value="30"></div><div class="field"><label>Ort</label><input id="planLocation" value="Schulungsraum / Warehouse"></div><div class="field full"><button class="primary" onclick="createPlannedTraining()">Planung speichern</button></div></div></div><div class="card"><h2>Geplante Unterweisungen</h2>${plannedTable()}</div></div>`;
+  $('planning').innerHTML=`<div class="grid"><div class="card"><h2>Unterweisung planen</h2><p class="muted">Planung speichert Termin und Teilnehmer. Über Microsoft Graph kann daraus eine echte Outlook-Mail mit ICS-Termin verschickt werden.</p><div class="form-grid"><div class="field"><label>Unterweisung</label><select id="planType">${types().map(t=>`<option value="${t.id}">${esc(t.name)}</option>`).join('')}</select></div><div class="field"><label>Datum/Zeit</label><input id="planAt" type="datetime-local"></div><div class="field"><label>Dauer Minuten</label><input id="planDuration" type="number" value="30"></div><div class="field"><label>Ort</label><input id="planLocation" value="Schulungsraum / Warehouse"></div><div class="field full"><button class="primary" onclick="createPlannedTraining()">Planung speichern</button></div></div></div><div class="card"><h2>Geplante Unterweisungen</h2>${plannedTable()}</div></div>`;
 }
 function plannedTable(){
   const rows=plannedTrainings();
   if(!rows.length) return '<p class="muted">Noch keine geplanten Unterweisungen.</p>';
-  return `<div class="table-wrap"><table><thead><tr><th>Datum</th><th>Unterweisung</th><th>Ort</th><th>Dauer</th><th>Status</th></tr></thead><tbody>${rows.map(p=>`<tr><td>${fmtDate(p.plannedAt)}</td><td>${esc(type(p.instructionTypeId).name||p.instructionName)}</td><td>${esc(p.location||'—')}</td><td>${esc(p.durationMinutes||'—')} Min.</td><td>${esc(p.status)}</td></tr>`).join('')}</tbody></table></div>`;
+  return `<div class="table-wrap"><table><thead><tr><th>Datum</th><th>Unterweisung</th><th>Ort</th><th>Dauer</th><th>Status</th><th>Mail</th></tr></thead><tbody>${rows.map(p=>`<tr><td>${fmtDate(p.plannedAt)}</td><td>${esc(type(p.instructionTypeId).name||p.instructionName)}</td><td>${esc(p.location||'—')}</td><td>${esc(p.durationMinutes||'—')} Min.</td><td>${esc(p.status)}</td><td><button class="small" onclick="sendPlannedMail('${esc(p.id)}')">Outlook senden</button></td></tr>`).join('')}</tbody></table></div>`;
 }
 async function createPlannedTraining(){
   if(!state.apiAvailable){alert('Seed-Fallback: Planung wird erst mit API/Azure SQL gespeichert.'); return;}
@@ -175,7 +177,7 @@ function renderExternal(){
         <div class="field"><label>Gültig Tage</label><input id="inviteDays" type="number" value="14"></div>
         <div class="field"><label>Bestehen ab %</label><input id="invitePass" type="number" value="80"></div>
         <div class="field"><label>Test erforderlich</label><select id="inviteTest"><option value="1">Ja</option><option value="0">Nein, nur Bestätigung</option></select></div>
-        <div class="field full"><button class="primary" onclick="createInvitation()">Einmal-Link erzeugen</button></div>
+        <div class="field"><label>Mail direkt senden</label><select id="inviteSendMail"><option value="1">Ja, per Outlook/Graph</option><option value="0">Nein, nur Link erzeugen</option></select></div><div class="field full"><button class="primary" onclick="createInvitation()">Einmal-Link erzeugen / senden</button> <button onclick="sendDueReminders()">Fällige Erinnerungen senden</button></div>
         <div class="field full"><textarea id="inviteResult" readonly placeholder="Link erscheint hier"></textarea></div>
       </div>
     </div>
@@ -184,7 +186,7 @@ function renderExternal(){
 }
 function invitationTable(rows){
   if(!rows.length) return '<p class="muted">Noch keine externen Einladungen vorhanden.</p>';
-  return `<div class="table-wrap"><table><thead><tr><th>Empfänger</th><th>Unterweisung</th><th>Sprache</th><th>Status</th><th>Ablauf</th><th>Abgeschlossen</th><th>Nachweis</th></tr></thead><tbody>${rows.map(r=>`<tr><td><b>${esc(r.recipientName||r.employeeName||r.email)}</b><br><span class="muted">${esc(r.email||'')}</span></td><td>${esc(r.instructionName)}</td><td>${esc(r.language||'de')}</td><td>${badgeInvitation(r.status)}</td><td>${fmtDate(r.expiresAt)}</td><td>${fmtDate(r.completedAt)}</td><td>${r.certificateFileId?`<button class="small" onclick="openFile('${esc(r.certificateFileId)}')">Öffnen</button>`:'—'}</td></tr>`).join('')}</tbody></table></div>`;
+  return `<div class="table-wrap"><table><thead><tr><th>Empfänger</th><th>Unterweisung</th><th>Sprache</th><th>Status</th><th>Ablauf</th><th>Abgeschlossen</th><th>Nachweis</th><th>Mail</th></tr></thead><tbody>${rows.map(r=>`<tr><td><b>${esc(r.recipientName||r.employeeName||r.email)}</b><br><span class="muted">${esc(r.email||'')}</span></td><td>${esc(r.instructionName)}</td><td>${esc(r.language||'de')}</td><td>${badgeInvitation(r.status)}</td><td>${fmtDate(r.expiresAt)}</td><td>${fmtDate(r.completedAt)}</td><td>${r.certificateFileId?`<button class="small" onclick="openFile('${esc(r.certificateFileId)}')">Öffnen</button>`:'—'}</td><td>${r.mailSentAt?`<span class="muted">gesendet ${fmtDate(r.mailSentAt)}</span>`:`<button class="small" onclick="sendInvitationMail('${esc(r.id)}')">Senden</button>`}${r.mailError?`<br><span class="muted">Fehler: ${esc(r.mailError)}</span>`:''}</td></tr>`).join('')}</tbody></table></div>`;
 }
 function badgeInvitation(status){
   const map={sent:['info','Gesendet'],opened:['soon','Geöffnet'],failed:['bad','Test nicht bestanden'],completed:['ok','Abgeschlossen'],cancelled:['warn','Storniert']};
@@ -198,11 +200,31 @@ async function openFile(id){
 async function createInvitation(){
   if(!state.apiAvailable){alert('Seed-Fallback: Externe Links brauchen API/Azure SQL.'); return;}
   const email=$('inviteEmail').value.trim(); if(!email){alert('E-Mail fehlt.'); return;}
-  const result=await api('/invitations',{method:'POST',body:JSON.stringify({email,recipientName:$('inviteName').value.trim(),instructionTypeId:$('inviteType').value,language:$('inviteLang').value,validDays:Number($('inviteDays').value||14),passPercent:Number($('invitePass').value||80),testRequired:$('inviteTest').value==='1'})});
-  $('inviteResult').value=result.url;
+  const result=await api('/invitations',{method:'POST',body:JSON.stringify({email,recipientName:$('inviteName').value.trim(),instructionTypeId:$('inviteType').value,language:$('inviteLang').value,validDays:Number($('inviteDays').value||14),passPercent:Number($('invitePass').value||80),testRequired:$('inviteTest').value==='1',sendMail:$('inviteSendMail').value==='1'})});
+  $('inviteResult').value=(result.mail?.sent?'Mail gesendet.\n':'')+result.url+(result.mail?.error?'\nMailfehler: '+result.mail.error:'');
   await loadData(); setView('external');
 }
+
+async function sendInvitationMail(id){
+  if(!state.apiAvailable){alert('Mailversand braucht API/Azure.'); return;}
+  const result=await api('/invitations/'+encodeURIComponent(id)+'/send-mail',{method:'POST',body:JSON.stringify({validDays:14})});
+  alert('Mail gesendet. Neuer Link ist aktiv bis '+fmtDate(result.expiresAt));
+  await loadData(); setView('external');
+}
+async function sendDueReminders(){
+  if(!state.apiAvailable){alert('Mailversand braucht API/Azure.'); return;}
+  const result=await api('/invitations/send-reminders',{method:'POST',body:JSON.stringify({dueDays:3,validDays:7,max:50})});
+  alert('Erinnerungen gesendet: '+(result.sent?.length||0)+' / Fehler: '+(result.failed?.length||0));
+  await loadData(); setView('external');
+}
+async function sendPlannedMail(id){
+  if(!state.apiAvailable){alert('Outlook-Mail braucht API/Azure.'); return;}
+  const result=await api('/planned-trainings/'+encodeURIComponent(id)+'/send-mail',{method:'POST',body:JSON.stringify({})});
+  alert('Outlook-Mail gesendet an '+(result.recipients||0)+' Empfänger.');
+  await loadData(); setView('planning');
+}
+
 function renderSecurity(){
-  $('security').innerHTML=`<div class="card"><h2>Sicherheitsstatus v0.4</h2><ul><li>Mandanten-Konzept über <code>companyId</code> in allen Fach-Endpunkten.</li><li>Rollenprüfung für Admin/HSE/Line Manager vorbereitet.</li><li>Audit-Log bei Änderungen vorbereitet.</li><li>Statusmatrix trennt Pflicht, fällig, abgelaufen und nicht erforderlich.</li><li>Externe Links verwenden Token-Hash statt Klartext-Token in SQL.</li><li>Nächster Schritt: Microsoft Graph Mailversand, echtes PDF-Rendering und Entra Rollen produktiv aktivieren.</li></ul></div>`;
+  $('security').innerHTML=`<div class="card"><h2>Sicherheitsstatus v0.5</h2><ul><li>Mandanten-Konzept über <code>companyId</code> in allen Fach-Endpunkten.</li><li>Rollenprüfung für Admin/HSE/Line Manager vorbereitet.</li><li>Audit-Log bei Änderungen vorbereitet.</li><li>Statusmatrix trennt Pflicht, fällig, abgelaufen und nicht erforderlich.</li><li>Externe Links verwenden Token-Hash statt Klartext-Token in SQL.</li><li>Microsoft Graph Mailversand ist vorbereitet: Einladung, Erinnerung, geplanter Gruppentermin mit ICS. Nächster Schritt: echte Entra-Rollen produktiv aktivieren und PDF-Rendering härten.</li></ul></div>`;
 }
 loadData();

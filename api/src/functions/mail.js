@@ -1,0 +1,267 @@
+import { app } from '@azure/functions';
+import crypto from 'node:crypto';
+import { getPool, sql } from '../lib/db.js';
+import { json, badRequest, notFound, serverError } from '../lib/http.js';
+import { getRequestContext, assertRole, Roles } from '../lib/auth.js';
+import { writeAudit } from '../lib/audit.js';
+import { writeMailLog } from '../lib/mailLog.js';
+import {
+  mailConfigStatus,
+  sendGraphMail,
+  buildExternalInvitationMail,
+  buildReminderMail,
+  buildPlannedTrainingMail,
+  buildIcs
+} from '../lib/graphMail.js';
+
+function makeToken() { return crypto.randomBytes(32).toString('base64url'); }
+function hashToken(token) { return crypto.createHash('sha256').update(token).digest('hex'); }
+function publicUrlFor(token) {
+  const base = process.env.PUBLIC_BASE_URL || process.env.APP_BASE_URL || 'http://localhost:4280';
+  return `${base}/external/instruction.html?t=${token}`;
+}
+
+async function loadInvitation(pool, companyId, id) {
+  const result = await pool.request()
+    .input('companyId', sql.NVarChar(80), companyId)
+    .input('id', sql.NVarChar(80), id)
+    .query(`SELECT TOP 1 i.*, c.name AS companyName, c.legalName, e.name AS employeeName,
+                   t.name AS instructionName, t.category
+            FROM ExternalInvitations i
+            JOIN Companies c ON c.id=i.companyId
+            JOIN InstructionTypes t ON t.id=i.instructionTypeId AND t.companyId=i.companyId
+            LEFT JOIN Employees e ON e.id=i.employeeId AND e.companyId=i.companyId
+            WHERE i.companyId=@companyId AND i.id=@id`);
+  return result.recordset[0];
+}
+
+async function sendInvitationWithFreshToken(pool, ctx, invitation, { reminder = false, validDays = null } = {}) {
+  const token = makeToken();
+  const expiresAt = new Date(Date.now() + Number(validDays || process.env.EXTERNAL_LINK_DEFAULT_DAYS || 14) * 24 * 3600 * 1000);
+  const url = publicUrlFor(token);
+  const mail = (reminder ? buildReminderMail : buildExternalInvitationMail)({
+    companyName: invitation.companyName || invitation.legalName,
+    recipientName: invitation.recipientName || invitation.employeeName,
+    instructionName: invitation.instructionName,
+    language: invitation.language,
+    url,
+    expiresAt,
+    testRequired: invitation.testRequired,
+    passPercent: invitation.passPercent
+  });
+  try {
+    const result = await sendGraphMail({
+      to: invitation.email,
+      cc: process.env.MAIL_HSE_CC || '',
+      subject: mail.subject,
+      html: mail.html,
+      text: mail.text
+    });
+    await pool.request()
+      .input('id', sql.NVarChar(80), invitation.id)
+      .input('companyId', sql.NVarChar(80), invitation.companyId)
+      .input('tokenHash', sql.NVarChar(128), hashToken(token))
+      .input('expiresAt', sql.DateTime2, expiresAt)
+      .input('isReminder', sql.Bit, reminder ? 1 : 0)
+      .query(`UPDATE ExternalInvitations
+              SET tokenHash=@tokenHash, expiresAt=@expiresAt, status=CASE WHEN status='cancelled' THEN 'sent' ELSE status END,
+                  mailSentAt=CASE WHEN @isReminder=0 THEN SYSUTCDATETIME() ELSE COALESCE(mailSentAt,SYSUTCDATETIME()) END,
+                  lastReminderAt=CASE WHEN @isReminder=1 THEN SYSUTCDATETIME() ELSE lastReminderAt END,
+                  reminderCount=CASE WHEN @isReminder=1 THEN reminderCount+1 ELSE reminderCount END,
+                  mailError=NULL
+              WHERE id=@id AND companyId=@companyId`);
+    await writeMailLog(pool, ctx, {
+      companyId: invitation.companyId,
+      relatedEntityType: 'externalInvitation',
+      relatedEntityId: invitation.id,
+      fromEmail: result.from,
+      to: result.to,
+      cc: result.cc,
+      subject: mail.subject,
+      bodyPreview: mail.text,
+      status: 'sent'
+    });
+    await writeAudit(pool, ctx, reminder ? 'mail.invitationReminderSent' : 'mail.invitationSent', 'externalInvitation', invitation.id, { email: invitation.email });
+    return { ok: true, url, expiresAt: expiresAt.toISOString() };
+  } catch (err) {
+    await pool.request()
+      .input('id', sql.NVarChar(80), invitation.id)
+      .input('companyId', sql.NVarChar(80), invitation.companyId)
+      .input('mailError', sql.NVarChar(1000), String(err.message || err).slice(0, 1000))
+      .query('UPDATE ExternalInvitations SET mailError=@mailError WHERE id=@id AND companyId=@companyId');
+    await writeMailLog(pool, ctx, {
+      companyId: invitation.companyId,
+      relatedEntityType: 'externalInvitation',
+      relatedEntityId: invitation.id,
+      to: invitation.email,
+      subject: mail.subject,
+      bodyPreview: mail.text,
+      status: 'failed',
+      errorMessage: err.message || String(err)
+    });
+    throw err;
+  }
+}
+
+app.http('mailConfig', {
+  methods: ['GET'],
+  authLevel: 'anonymous',
+  route: 'mail/config',
+  handler: async (_request, context) => {
+    try { return json(mailConfigStatus()); }
+    catch (err) { return serverError(err, context); }
+  }
+});
+
+app.http('sendExternalInvitationMail', {
+  methods: ['POST'],
+  authLevel: 'anonymous',
+  route: 'invitations/{id}/send-mail',
+  handler: async (request, context) => {
+    try {
+      const ctx = getRequestContext(request);
+      assertRole(ctx, [Roles.COMPANY_ADMIN, Roles.HSE, Roles.LINE_MANAGER]);
+      const body = await request.json().catch(() => ({}));
+      const pool = await getPool();
+      const invitation = await loadInvitation(pool, ctx.companyId, request.params.id);
+      if (!invitation) return notFound('Einladung nicht gefunden');
+      if (invitation.status === 'completed') return badRequest('Einladung ist bereits abgeschlossen');
+      const result = await sendInvitationWithFreshToken(pool, ctx, invitation, { reminder: !!body.reminder, validDays: body.validDays });
+      return json(result);
+    } catch (err) { return serverError(err, context); }
+  }
+});
+
+app.http('sendDueInvitationReminders', {
+  methods: ['POST'],
+  authLevel: 'anonymous',
+  route: 'invitations/send-reminders',
+  handler: async (request, context) => {
+    try {
+      const ctx = getRequestContext(request);
+      assertRole(ctx, [Roles.COMPANY_ADMIN, Roles.HSE]);
+      const body = await request.json().catch(() => ({}));
+      const pool = await getPool();
+      const dueDays = Number(body.dueDays || 3);
+      const max = Math.min(Number(body.max || 50), 100);
+      const result = await pool.request()
+        .input('companyId', sql.NVarChar(80), ctx.companyId)
+        .input('dueBefore', sql.DateTime2, new Date(Date.now() + dueDays * 24 * 3600 * 1000))
+        .input('max', sql.Int, max)
+        .query(`SELECT TOP (@max) i.*, c.name AS companyName, c.legalName, e.name AS employeeName, t.name AS instructionName, t.category
+                FROM ExternalInvitations i
+                JOIN Companies c ON c.id=i.companyId
+                JOIN InstructionTypes t ON t.id=i.instructionTypeId AND t.companyId=i.companyId
+                LEFT JOIN Employees e ON e.id=i.employeeId AND e.companyId=i.companyId
+                WHERE i.companyId=@companyId AND i.status IN ('sent','opened','failed')
+                  AND i.expiresAt <= @dueBefore
+                  AND (i.lastReminderAt IS NULL OR i.lastReminderAt < DATEADD(day,-1,SYSUTCDATETIME()))
+                ORDER BY i.expiresAt ASC`);
+      const sent = [];
+      const failed = [];
+      for (const invitation of result.recordset) {
+        try { sent.push({ id: invitation.id, ...(await sendInvitationWithFreshToken(pool, ctx, invitation, { reminder: true, validDays: body.validDays || 7 })) }); }
+        catch (err) { failed.push({ id: invitation.id, error: err.message }); }
+      }
+      return json({ sent, failed });
+    } catch (err) { return serverError(err, context); }
+  }
+});
+
+app.http('sendPlannedTrainingMail', {
+  methods: ['POST'],
+  authLevel: 'anonymous',
+  route: 'planned-trainings/{id}/send-mail',
+  handler: async (request, context) => {
+    try {
+      const ctx = getRequestContext(request);
+      assertRole(ctx, [Roles.COMPANY_ADMIN, Roles.HSE, Roles.LINE_MANAGER]);
+      const pool = await getPool();
+      const trainingId = request.params.id;
+      const trainingRes = await pool.request()
+        .input('companyId', sql.NVarChar(80), ctx.companyId)
+        .input('id', sql.NVarChar(80), trainingId)
+        .query(`SELECT p.*, c.name AS companyName, t.name AS instructionName, lm.name AS lineManagerName, lm.email AS lineManagerEmail
+                FROM PlannedTrainings p
+                JOIN Companies c ON c.id=p.companyId
+                JOIN InstructionTypes t ON t.id=p.instructionTypeId AND t.companyId=p.companyId
+                LEFT JOIN Employees lm ON lm.id=p.lineManagerId AND lm.companyId=p.companyId
+                WHERE p.companyId=@companyId AND p.id=@id`);
+      const training = trainingRes.recordset[0];
+      if (!training) return notFound('Geplante Unterweisung nicht gefunden');
+      const participantsRes = await pool.request()
+        .input('companyId', sql.NVarChar(80), ctx.companyId)
+        .input('trainingId', sql.NVarChar(80), trainingId)
+        .query(`SELECT tp.id, tp.employeeId, tp.externalEmail, e.name AS employeeName, e.email AS employeeEmail
+                FROM TrainingParticipants tp
+                LEFT JOIN Employees e ON e.id=tp.employeeId AND e.companyId=tp.companyId
+                WHERE tp.companyId=@companyId AND tp.plannedTrainingId=@trainingId`);
+      const participants = participantsRes.recordset;
+      const to = participants.map(p => p.employeeEmail || p.externalEmail).filter(Boolean);
+      if (!to.length) return badRequest('Keine Teilnehmer mit E-Mail-Adresse vorhanden');
+      const participantsText = participants.map(p => p.employeeName || p.externalEmail || p.employeeEmail).filter(Boolean).join(', ');
+      const mail = buildPlannedTrainingMail({
+        companyName: training.companyName,
+        instructionName: training.instructionName,
+        plannedAt: training.plannedAt,
+        durationMinutes: training.durationMinutes,
+        location: training.location,
+        organizerName: training.lineManagerName,
+        participantsText
+      });
+      const ics = buildIcs({
+        uid: `${training.id}@unterweisungsmanager`,
+        title: `Unterweisung: ${training.instructionName}`,
+        description: `Geplante Unterweisung ${training.instructionName}`,
+        location: training.location,
+        startDate: training.plannedAt,
+        durationMinutes: training.durationMinutes,
+        organizerEmail: training.lineManagerEmail || process.env.MAIL_FROM
+      });
+      try {
+        const result = await sendGraphMail({
+          to,
+          cc: process.env.MAIL_HSE_CC || '',
+          subject: mail.subject,
+          html: mail.html,
+          text: mail.text,
+          attachments: [{ name: 'Unterweisung.ics', contentType: 'text/calendar; method=REQUEST', content: ics }]
+        });
+        await pool.request()
+          .input('companyId', sql.NVarChar(80), ctx.companyId)
+          .input('trainingId', sql.NVarChar(80), trainingId)
+          .query(`UPDATE TrainingParticipants SET mailSentAt=SYSUTCDATETIME(), mailError=NULL WHERE companyId=@companyId AND plannedTrainingId=@trainingId;
+                  UPDATE PlannedTrainings SET status='invited' WHERE companyId=@companyId AND id=@trainingId;`);
+        await writeMailLog(pool, ctx, { companyId: ctx.companyId, relatedEntityType: 'plannedTraining', relatedEntityId: trainingId, fromEmail: result.from, to: result.to, cc: result.cc, subject: mail.subject, bodyPreview: mail.text, status: 'sent' });
+        await writeAudit(pool, ctx, 'mail.plannedTrainingSent', 'plannedTraining', trainingId, { recipientCount: to.length });
+        return json({ ok: true, recipients: to.length });
+      } catch (err) {
+        await pool.request()
+          .input('companyId', sql.NVarChar(80), ctx.companyId)
+          .input('trainingId', sql.NVarChar(80), trainingId)
+          .input('mailError', sql.NVarChar(1000), String(err.message || err).slice(0, 1000))
+          .query('UPDATE TrainingParticipants SET mailError=@mailError WHERE companyId=@companyId AND plannedTrainingId=@trainingId');
+        await writeMailLog(pool, ctx, { companyId: ctx.companyId, relatedEntityType: 'plannedTraining', relatedEntityId: trainingId, to, subject: mail.subject, bodyPreview: mail.text, status: 'failed', errorMessage: err.message || String(err) });
+        throw err;
+      }
+    } catch (err) { return serverError(err, context); }
+  }
+});
+
+app.http('mailLog', {
+  methods: ['GET'],
+  authLevel: 'anonymous',
+  route: 'mail/log',
+  handler: async (request, context) => {
+    try {
+      const ctx = getRequestContext(request);
+      assertRole(ctx, [Roles.COMPANY_ADMIN, Roles.HSE]);
+      const pool = await getPool();
+      const result = await pool.request()
+        .input('companyId', sql.NVarChar(80), ctx.companyId)
+        .query(`SELECT TOP 200 id,relatedEntityType,relatedEntityId,fromEmail,toEmail,ccEmail,subject,status,errorMessage,createdAt
+                FROM MailLog WHERE companyId=@companyId ORDER BY createdAt DESC`);
+      return json(result.recordset);
+    } catch (err) { return serverError(err, context); }
+  }
+});

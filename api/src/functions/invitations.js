@@ -5,6 +5,8 @@ import { getPool, sql } from '../lib/db.js';
 import { json, badRequest, serverError } from '../lib/http.js';
 import { getRequestContext, assertRole, Roles } from '../lib/auth.js';
 import { writeAudit } from '../lib/audit.js';
+import { sendGraphMail, buildExternalInvitationMail } from '../lib/graphMail.js';
+import { writeMailLog } from '../lib/mailLog.js';
 
 function makeToken() {
   return crypto.randomBytes(32).toString('base64url');
@@ -58,7 +60,48 @@ app.http('invitations', {
           .query(`INSERT INTO ExternalInvitations(id,companyId,tokenHash,email,recipientName,employeeId,instructionTypeId,language,expiresAt,createdBy,status,testRequired,passPercent)
                   VALUES(@id,@companyId,@tokenHash,@email,@recipientName,@employeeId,@instructionTypeId,@language,@expiresAt,@createdBy,'sent',@testRequired,@passPercent)`);
         await writeAudit(pool, ctx, 'invitation.created', 'externalInvitation', id, { email: body.email, instructionTypeId: body.instructionTypeId });
-        return json({ id, url: `${publicBase}/external/instruction.html?t=${token}`, expiresAt: expiresAt.toISOString() }, 201);
+        const url = `${publicBase}/external/instruction.html?t=${token}`;
+        let mail = null;
+        if (body.sendMail === true || body.sendMail === 'true') {
+          const detail = await pool.request()
+            .input('companyId', sql.NVarChar(80), ctx.companyId)
+            .input('typeId', sql.NVarChar(80), body.instructionTypeId)
+            .input('employeeId', sql.NVarChar(80), body.employeeId || null)
+            .query(`SELECT c.name AS companyName, c.legalName, t.name AS instructionName, e.name AS employeeName
+                    FROM Companies c
+                    JOIN InstructionTypes t ON t.companyId=c.id AND t.id=@typeId
+                    LEFT JOIN Employees e ON e.companyId=c.id AND e.id=@employeeId
+                    WHERE c.id=@companyId`);
+          const d = detail.recordset[0] || {};
+          const message = buildExternalInvitationMail({
+            companyName: d.companyName || d.legalName,
+            recipientName: body.recipientName || body.name || d.employeeName,
+            instructionName: d.instructionName,
+            language: body.language || 'de',
+            url,
+            expiresAt,
+            testRequired: body.testRequired === false ? false : true,
+            passPercent: Number(body.passPercent || 80)
+          });
+          try {
+            const sent = await sendGraphMail({ to: body.email, cc: process.env.MAIL_HSE_CC || '', subject: message.subject, html: message.html, text: message.text });
+            await pool.request()
+              .input('id', sql.NVarChar(80), id)
+              .input('companyId', sql.NVarChar(80), ctx.companyId)
+              .query('UPDATE ExternalInvitations SET mailSentAt=SYSUTCDATETIME(), mailError=NULL WHERE id=@id AND companyId=@companyId');
+            await writeMailLog(pool, ctx, { companyId: ctx.companyId, relatedEntityType: 'externalInvitation', relatedEntityId: id, fromEmail: sent.from, to: sent.to, cc: sent.cc, subject: message.subject, bodyPreview: message.text, status: 'sent' });
+            mail = { sent: true };
+          } catch (mailErr) {
+            await pool.request()
+              .input('id', sql.NVarChar(80), id)
+              .input('companyId', sql.NVarChar(80), ctx.companyId)
+              .input('mailError', sql.NVarChar(1000), String(mailErr.message || mailErr).slice(0, 1000))
+              .query('UPDATE ExternalInvitations SET mailError=@mailError WHERE id=@id AND companyId=@companyId');
+            await writeMailLog(pool, ctx, { companyId: ctx.companyId, relatedEntityType: 'externalInvitation', relatedEntityId: id, to: body.email, subject: message.subject, bodyPreview: message.text, status: 'failed', errorMessage: mailErr.message || String(mailErr) });
+            mail = { sent: false, error: mailErr.message };
+          }
+        }
+        return json({ id, url, expiresAt: expiresAt.toISOString(), mail }, 201);
       }
 
       const id = request.params.id;

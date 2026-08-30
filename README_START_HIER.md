@@ -1,6 +1,6 @@
-# Unterweisungsmanager Online v4
+# Unterweisungsmanager Online v5
 
-Ziel: Firmenfähige Online-Version für Azure Static Web Apps + Azure Functions + Azure SQL + Azure Blob Storage.
+Ziel: Firmenfähige Online-Version für Azure Static Web Apps + Azure Functions + Azure SQL + Azure Blob Storage + Microsoft Graph Mailversand.
 
 ## Inhalt
 
@@ -12,18 +12,19 @@ Ziel: Firmenfähige Online-Version für Azure Static Web Apps + Azure Functions 
 - `templates/` – PDF-Vorlagen für den ersten Import
 - `scripts/` – Datenbank-Migration, Import, Blob-Upload, Prüfskripte
 - `infra/` – Azure Bicep Grundentwurf
-- `docs/` – Datenschutz, Backup, Sicherheit, Roadmap
+- `docs/` – Datenschutz, Backup, Sicherheit, Mail, Roadmap
 
 ## Reihenfolge für den Aufbau
 
 1. Azure SQL Datenbank erstellen.
 2. Storage Account + privaten Blob Container erstellen.
-3. Verbindung in Umgebungsvariablen eintragen.
-4. Migrationen ausführen.
-5. Startdaten importieren inklusive Testfragen.
-6. PDF-Vorlagen in Blob Storage hochladen.
-7. API testen.
-8. Frontend über Azure Static Web Apps veröffentlichen.
+3. Microsoft Entra App Registration für Graph Mail erstellen.
+4. Verbindung in Umgebungsvariablen eintragen.
+5. Migrationen ausführen.
+6. Startdaten importieren inklusive Testfragen.
+7. PDF-Vorlagen in Blob Storage hochladen.
+8. API testen.
+9. Frontend über Azure Static Web Apps veröffentlichen.
 
 ## Lokaler technischer Ablauf
 
@@ -37,6 +38,12 @@ export BLOB_CONTAINER="unterweisungsmanager"
 export COMPANY_ID="company-essentra"
 export PUBLIC_BASE_URL="http://localhost:4280"
 
+# Graph Mail optional, aber für echten Mailversand erforderlich
+export GRAPH_TENANT_ID="<tenant-id>"
+export GRAPH_CLIENT_ID="<app-client-id>"
+export GRAPH_CLIENT_SECRET="<client-secret>"
+export MAIL_FROM="unterweisungsmanager@firma.de"
+
 npm run db:migrate
 npm run db:seed
 npm run blob:upload-templates
@@ -44,19 +51,15 @@ npm run db:check
 npm run start
 ```
 
-## Wichtige Änderung in v4
+## Wichtige Änderung in v5
 
-Die externe Unterweisungsstrecke ist jetzt angebunden:
+Microsoft Graph Mailversand ist vorbereitet:
 
-1. Admin/HSE erzeugt einen sicheren Einmal-Link.
-2. Teilnehmer öffnet `/external/instruction.html?t=<token>`.
-3. Unterweisungsinhalt und Vorlage werden angezeigt.
-4. Der Teilnehmer bestätigt den Inhalt.
-5. Falls Testfragen vorhanden sind, beantwortet der Teilnehmer den Test.
-6. Die API bewertet den Test.
-7. Bei Bestehen wird ein Unterweisungsdatensatz gespeichert.
-8. Der Status ist danach in der Admin-Seite sichtbar.
-9. Ein digitaler Nachweis wird als HTML-Datei in Blob Storage vorbereitet.
+1. Externe Unterweisungslinks können direkt per Mail gesendet werden.
+2. Erinnerungen für offene/fällige Einladungen können gesendet werden.
+3. Geplante Gruppenunterweisungen können als Outlook-Mail mit `.ics`-Terminanhang an Teilnehmer gesendet werden.
+4. Jeder Mailversand wird in `MailLog` protokolliert.
+5. Beim erneuten Senden wird ein neuer sicherer Token erzeugt; der alte Link wird dadurch ungültig.
 
 ## Aktuelle Seed-Daten
 
@@ -69,7 +72,7 @@ Die externe Unterweisungsstrecke ist jetzt angebunden:
 
 ## Aktueller Stand
 
-v4 ist noch kein fertiges SaaS-Produkt, aber der Online-Kern ist jetzt aufgebaut:
+v5 ist noch kein fertiges SaaS-Produkt, aber der Online-Kern ist jetzt aufgebaut:
 
 - Azure SQL Migrationen
 - Startdaten-Import
@@ -78,12 +81,7 @@ v4 ist noch kein fertiges SaaS-Produkt, aber der Online-Kern ist jetzt aufgebaut
 - Testauswertung bei externem Abschluss
 - Statusrückmeldung in Admin-Seite
 - Nachweisdatei in Blob Storage vorbereitet
+- Microsoft Graph Mailversand vorbereitet
+- Mail-Log und Erinnerungen vorbereitet
 
-## Nächster Schritt
-
-Als nächstes kommen:
-
-1. echter PDF-Renderer für Nachweise statt HTML-Drucknachweis
-2. Microsoft Graph Mailversand für Einladungen
-3. Nachweis-Upload durch Admin/HSE
-4. Entra Login/Rollen produktiv aktivieren
+Nächster Schritt: Microsoft Entra Rollen produktiv anbinden und echte Firmen-/Benutzerverwaltung absichern.
