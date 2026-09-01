@@ -25,19 +25,14 @@ jobs:
         run: npm install --omit=dev
 
       - name: Run migrations
+       - name: Run migrations
         env:
-          SQL_SERVER: ${{ secrets.SQL_SERVER }}
-          SQL_DATABASE: ${{ secrets.SQL_DATABASE }}
-          SQL_USER: ${{ secrets.SQL_USER }}
-          SQL_PASSWORD: ${{ secrets.SQL_PASSWORD }}
+          SQL_CONNECTION_STRING: ${{ secrets.SQL_CONNECTION_STRING }}
         run: npm run db:migrate
 
       - name: Import start data
         env:
-          SQL_SERVER: ${{ secrets.SQL_SERVER }}
-          SQL_DATABASE: ${{ secrets.SQL_DATABASE }}
-          SQL_USER: ${{ secrets.SQL_USER }}
-          SQL_PASSWORD: ${{ secrets.SQL_PASSWORD }}
+          SQL_CONNECTION_STRING: ${{ secrets.SQL_CONNECTION_STRING }}
         run: npm run db:seed
 
       - name: Upload templates to blob storage
