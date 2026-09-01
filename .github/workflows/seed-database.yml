@@ -1,0 +1,47 @@
+name: Seed Unterweisungsmanager Database
+
+on:
+  workflow_dispatch:
+
+jobs:
+  seed:
+    runs-on: ubuntu-latest
+    name: Import start data
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install root dependencies
+        run: npm install
+
+      - name: Install API dependencies
+        working-directory: api
+        run: npm install --omit=dev
+
+      - name: Run migrations
+        env:
+          SQL_SERVER: ${{ secrets.SQL_SERVER }}
+          SQL_DATABASE: ${{ secrets.SQL_DATABASE }}
+          SQL_USER: ${{ secrets.SQL_USER }}
+          SQL_PASSWORD: ${{ secrets.SQL_PASSWORD }}
+        run: npm run db:migrate
+
+      - name: Import start data
+        env:
+          SQL_SERVER: ${{ secrets.SQL_SERVER }}
+          SQL_DATABASE: ${{ secrets.SQL_DATABASE }}
+          SQL_USER: ${{ secrets.SQL_USER }}
+          SQL_PASSWORD: ${{ secrets.SQL_PASSWORD }}
+        run: npm run db:seed
+
+      - name: Upload templates to blob storage
+        env:
+          AZURE_STORAGE_CONNECTION_STRING: ${{ secrets.AZURE_STORAGE_CONNECTION_STRING }}
+          BLOB_CONTAINER_TEMPLATES: templates
+        run: npm run blob:upload-templates
