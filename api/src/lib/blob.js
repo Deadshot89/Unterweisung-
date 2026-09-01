@@ -30,7 +30,7 @@ export function getContainerClient() {
 
 export async function ensureContainer() {
   const container = getContainerClient();
-  await container.createIfNotExists({ access: 'private' });
+  await containerClient.createIfNotExists();
   return container;
 }
 
