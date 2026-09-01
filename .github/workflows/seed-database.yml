@@ -42,8 +42,9 @@ jobs:
           SQL_CONNECTION_STRING: ${{ secrets.SQL_CONNECTION_STRING }}
         run: npm run db:seed
 
-      - name: Upload templates to blob storage
+            - name: Upload templates to blob storage
         env:
+          SQL_CONNECTION_STRING: ${{ secrets.SQL_CONNECTION_STRING }}
           AZURE_STORAGE_CONNECTION_STRING: ${{ secrets.AZURE_STORAGE_CONNECTION_STRING }}
           BLOB_CONTAINER_TEMPLATES: templates
         run: npm run blob:upload-templates
