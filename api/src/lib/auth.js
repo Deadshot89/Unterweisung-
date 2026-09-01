@@ -87,6 +87,32 @@ function dbRoleToRole(role) {
 
 export async function getAuthorizedContext(request) {
   const base = getRequestContext(request);
+
+  // DEV/Pilot-Bypass: nur für Aufbau/Testbetrieb.
+  // Wenn AUTH_DEV_BYPASS=true gesetzt ist, darf die API ohne Microsoft/Entra-Login laden.
+  // Vor Produktivbetrieb muss diese Einstellung wieder entfernt/deaktiviert werden.
+  const devBypass = String(process.env.AUTH_DEV_BYPASS || '').toLowerCase() === 'true';
+  const requireDbUser = String(process.env.AUTH_REQUIRE_DB_USER || (isProduction() ? 'true' : 'false')).toLowerCase() === 'true';
+  if (devBypass && !base.isAuthenticated) {
+    return {
+      ...base,
+      companyId: process.env.DEFAULT_COMPANY_ID || process.env.COMPANY_ID || 'company-essentra',
+      userId: process.env.DEV_USER_ID || 'dev-admin',
+      userDetails: process.env.DEV_USER_NAME || 'Pilot Admin',
+      email: normalizeEmail(process.env.DEV_USER_EMAIL || 'pilot-admin@local'),
+      roles: [Roles.COMPANY_ADMIN, Roles.HSE, Roles.LINE_MANAGER, Roles.AUTHENTICATED],
+      allowedCompanies: [{
+        companyId: process.env.DEFAULT_COMPANY_ID || process.env.COMPANY_ID || 'company-essentra',
+        role: Roles.COMPANY_ADMIN,
+        userId: process.env.DEV_USER_ID || 'dev-admin',
+        email: normalizeEmail(process.env.DEV_USER_EMAIL || 'pilot-admin@local'),
+        displayName: process.env.DEV_USER_NAME || 'Pilot Admin'
+      }],
+      isAuthenticated: true,
+      isLocalDev: true
+    };
+  }
+
   if (!base.isAuthenticated) {
     const err = new Error('Nicht angemeldet');
     err.status = 401;
@@ -94,7 +120,6 @@ export async function getAuthorizedContext(request) {
   }
 
   // Lokale Entwicklung darf ohne SQL-Rollendatensatz starten, damit das Projekt sofort testbar bleibt.
-  const requireDbUser = String(process.env.AUTH_REQUIRE_DB_USER || (isProduction() ? 'true' : 'false')).toLowerCase() === 'true';
   let pool;
   try { pool = await getPool(); }
   catch (err) {
@@ -118,6 +143,16 @@ export async function getAuthorizedContext(request) {
   const dbUsers = res.recordset || [];
   const principalRoles = normalizeRoles(base.roles);
   const isSystemAdminByPrincipal = principalRoles.includes(Roles.SYSTEM_ADMIN);
+
+  if (!dbUsers.length && !requireDbUser && base.isLocalDev) {
+    return {
+      ...base,
+      companyId: base.companyId || process.env.DEFAULT_COMPANY_ID || 'company-essentra',
+      roles: normalizeRoles([...base.roles, Roles.COMPANY_ADMIN, Roles.HSE, Roles.LINE_MANAGER, Roles.AUTHENTICATED]),
+      allowedCompanies: [{ companyId: base.companyId || process.env.DEFAULT_COMPANY_ID || 'company-essentra', role: Roles.COMPANY_ADMIN, userId: base.userId, email: base.email, displayName: base.userDetails || 'Lokaler Testbenutzer' }],
+      isAuthenticated: true
+    };
+  }
 
   if (!dbUsers.length && requireDbUser && !isSystemAdminByPrincipal) {
     const err = new Error('Benutzer ist nicht im Unterweisungsmanager freigeschaltet');
