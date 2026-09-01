@@ -7,7 +7,7 @@ import { v4 as uuidv4 } from 'uuid';
 
 const storageConnectionString = process.env.AZURE_STORAGE_CONNECTION_STRING;
 const sqlConnectionString = process.env.SQL_CONNECTION_STRING;
-const containerName = process.env.BLOB_CONTAINER || 'unterweisungsmanager';
+const containerName = process.env.BLOB_CONTAINER_TEMPLATES || process.env.BLOB_CONTAINER || 'templates';
 const companyId = process.env.COMPANY_ID || 'company-essentra';
 const templatesDir = path.resolve(process.argv[2] || 'templates');
 
@@ -30,7 +30,8 @@ function sha256(buffer) {
 
 const blobService = BlobServiceClient.fromConnectionString(storageConnectionString);
 const container = blobService.getContainerClient(containerName);
-await container.createIfNotExists({ access: 'private' });
+// Private container: omit access option. Azure Blob SDK only accepts public values 'blob' or 'container'.
+await container.createIfNotExists();
 const pool = await sql.connect(sqlConnectionString);
 try {
   const files = fs.readdirSync(templatesDir).filter(f => f.toLowerCase().endsWith('.pdf'));
