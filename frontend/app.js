@@ -1,5 +1,7 @@
 const $ = (id) => document.getElementById(id);
-const state = { data: null, source: 'loading', statusRows: [], apiAvailable: false, mailConfig: null, me: null, companyId: 'company-essentra', users: [], operations: null, backups: [], healthHistory: [], securityEvents: [], auditEvents: [] };
+const API_BASE_URL = String(window.UM_API_BASE_URL || '').replace(/\/$/, '');
+const DEFAULT_COMPANY_ID = window.UM_DEFAULT_COMPANY_ID || 'company-essentra';
+const state = { data: null, source: 'loading', statusRows: [], apiAvailable: false, mailConfig: null, me: null, companyId: DEFAULT_COMPANY_ID, users: [], operations: null, backups: [], healthHistory: [], securityEvents: [], auditEvents: [] };
 
 function esc(s=''){return String(s ?? '').replace(/[&<>\"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[c]))}
 function fmtDate(d){return d ? new Date(d).toLocaleDateString('de-DE') : '—'}
@@ -7,9 +9,14 @@ function isoDate(d){return d ? new Date(d).toISOString().slice(0,10) : ''}
 function addMonths(dateStr, months){const d=new Date(dateStr); d.setMonth(d.getMonth()+Number(months||12)); return d.toISOString().slice(0,10)}
 function todayIso(){return new Date().toISOString().slice(0,10)}
 
+function apiUrl(path){
+  const cleanPath = String(path || '').startsWith('/') ? path : '/' + path;
+  return API_BASE_URL ? API_BASE_URL + cleanPath : cleanPath;
+}
+
 async function api(path, options={}){
-  const headers = {'Content-Type':'application/json','x-company-id': state.companyId || 'company-essentra', ...(options.headers||{})};
-  const res = await fetch('/api' + path, {...options, headers});
+  const headers = {'Content-Type':'application/json','x-company-id': state.companyId || DEFAULT_COMPANY_ID, ...(options.headers||{})};
+  const res = await fetch(apiUrl('/api' + path), {...options, headers, mode:'cors'});
   if(!res.ok) throw new Error(await res.text());
   return res.json();
 }
@@ -120,7 +127,7 @@ function renderDashboard(){
     <div class="card kpi"><div class="label">Bald fällig</div><div class="value yellow">${(s.soon||0)+(s.critical||0)}</div></div>
     <div class="card kpi"><div class="label">Abgelaufen</div><div class="value red">${s.expired||0}</div></div>
     <div class="card kpi"><div class="label">Fehlend</div><div class="value yellow">${s.missing||0}</div></div>
-    <div class="card"><h2>Online-Version v0.7</h2><p>Diese Version enthält zusätzlich Microsoft-Entra-Login, Benutzer-/Rollenverwaltung, Microsoft-Graph-Mailversand, externe Unterweisungslinks und gehärteten Nachweis-Upload.</p></div>
+    <div class="card"><h2>Online-Version v0.11</h2><p>Diese Version ist mit der separaten Azure Function API verbunden. SQL und Blob Storage laufen online; Entra-Login/Rollen werden als nächster Sicherheitsblock sauber angebunden.</p></div>
   </div>`;
 }
 function renderCompanies(){
