@@ -1,7 +1,7 @@
 import { app } from '@azure/functions';
 import { json } from '../lib/http.js';
-import { getPool } from '../lib/db.js';
-import { ensureContainer } from '../lib/blob.js';
+import { getPool, isDbConfigured } from '../lib/db.js';
+import { ensureConfiguredContainers } from '../lib/blob.js';
 
 app.http('health', {
   methods: ['GET'],
@@ -11,12 +11,12 @@ app.http('health', {
     const info = {
       ok: true,
       service: 'unterweisungsmanager-api',
-      version: '0.8.0',
+      version: '0.9.0',
       database: 'not_configured',
       blobStorage: 'not_configured'
     };
 
-    if (process.env.SQL_CONNECTION_STRING) {
+    if (isDbConfigured()) {
       try {
         const pool = await getPool();
         await pool.request().query('SELECT 1 AS ok');
@@ -29,8 +29,8 @@ app.http('health', {
 
     if (process.env.AZURE_STORAGE_CONNECTION_STRING) {
       try {
-        await ensureContainer();
-        info.blobStorage = 'ok';
+        const containers = await ensureConfiguredContainers();
+        info.blobStorage = 'ok: ' + containers.join(',');
       } catch (err) {
         info.ok = false;
         info.blobStorage = 'error: ' + err.message;
