@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Unterweisungsmanager Online · v0.28</title>
+  <title>Unterweisungsmanager Online · v0.29</title>
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
@@ -24,7 +24,7 @@
 
   <main>
     <section class="notice">
-      <strong>Status:</strong> Online-Grundstruktur v0.28: Manager-Report/Line-Manager-Arbeitsansicht, Essentra-Live-Prüfkonsole mit Fehlerprotokoll, Unterweisungsstatus-Arbeitsliste, Planung/Zuweisung von Unterweisungen, Unterweisungstypen-Verwaltung, Testfragen-Verwaltung, Upload für Unterweisungsunterlagen, rollenabhängige Oberfläche, Benutzer/Rechte-Verwaltung, System-Admin-Konsole, Mandantenanlage, Startpaket, Mitarbeiteranlage/-Import, Firmen-Mailsteuerung, externe Unterweisung und Testauswertung sind verbunden. Login läuft im Dev-Bypass, bis Entra/Rollen produktiv fertig sind.
+      <strong>Status:</strong> Online-Grundstruktur v0.29: Nachweisverwaltung, Manager-Report/Line-Manager-Arbeitsansicht, Essentra-Live-Prüfkonsole mit Fehlerprotokoll, Unterweisungsstatus-Arbeitsliste, Planung/Zuweisung von Unterweisungen, Unterweisungstypen-Verwaltung, Testfragen-Verwaltung, Upload für Unterweisungsunterlagen, rollenabhängige Oberfläche, Benutzer/Rechte-Verwaltung, System-Admin-Konsole, Mandantenanlage, Startpaket, Mitarbeiteranlage/-Import, Firmen-Mailsteuerung, externe Unterweisung und Testauswertung sind verbunden. Login läuft im Dev-Bypass, bis Entra/Rollen produktiv fertig sind.
     </section>
 
     <nav class="tabs">
@@ -33,6 +33,7 @@
       <button data-view="employees">Mitarbeiter</button>
       <button data-view="instructions">Unterweisungen</button>
       <button data-view="status">Unterweisungsstatus</button>
+      <button data-view="proofs">Nachweise</button>
       <button data-view="managerReport">Manager-Report</button>
       <button data-view="planning">Planung</button>
       <button data-view="external">Externe Links</button>
@@ -46,6 +47,7 @@
     <section id="employees" class="view"></section>
     <section id="instructions" class="view"></section>
     <section id="status" class="view"></section>
+    <section id="proofs" class="view"></section>
     <section id="managerReport" class="view"></section>
     <section id="planning" class="view"></section>
     <section id="external" class="view"></section>
@@ -74,5 +76,6 @@
   <script src="/essentra-live-check-v26.js"></script>
   <script src="/essentra-defect-log-v27.js"></script>
   <script src="/manager-report-v28.js"></script>
+  <script src="/proof-management-v29.js"></script>
 </body>
 </html>
