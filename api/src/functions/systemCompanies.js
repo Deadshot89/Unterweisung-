@@ -37,6 +37,125 @@ function validEmail(value) {
   return email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : null;
 }
 
+async function companyExists(pool, companyId) {
+  const result = await pool.request()
+    .input('companyId', sql.NVarChar(80), companyId)
+    .query('SELECT TOP 1 id FROM Companies WHERE id=@companyId');
+  return !!result.recordset.length;
+}
+
+async function tenantHasStarterData(pool, companyId) {
+  const result = await pool.request()
+    .input('companyId', sql.NVarChar(80), companyId)
+    .query(`SELECT
+              (SELECT COUNT(*) FROM InstructionTypes WHERE companyId=@companyId) AS typeCount,
+              (SELECT COUNT(*) FROM Templates WHERE companyId=@companyId) AS templateCount,
+              (SELECT COUNT(*) FROM TestQuestions WHERE companyId=@companyId) AS questionCount`);
+  const row = result.recordset[0] || {};
+  return Number(row.typeCount || 0) + Number(row.templateCount || 0) + Number(row.questionCount || 0) > 0;
+}
+
+async function copyStarterData(pool, ctx, targetCompanyId, body = {}) {
+  const sourceCompanyId = clean(body.sourceCompanyId, 80) || process.env.STARTER_COMPANY_ID || process.env.DEFAULT_COMPANY_ID || 'company-essentra';
+  if (!targetCompanyId) return { error: 'Zielfirma fehlt.' };
+  if (targetCompanyId === sourceCompanyId) return { error: 'Quelle und Ziel dürfen nicht gleich sein.' };
+  if (!(await companyExists(pool, targetCompanyId))) return { error: 'Zielfirma existiert nicht.' };
+  if (!(await companyExists(pool, sourceCompanyId))) return { error: 'Vorlagefirma existiert nicht.' };
+  if (await tenantHasStarterData(pool, targetCompanyId)) return { error: 'Zielfirma hat bereits Unterweisungen/Vorlagen/Testfragen. Startpaket wird nicht doppelt kopiert.' };
+
+  const templates = (await pool.request()
+    .input('sourceCompanyId', sql.NVarChar(80), sourceCompanyId)
+    .query(`SELECT id,title,fileName,blobPath,category,description,active
+            FROM Templates
+            WHERE companyId=@sourceCompanyId AND active=1
+            ORDER BY title`)).recordset;
+
+  const types = (await pool.request()
+    .input('sourceCompanyId', sql.NVarChar(80), sourceCompanyId)
+    .query(`SELECT id,name,category,intervalMonths,description,templateId,active
+            FROM InstructionTypes
+            WHERE companyId=@sourceCompanyId AND active=1
+            ORDER BY category,name`)).recordset;
+
+  const questions = (await pool.request()
+    .input('sourceCompanyId', sql.NVarChar(80), sourceCompanyId)
+    .query(`SELECT id,instructionTypeId,language,question,optionsJson,correctIndex,active
+            FROM TestQuestions
+            WHERE companyId=@sourceCompanyId AND active=1
+            ORDER BY instructionTypeId,language,id`)).recordset;
+
+  if (!types.length) return { error: 'Vorlagefirma hat keine aktiven Unterweisungstypen.' };
+
+  const templateMap = new Map();
+  for (const t of templates) {
+    const newId = `tpl-${uuidv4()}`;
+    templateMap.set(t.id, newId);
+    await pool.request()
+      .input('id', sql.NVarChar(80), newId)
+      .input('companyId', sql.NVarChar(80), targetCompanyId)
+      .input('title', sql.NVarChar(240), t.title)
+      .input('fileName', sql.NVarChar(260), t.fileName)
+      .input('blobPath', sql.NVarChar(500), t.blobPath)
+      .input('category', sql.NVarChar(120), t.category || null)
+      .input('description', sql.NVarChar(sql.MAX), t.description || null)
+      .input('active', sql.Bit, t.active === false ? 0 : 1)
+      .query(`INSERT INTO Templates(id,companyId,title,fileName,blobPath,category,description,active)
+              VALUES(@id,@companyId,@title,@fileName,@blobPath,@category,@description,@active)`);
+  }
+
+  const typeMap = new Map();
+  for (const t of types) {
+    const newId = `type-${uuidv4()}`;
+    typeMap.set(t.id, newId);
+    await pool.request()
+      .input('id', sql.NVarChar(80), newId)
+      .input('companyId', sql.NVarChar(80), targetCompanyId)
+      .input('name', sql.NVarChar(200), t.name)
+      .input('category', sql.NVarChar(120), t.category)
+      .input('intervalMonths', sql.Int, Number(t.intervalMonths || 12))
+      .input('description', sql.NVarChar(sql.MAX), t.description || null)
+      .input('templateId', sql.NVarChar(80), t.templateId ? (templateMap.get(t.templateId) || null) : null)
+      .input('active', sql.Bit, t.active === false ? 0 : 1)
+      .query(`INSERT INTO InstructionTypes(id,companyId,name,category,intervalMonths,description,templateId,active)
+              VALUES(@id,@companyId,@name,@category,@intervalMonths,@description,@templateId,@active)`);
+  }
+
+  let copiedQuestions = 0;
+  for (const q of questions) {
+    const newTypeId = typeMap.get(q.instructionTypeId);
+    if (!newTypeId) continue;
+    await pool.request()
+      .input('id', sql.NVarChar(80), `q-${uuidv4()}`)
+      .input('companyId', sql.NVarChar(80), targetCompanyId)
+      .input('instructionTypeId', sql.NVarChar(80), newTypeId)
+      .input('language', sql.NVarChar(10), q.language || 'de')
+      .input('question', sql.NVarChar(sql.MAX), q.question)
+      .input('optionsJson', sql.NVarChar(sql.MAX), q.optionsJson)
+      .input('correctIndex', sql.Int, Number(q.correctIndex || 0))
+      .input('active', sql.Bit, q.active === false ? 0 : 1)
+      .query(`INSERT INTO TestQuestions(id,companyId,instructionTypeId,language,question,optionsJson,correctIndex,active)
+              VALUES(@id,@companyId,@instructionTypeId,@language,@question,@optionsJson,@correctIndex,@active)`);
+    copiedQuestions++;
+  }
+
+  await writeAudit(pool, ctx, 'system.company.starterDataCopied', 'company', targetCompanyId, {
+    sourceCompanyId,
+    templateCount: templates.length,
+    instructionTypeCount: types.length,
+    questionCount: copiedQuestions
+  });
+  await writeSecurityEvent(pool, ctx, 'system.company.starterDataCopied', 'info', { targetCompanyId, sourceCompanyId });
+
+  return {
+    ok: true,
+    sourceCompanyId,
+    targetCompanyId,
+    templateCount: templates.length,
+    instructionTypeCount: types.length,
+    questionCount: copiedQuestions
+  };
+}
+
 app.http('systemCompanies', {
   methods: ['GET', 'POST', 'PATCH'],
   authLevel: 'anonymous',
@@ -64,12 +183,16 @@ app.http('systemCompanies', {
               COUNT(DISTINCT u.id) AS userCount,
               SUM(CASE WHEN u.active=1 AND u.role='company_admin' THEN 1 ELSE 0 END) AS companyAdminCount,
               COUNT(DISTINCT e.id) AS employeeCount,
-              COUNT(DISTINCT t.id) AS instructionTypeCount
+              COUNT(DISTINCT tpl.id) AS templateCount,
+              COUNT(DISTINCT t.id) AS instructionTypeCount,
+              COUNT(DISTINCT q.id) AS testQuestionCount
             FROM Companies c
             LEFT JOIN CompanySettings cs ON cs.companyId=c.id
             LEFT JOIN Users u ON u.companyId=c.id
             LEFT JOIN Employees e ON e.companyId=c.id AND e.active=1
+            LEFT JOIN Templates tpl ON tpl.companyId=c.id AND tpl.active=1
             LEFT JOIN InstructionTypes t ON t.companyId=c.id AND t.active=1
+            LEFT JOIN TestQuestions q ON q.companyId=c.id AND q.active=1
             GROUP BY c.id,c.name,c.legalName,c.addressLine,c.defaultLanguage,c.active,c.createdAt,c.updatedAt,
                      cs.mailMode,cs.mailFromName,cs.mailFromEmail,cs.replyToEmail
             ORDER BY c.createdAt DESC, c.name`);
@@ -127,13 +250,26 @@ app.http('systemCompanies', {
           adminUser = { email: adminEmail, displayName: adminName || adminEmail, role: 'company_admin' };
         }
 
-        await writeAudit(pool, ctx, 'system.company.upserted', 'company', companyId, { name, adminEmail });
+        let starterData = null;
+        if (body.copyStarterData === true || body.copyStarterData === 'true') {
+          starterData = await copyStarterData(pool, ctx, companyId, body);
+          if (starterData.error) return badRequest(starterData.error);
+        }
+
+        await writeAudit(pool, ctx, 'system.company.upserted', 'company', companyId, { name, adminEmail, copiedStarterData: !!starterData });
         await writeSecurityEvent(pool, ctx, 'system.company.upserted', 'info', { companyId, adminEmail });
-        return json({ ok: true, companyId, adminUser }, 201);
+        return json({ ok: true, companyId, adminUser, starterData }, 201);
       }
 
       const id = request.params.id;
       if (!id) return badRequest('company id is required');
+
+      if (body.action === 'copyStarterData') {
+        const result = await copyStarterData(pool, ctx, id, body);
+        if (result.error) return badRequest(result.error);
+        return json(result);
+      }
+
       await pool.request()
         .input('id', sql.NVarChar(80), id)
         .input('name', sql.NVarChar(200), clean(body.name, 200))
