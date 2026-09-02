@@ -1,7 +1,8 @@
-// v0.34: Professionelle Seitenkoepfe fuer Arbeitsbereiche.
+// v0.35.2: Professionelle Seitenkoepfe fuer Arbeitsbereiche.
+// Performance-Hotfix: keine dauerhafte Body-Beobachtung, keine Render-Schleife.
 // Keine API-Aenderung: ergaenzt nur kurze Orientierung pro Reiter.
 
-const VIEW_HEADER_DESIGN_VERSION = 'v0.34';
+const VIEW_HEADER_DESIGN_VERSION = 'v0.35.2';
 
 const VIEW_HEADERS = {
   companies: ['Firmen', 'Mandanten verwalten und Firmenstartpakete pruefen.'],
@@ -18,6 +19,9 @@ const VIEW_HEADERS = {
   security: ['Sicherheit', 'Audit, Security-Events und rollenbasierte Sperren kontrollieren.']
 };
 
+let viewHeaderScheduled = false;
+let viewHeaderRunning = false;
+
 function viewHeaderMarkup(viewId){
   const cfg = VIEW_HEADERS[viewId];
   if(!cfg) return '';
@@ -32,37 +36,47 @@ function viewHeaderMarkup(viewId){
 }
 
 function applyViewHeaders(root = document){
-  Object.keys(VIEW_HEADERS).forEach((viewId) => {
-    const view = root.getElementById ? root.getElementById(viewId) : document.getElementById(viewId);
-    if(!view || view.id === 'dashboard') return;
-    const existing = view.querySelector(':scope > .view-head');
-    if(existing) return;
-    view.insertAdjacentHTML('afterbegin', viewHeaderMarkup(viewId));
-  });
+  if(viewHeaderRunning) return;
+  viewHeaderRunning = true;
+  try{
+    Object.keys(VIEW_HEADERS).forEach((viewId) => {
+      const view = root.getElementById ? root.getElementById(viewId) : document.getElementById(viewId);
+      if(!view || view.id === 'dashboard') return;
+      const existing = view.querySelector(':scope > .view-head');
+      if(existing) return;
+      view.insertAdjacentHTML('afterbegin', viewHeaderMarkup(viewId));
+    });
 
-  const version = document.getElementById('appVersion');
-  if(version) version.textContent = VIEW_HEADER_DESIGN_VERSION;
-  document.body.dataset.viewHeaderDesign = VIEW_HEADER_DESIGN_VERSION;
+    document.body.dataset.viewHeaderDesign = VIEW_HEADER_DESIGN_VERSION;
+  } finally {
+    viewHeaderRunning = false;
+  }
+}
+
+function scheduleViewHeaders(){
+  if(viewHeaderScheduled) return;
+  viewHeaderScheduled = true;
+  window.requestAnimationFrame(() => {
+    viewHeaderScheduled = false;
+    applyViewHeaders();
+  });
 }
 
 if(typeof render === 'function'){
   const originalRenderForViewHeaders = render;
   render = function(id){
     const result = originalRenderForViewHeaders(id);
-    window.requestAnimationFrame(() => applyViewHeaders());
+    scheduleViewHeaders();
     return result;
   };
 }
 
-const viewHeaderObserver = new MutationObserver((mutations) => {
-  if(!mutations.some(m => m.addedNodes && m.addedNodes.length)) return;
-  window.requestAnimationFrame(() => applyViewHeaders());
-});
-
-viewHeaderObserver.observe(document.body, { childList:true, subtree:true });
+document.addEventListener('DOMContentLoaded', scheduleViewHeaders);
+window.addEventListener('load', scheduleViewHeaders);
 
 window.VIEW_HEADER_DESIGN_VERSION = VIEW_HEADER_DESIGN_VERSION;
 window.VIEW_HEADERS = VIEW_HEADERS;
 window.applyViewHeaders = applyViewHeaders;
+window.scheduleViewHeaders = scheduleViewHeaders;
 
-window.requestAnimationFrame(() => applyViewHeaders());
+scheduleViewHeaders();
