@@ -1,6 +1,6 @@
 // Auth / Mandanten-Kontext für Azure Static Web Apps + Microsoft Entra + Azure Functions.
-// Produktion: x-ms-client-principal kommt von Static Web Apps Auth / Entra.
-// Lokale Entwicklung: x-company-id und x-dev-roles Header sind nur außerhalb NODE_ENV=production erlaubt.
+// Produktion/Cloud: x-ms-client-principal kommt von Static Web Apps Auth / Entra.
+// Lokale Dev-Header sind nur bei explizitem NODE_ENV=development/test oder AUTH_LOCAL_DEV=true erlaubt.
 
 import { getPool, sql } from './db.js';
 
@@ -46,8 +46,14 @@ function splitList(value) {
   return String(value || '').split(/[;,]/).map(v => normalizeEmail(v)).filter(Boolean);
 }
 
+function isLocalDevelopment() {
+  if (String(process.env.AUTH_LOCAL_DEV || '').toLowerCase() === 'true') return true;
+  const nodeEnv = String(process.env.NODE_ENV || '').toLowerCase();
+  return nodeEnv === 'development' || nodeEnv === 'test';
+}
+
 function isProduction() {
-  return String(process.env.NODE_ENV || '').toLowerCase() === 'production';
+  return !isLocalDevelopment();
 }
 
 function parseCompanyHeader(request) {
@@ -67,7 +73,7 @@ function defaultCompanyId() {
 export function getRequestContext(request) {
   const rawPrincipal = request.headers.get('x-ms-client-principal');
   const principal = decodePrincipal(rawPrincipal);
-  const localDev = !isProduction() && !rawPrincipal;
+  const localDev = isLocalDevelopment() && !rawPrincipal;
   const devRoles = localDev ? request.headers.get('x-dev-roles') : null;
   const requestedCompanyId = parseCompanyHeader(request);
   const principalRoles = normalizeRoles(devRoles ? devRoles.split(',') : (principal?.userRoles || []));
