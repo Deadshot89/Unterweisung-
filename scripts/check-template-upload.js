@@ -22,6 +22,6 @@ assert.match(ui, /templates\/upload/, 'Frontend muss Template-Upload-API nutzen.
 assert.match(ui, /openTemplate/, 'Frontend muss Unterlagen öffnen können.');
 assert.match(ui, /prepareTemplateReplace/, 'Frontend muss bestehende Vorlagen ersetzen können.');
 assert.match(index, /template-management-v21\.js/, 'Index muss Template-Management-Script laden.');
-assert.match(index, /v0\.21/, 'Index muss Version v0.21 anzeigen.');
+assert.match(index, /Unterweisungsmanager Online · v0\./, 'Index muss eine sichtbare Online-Version anzeigen.');
 
 console.log('Template upload checks passed');
