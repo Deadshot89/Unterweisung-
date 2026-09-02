@@ -3,6 +3,7 @@
 // Keine API-Aenderung, keine Fachlogik-Aenderung.
 
 const PROFESSIONAL_SUITE_VERSION = 'v0.35.2';
+const APP_RELEASE_VERSION = 'v0.36.0';
 
 const NAV_GROUPS = [
   { key:'overview', label:'Uebersicht', views:['dashboard'] },
@@ -32,11 +33,14 @@ let professionalSuiteApplying = false;
 
 function setProfessionalVersion(){
   const version = document.getElementById('appVersion');
-  if(version && version.textContent !== PROFESSIONAL_SUITE_VERSION) {
-    version.textContent = PROFESSIONAL_SUITE_VERSION;
+  if(version && version.textContent !== APP_RELEASE_VERSION) {
+    version.textContent = APP_RELEASE_VERSION;
   }
   if(document.body.dataset.professionalSuite !== PROFESSIONAL_SUITE_VERSION) {
     document.body.dataset.professionalSuite = PROFESSIONAL_SUITE_VERSION;
+  }
+  if(document.body.dataset.appRelease !== APP_RELEASE_VERSION) {
+    document.body.dataset.appRelease = APP_RELEASE_VERSION;
   }
 }
 
@@ -102,7 +106,7 @@ function ensureProfessionalFooter(){
   const main = document.querySelector('main');
   if(!main) return;
   let footer = document.getElementById('appFooterV35');
-  const footerHtml = `<span>Unterweisungsmanager · Essentra Arbeitsstand</span><span class="suite-chip">Betriebsbereit · ${PROFESSIONAL_SUITE_VERSION}</span>`;
+  const footerHtml = `<span>Unterweisungsmanager · Essentra Arbeitsstand</span><span class="suite-chip">Betriebsbereit · ${APP_RELEASE_VERSION}</span>`;
   if(!footer){
     footer = document.createElement('footer');
     footer.id = 'appFooterV35';
@@ -170,6 +174,7 @@ document.addEventListener('DOMContentLoaded', scheduleProfessionalSuite);
 window.addEventListener('load', scheduleProfessionalSuite);
 
 window.PROFESSIONAL_SUITE_VERSION = PROFESSIONAL_SUITE_VERSION;
+window.APP_RELEASE_VERSION = APP_RELEASE_VERSION;
 window.NAV_GROUPS = NAV_GROUPS;
 window.NAV_META = NAV_META;
 window.applyProfessionalSuite = applyProfessionalSuite;
