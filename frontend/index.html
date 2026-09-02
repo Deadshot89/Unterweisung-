@@ -3,43 +3,49 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Unterweisungsmanager Online · v0.30</title>
+  <title>Unterweisungsmanager · v0.31</title>
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
-  <header class="topbar">
-    <div>
+  <header class="topbar app-shell-header">
+    <div class="brand-wrap">
       <div class="brand">UM</div>
-    </div>
-    <div class="title-block">
-      <h1>Unterweisungsmanager Online</h1>
-      <p>Mandantenfähiger Start für Firmenbetrieb · Azure Static Web Apps + Functions + SQL/Blob</p>
+      <div class="title-block">
+        <h1>Unterweisungsmanager</h1>
+        <p>Digitales Unterweisungs- und Schulungsmanagement</p>
+      </div>
     </div>
     <div class="top-actions">
-      <span id="userInfo" class="user-info">Login wird geprüft…</span>
-      <a class="btn ghost" href="/.auth/login/aad">Login</a>
-      <a class="btn ghost" href="/.auth/logout">Logout</a>
+      <span id="userInfo" class="user-info professional-user">Login wird geprüft…</span>
+      <a class="btn ghost login-action" href="/.auth/login/aad">Anmelden</a>
+      <a class="btn ghost logout-action" href="/.auth/logout">Abmelden</a>
     </div>
   </header>
 
   <main>
-    <section class="notice">
-      <strong>Status:</strong> Online-Grundstruktur v0.30: Erinnerungs-/Mahncenter, Nachweisverwaltung, Manager-Report/Line-Manager-Arbeitsansicht, Essentra-Live-Prüfkonsole mit Fehlerprotokoll, Unterweisungsstatus-Arbeitsliste, Planung/Zuweisung von Unterweisungen, Unterweisungstypen-Verwaltung, Testfragen-Verwaltung, Upload für Unterweisungsunterlagen, rollenabhängige Oberfläche, Benutzer/Rechte-Verwaltung, System-Admin-Konsole, Mandantenanlage, Startpaket, Mitarbeiteranlage/-Import, Firmen-Mailsteuerung, externe Unterweisung und Testauswertung sind verbunden. Login läuft im Dev-Bypass, bis Entra/Rollen produktiv fertig sind.
+    <section class="system-strip">
+      <span class="status-dot"></span>
+      <strong>Systemstatus:</strong>
+      <span>Betriebsbereit</span>
+      <span class="strip-divider"></span>
+      <span>Essentra aktiv</span>
+      <span class="strip-divider"></span>
+      <span>Version <span id="appVersion">v0.31</span></span>
     </section>
 
-    <nav class="tabs">
+    <nav class="tabs primary-tabs">
       <button data-view="dashboard" class="active">Dashboard</button>
       <button data-view="companies">Firmen</button>
       <button data-view="employees">Mitarbeiter</button>
       <button data-view="instructions">Unterweisungen</button>
-      <button data-view="status">Unterweisungsstatus</button>
+      <button data-view="status">Status</button>
       <button data-view="reminders">Erinnerungen</button>
       <button data-view="proofs">Nachweise</button>
       <button data-view="managerReport">Manager-Report</button>
       <button data-view="planning">Planung</button>
       <button data-view="external">Externe Links</button>
-      <button data-view="users">Benutzer/Rechte</button>
-      <button data-view="operations">Betrieb/Backup</button>
+      <button data-view="users">Benutzer</button>
+      <button data-view="operations">Betrieb</button>
       <button data-view="security">Sicherheit</button>
     </nav>
 
@@ -80,5 +86,6 @@
   <script src="/manager-report-v28.js"></script>
   <script src="/proof-management-v29.js"></script>
   <script src="/reminder-center-v30.js"></script>
+  <script src="/design-polish-v31.js"></script>
 </body>
 </html>
