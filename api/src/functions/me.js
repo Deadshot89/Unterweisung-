@@ -21,6 +21,8 @@ app.http('me', {
         displayName: ctx.userDetails,
         roles: ctx.roles,
         isSystemAdmin: ctx.roles.includes(Roles.SYSTEM_ADMIN),
+        isLocalDev: !!ctx.isLocalDev,
+        authMode: ctx.isLocalDev ? 'dev-bypass' : 'entra',
         allowedCompanies: ctx.allowedCompanies
       });
     } catch (err) {
