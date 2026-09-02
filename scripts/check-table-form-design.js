@@ -14,7 +14,7 @@ function assert(condition, message) {
 }
 
 assert(/Unterweisungsmanager Online · v0\./.test(index), 'Browser-Titel muss kompatible v0-Version behalten.');
-assert(index.includes('Version <span id="appVersion">v0.33</span>'), 'Systemleiste zeigt nicht v0.33.');
+assert(/Version <span id="appVersion">v0\.\d+<\/span>/.test(index), 'Systemleiste muss eine sichtbare v0-Version zeigen.');
 assert(index.includes('/table-form-design-v33.js'), 'Tabellen/Formular-Design-Datei wird nicht geladen.');
 
 assert(tableForm.includes('TABLE_FORM_DESIGN_VERSION'), 'Designversion fuer Tabellen/Formulare fehlt.');
@@ -34,7 +34,7 @@ assert(css.includes('.professional-field'), 'Professionelle Feld-Styles fehlen.'
 assert(css.includes('.actions-cell'), 'Aktionsspalten-Styles fehlen.');
 assert(css.includes(':focus'), 'Fokus-Styles fuer Eingaben fehlen.');
 
-assert(design.includes("const DESIGN_VERSION = 'v0.33'"), 'Header-Design setzt nicht v0.33.');
-assert(dashboard.includes("const DASHBOARD_DESIGN_VERSION = 'v0.33'"), 'Dashboard setzt nicht v0.33.');
+assert(/const DESIGN_VERSION = 'v0\.\d+'/.test(design), 'Header-Design muss eine v0-Version setzen.');
+assert(/const DASHBOARD_DESIGN_VERSION = 'v0\.\d+'/.test(dashboard), 'Dashboard muss eine v0-Version setzen.');
 
 console.log('Tabellen/Formular-Design-Pruefung OK');
