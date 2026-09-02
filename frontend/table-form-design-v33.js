@@ -1,7 +1,7 @@
-// v0.33: Professioneller Tabellen- und Formular-Layer.
+// v0.34: Professioneller Tabellen- und Formular-Layer.
 // Keine Fachlogik, keine API-Aenderung: nur visuelle Klassifizierung dynamisch gerenderter Bereiche.
 
-const TABLE_FORM_DESIGN_VERSION = 'v0.33';
+const TABLE_FORM_DESIGN_VERSION = 'v0.34';
 
 function applyTableFormPolish(root = document){
   root.querySelectorAll('.table-wrap').forEach((wrap) => {
