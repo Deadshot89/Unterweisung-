@@ -1,7 +1,7 @@
-// v0.33: Professionelles Dashboard ohne technische Testtexte.
+// v0.34: Professionelles Dashboard ohne technische Testtexte.
 // Fokus: Essentra Arbeitsuebersicht, klare Kennzahlen, schnelle Aktionen.
 
-const DASHBOARD_DESIGN_VERSION = 'v0.33';
+const DASHBOARD_DESIGN_VERSION = 'v0.34';
 
 function dashboardRows(){
   return state.statusRows?.length ? state.statusRows : buildLocalStatusRows();
