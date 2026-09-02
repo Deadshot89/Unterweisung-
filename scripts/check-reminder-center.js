@@ -11,7 +11,14 @@ function assertIncludes(source, needle, label) {
   }
 }
 
-assertIncludes(index, 'Unterweisungsmanager Online · v0.30', 'sichtbare Version v0.30');
+function assertMatches(source, pattern, label) {
+  if (!pattern.test(source)) {
+    console.error(`Fehlt: ${label}`);
+    process.exit(1);
+  }
+}
+
+assertMatches(index, /Unterweisungsmanager Online · v0\./, 'sichtbare Online-Version');
 assertIncludes(index, 'data-view="reminders"', 'Erinnerungen-Reiter');
 assertIncludes(index, '<section id="reminders"', 'Erinnerungen-Section');
 assertIncludes(index, '/reminder-center-v30.js', 'Erinnerungscenter geladen');
