@@ -1,0 +1,408 @@
+/* v0.36.0: Kompakter Unterweisungs-Workspace und sichere Tabellenverdichtung. */
+
+body.app-shell-v35 .instruction-workspace{
+  display:grid;
+  gap:16px;
+  min-width:0;
+}
+
+body.app-shell-v35 .instruction-overview-card{
+  overflow:hidden;
+  padding:20px;
+}
+
+body.app-shell-v35 .instruction-workspace-head,
+body.app-shell-v35 .instruction-detail-head,
+body.app-shell-v35 .instruction-card-head{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:16px;
+}
+
+body.app-shell-v35 .instruction-workspace-head h2,
+body.app-shell-v35 .instruction-detail-head h3,
+body.app-shell-v35 .instruction-card-head h2{
+  margin:2px 0 4px;
+}
+
+body.app-shell-v35 .instruction-section-kicker{
+  display:block;
+  margin-bottom:2px;
+  color:var(--suite-brand);
+  font-size:11px;
+  font-weight:900;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+}
+
+body.app-shell-v35 .instruction-metrics{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:10px;
+  margin:16px 0;
+}
+
+body.app-shell-v35 .instruction-metric{
+  min-width:0;
+  border:1px solid var(--suite-line);
+  border-radius:16px;
+  background:var(--suite-surface-soft);
+  padding:12px 14px;
+}
+
+body.app-shell-v35 .instruction-metric-label{
+  display:block;
+  color:var(--suite-muted);
+  font-size:11px;
+  font-weight:800;
+  letter-spacing:.035em;
+  text-transform:uppercase;
+}
+
+body.app-shell-v35 .instruction-metric strong{
+  display:block;
+  margin-top:3px;
+  color:var(--suite-text);
+  font-size:22px;
+  line-height:1.1;
+}
+
+body.app-shell-v35 .instruction-filters{
+  display:grid;
+  grid-template-columns:minmax(240px,2fr) repeat(4,minmax(135px,1fr));
+  gap:10px;
+  align-items:end;
+  margin-bottom:14px;
+  padding:12px;
+  border:1px solid var(--suite-line-soft);
+  border-radius:16px;
+  background:#fbfdfe;
+}
+
+body.app-shell-v35 .instruction-filters .field{
+  margin:0;
+}
+
+body.app-shell-v35 .instruction-filters label{
+  display:block;
+  margin-bottom:5px;
+  color:#475467;
+  font-size:11px;
+  font-weight:800;
+}
+
+body.app-shell-v35 .instruction-filters input,
+body.app-shell-v35 .instruction-filters select{
+  width:100%;
+  min-width:0;
+}
+
+body.app-shell-v35 .instruction-filter-actions{
+  grid-column:1 / -1;
+  display:flex;
+  justify-content:flex-end;
+}
+
+body.app-shell-v35 .instruction-workspace .table-wrap,
+body.app-shell-v35 .instruction-table-wrap{
+  overflow-x:auto;
+  overflow-y:visible;
+  max-height:none;
+  border:1px solid var(--suite-line);
+  border-radius:16px;
+  background:#fff;
+}
+
+body.app-shell-v35 .instruction-table{
+  width:100%;
+  min-width:980px;
+  table-layout:fixed;
+  border-collapse:separate;
+  border-spacing:0;
+}
+
+body.app-shell-v35 .instruction-table th:nth-child(1){width:29%}
+body.app-shell-v35 .instruction-table th:nth-child(2){width:13%}
+body.app-shell-v35 .instruction-table th:nth-child(3){width:10%}
+body.app-shell-v35 .instruction-table th:nth-child(4){width:20%}
+body.app-shell-v35 .instruction-table th:nth-child(5){width:11%}
+body.app-shell-v35 .instruction-table th:nth-child(6){width:8%}
+body.app-shell-v35 .instruction-table th:nth-child(7){width:9%}
+
+body.app-shell-v35 .instruction-table td{
+  vertical-align:middle;
+  padding-top:10px;
+  padding-bottom:10px;
+  line-height:1.35;
+}
+
+body.app-shell-v35 .instruction-row{
+  transition:background .12s ease,box-shadow .12s ease;
+}
+
+body.app-shell-v35 .instruction-row:hover{
+  background:#f8fbfd;
+}
+
+body.app-shell-v35 .instruction-row.is-selected{
+  background:#eef9fc;
+  box-shadow:inset 3px 0 0 var(--suite-brand);
+}
+
+body.app-shell-v35 .instruction-name-cell{
+  min-width:0;
+}
+
+body.app-shell-v35 .instruction-name-button{
+  display:block;
+  width:100%;
+  min-height:0;
+  padding:0;
+  border:0;
+  border-radius:0;
+  background:transparent;
+  box-shadow:none;
+  color:var(--suite-text);
+  font:inherit;
+  font-weight:850;
+  line-height:1.3;
+  text-align:left;
+  cursor:pointer;
+}
+
+body.app-shell-v35 .instruction-name-button:hover{
+  background:transparent;
+  color:var(--suite-brand-dark);
+  box-shadow:none;
+}
+
+body.app-shell-v35 .instruction-description-preview{
+  display:-webkit-box;
+  -webkit-box-orient:vertical;
+  -webkit-line-clamp:2;
+  overflow:hidden;
+  margin-top:4px;
+  color:var(--suite-muted);
+  font-size:12px;
+  line-height:1.35;
+  overflow-wrap:anywhere;
+}
+
+body.app-shell-v35 .instruction-file-name{
+  display:inline-block;
+  max-width:100%;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  vertical-align:bottom;
+}
+
+body.app-shell-v35 .instruction-row-action{
+  min-width:82px;
+  max-width:100px;
+  white-space:nowrap;
+}
+
+body.app-shell-v35 .instruction-row-action button{
+  width:100%;
+  margin:0;
+}
+
+body.app-shell-v35 .instruction-table-count{
+  margin:8px 2px 0;
+  font-size:12px;
+}
+
+body.app-shell-v35 .instruction-empty-state{
+  display:flex;
+  flex-direction:column;
+  gap:3px;
+  align-items:center;
+  justify-content:center;
+  min-height:120px;
+  margin:8px 0;
+  border:1px dashed var(--suite-line);
+  border-radius:16px;
+  background:var(--suite-surface-soft);
+  color:var(--suite-muted);
+  text-align:center;
+}
+
+body.app-shell-v35 .instruction-empty-state b{
+  color:var(--suite-text);
+}
+
+body.app-shell-v35 .instruction-detail-panel{
+  margin-top:14px;
+  border:1px solid var(--suite-line);
+  border-radius:20px;
+  background:linear-gradient(135deg,#fbfdfe,#f4fafc);
+  padding:18px;
+}
+
+body.app-shell-v35 .instruction-detail-empty{
+  min-height:118px;
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+}
+
+body.app-shell-v35 .instruction-detail-grid{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:10px;
+  margin-top:14px;
+}
+
+body.app-shell-v35 .instruction-detail-item,
+body.app-shell-v35 .instruction-detail-description{
+  min-width:0;
+  border:1px solid var(--suite-line-soft);
+  border-radius:14px;
+  background:#fff;
+  padding:11px 12px;
+}
+
+body.app-shell-v35 .instruction-detail-item > span,
+body.app-shell-v35 .instruction-detail-description > span{
+  display:block;
+  margin-bottom:4px;
+  color:var(--suite-muted);
+  font-size:10px;
+  font-weight:850;
+  letter-spacing:.05em;
+  text-transform:uppercase;
+}
+
+body.app-shell-v35 .instruction-detail-item strong{
+  display:block;
+  overflow-wrap:anywhere;
+}
+
+body.app-shell-v35 .instruction-detail-item small{
+  display:block;
+  margin-top:3px;
+  color:var(--suite-muted);
+  overflow-wrap:anywhere;
+}
+
+body.app-shell-v35 .instruction-detail-description{
+  grid-column:1 / -1;
+  white-space:pre-wrap;
+}
+
+body.app-shell-v35 .instruction-detail-description p{
+  margin:0;
+  color:#344054;
+  line-height:1.55;
+}
+
+body.app-shell-v35 .instruction-detail-actions{
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+  margin-top:14px;
+}
+
+body.app-shell-v35 .instruction-management-sections{
+  display:grid;
+  gap:16px;
+}
+
+body.app-shell-v35 .instruction-management-zone,
+body.app-shell-v35 .instruction-management-zone > .card{
+  min-width:0;
+}
+
+body.app-shell-v35 .instruction-management-zone > .card{
+  margin:0;
+}
+
+body.app-shell-v35 .instruction-management-card{
+  overflow:hidden;
+}
+
+/* Sichere Verdichtung für die übrigen Verwaltungsbereiche. */
+body.app-shell-v35 .professional-table td{
+  vertical-align:middle;
+  padding-top:10px;
+  padding-bottom:10px;
+  line-height:1.35;
+}
+
+body.app-shell-v35 .professional-table td .muted{
+  line-height:1.35;
+}
+
+body.app-shell-v35 .actions-cell{
+  min-width:96px;
+  max-width:240px;
+  white-space:normal;
+}
+
+body.app-shell-v35 .actions-cell button,
+body.app-shell-v35 .actions-cell .btn{
+  margin:2px;
+}
+
+body.app-shell-v35 .professional-form-grid{
+  row-gap:12px;
+}
+
+@media(max-width:1380px){
+  body.app-shell-v35 .instruction-filters{
+    grid-template-columns:repeat(3,minmax(0,1fr));
+  }
+  body.app-shell-v35 .instruction-search-field{
+    grid-column:span 2;
+  }
+}
+
+@media(max-width:1180px){
+  body.app-shell-v35 .instruction-filters{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+  body.app-shell-v35 .instruction-search-field{
+    grid-column:1 / -1;
+  }
+  body.app-shell-v35 .instruction-metrics{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+  body.app-shell-v35 .instruction-detail-grid{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+}
+
+@media(max-width:720px){
+  body.app-shell-v35 .instruction-overview-card{
+    padding:14px;
+  }
+  body.app-shell-v35 .instruction-workspace-head,
+  body.app-shell-v35 .instruction-detail-head,
+  body.app-shell-v35 .instruction-card-head{
+    flex-direction:column;
+    align-items:stretch;
+  }
+  body.app-shell-v35 .instruction-filters,
+  body.app-shell-v35 .instruction-metrics,
+  body.app-shell-v35 .instruction-detail-grid{
+    grid-template-columns:1fr;
+  }
+  body.app-shell-v35 .instruction-search-field,
+  body.app-shell-v35 .instruction-detail-description{
+    grid-column:1;
+  }
+  body.app-shell-v35 .instruction-filter-actions{
+    justify-content:stretch;
+  }
+  body.app-shell-v35 .instruction-filter-actions button{
+    width:100%;
+  }
+  body.app-shell-v35 .instruction-detail-actions{
+    flex-direction:column;
+  }
+  body.app-shell-v35 .instruction-detail-actions button{
+    width:100%;
+  }
+}
