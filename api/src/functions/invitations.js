@@ -16,6 +16,10 @@ function hashToken(token) {
   return crypto.createHash('sha256').update(token).digest('hex');
 }
 
+function publicBaseUrl() {
+  return String(process.env.PUBLIC_BASE_URL || process.env.APP_BASE_URL || 'http://localhost:4280').replace(/\/$/, '');
+}
+
 app.http('invitations', {
   methods: ['GET', 'POST', 'PATCH'],
   authLevel: 'anonymous',
@@ -28,10 +32,43 @@ app.http('invitations', {
       if (request.method === 'GET') {
         const result = await pool.request()
           .input('companyId', sql.NVarChar(80), ctx.companyId)
-          .query(`SELECT TOP 300 id,email,recipientName,employeeId,employeeName,instructionTypeId,instructionName,category,language,status,expiresAt,startedAt,completedAt,testRequired,passPercent,certificateFileId,certificateFileName,createdAt
-                  FROM vExternalInvitations
-                  WHERE companyId=@companyId
-                  ORDER BY createdAt DESC`);
+          .query(`SELECT TOP 300
+                    vi.id,
+                    vi.email,
+                    vi.recipientName,
+                    vi.employeeId,
+                    vi.employeeName,
+                    vi.instructionTypeId,
+                    vi.instructionName,
+                    vi.category,
+                    vi.language,
+                    vi.status,
+                    vi.expiresAt,
+                    vi.startedAt,
+                    vi.completedAt,
+                    vi.testRequired,
+                    vi.passPercent,
+                    vi.certificateFileId,
+                    vi.certificateFileName,
+                    vi.createdAt,
+                    tr.id AS testResultId,
+                    tr.scorePercent,
+                    tr.passed,
+                    tr.createdAt AS testCompletedAt,
+                    tr.linkedRecordId,
+                    CASE
+                      WHEN tr.answersJson IS NULL THEN NULL
+                      ELSE (LEN(tr.answersJson) - LEN(REPLACE(tr.answersJson, '"questionId"', ''))) / LEN('"questionId"')
+                    END AS answeredQuestions
+                  FROM vExternalInvitations vi
+                  OUTER APPLY (
+                    SELECT TOP 1 id, scorePercent, passed, createdAt, linkedRecordId, answersJson
+                    FROM TestResults tr
+                    WHERE tr.companyId=vi.companyId AND tr.externalInvitationId=vi.id
+                    ORDER BY tr.createdAt DESC
+                  ) tr
+                  WHERE vi.companyId=@companyId
+                  ORDER BY vi.createdAt DESC`);
         return json(result.recordset);
       }
 
@@ -42,7 +79,7 @@ app.http('invitations', {
         if (!body.email || !body.instructionTypeId) return badRequest('email and instructionTypeId are required');
         const id = body.id || uuidv4();
         const token = makeToken();
-        const publicBase = process.env.PUBLIC_BASE_URL || process.env.APP_BASE_URL || 'http://localhost:4280';
+        const publicBase = publicBaseUrl();
         const expiresAt = body.expiresAt ? new Date(body.expiresAt) : new Date(Date.now() + Number(body.validDays || 14) * 24 * 3600 * 1000);
         await pool.request()
           .input('id', sql.NVarChar(80), id)
