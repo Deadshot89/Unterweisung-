@@ -13,7 +13,7 @@ assert.match(api, /kind:\s*'template'/, 'Template-Dateien müssen als kind=templ
 assert.match(api, /MERGE Templates/, 'Template-Upload muss die Templates-Tabelle aktualisieren.');
 assert.match(api, /UPDATE InstructionTypes SET templateId=@templateId/, 'Template-Upload muss Unterweisungstypen zuordnen können.');
 assert.match(api, /template\.uploaded/, 'Template-Upload muss auditiert werden.');
-assert.match(api, /route:\s*'templates\/{id}\/download'/, 'Template-Download muss weiter vorhanden sein.');
+assert.match(api, /route:\s*'templates\/\{id\}\/download'/, 'Template-Download muss weiter vorhanden sein.');
 
 assert.match(ui, /Unterweisungsunterlage hochladen/, 'Frontend muss Upload-Maske anzeigen.');
 assert.match(ui, /uploadTemplateFile/, 'Frontend muss Upload-Funktion bereitstellen.');
