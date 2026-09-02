@@ -18,7 +18,7 @@ assert(index.includes('/professional-suite-v35.js'), 'Major-Design-Script wird n
 assert(index.includes('/view-header-design-v34.css'), 'Seitenkopf-CSS muss weiterhin geladen bleiben.');
 
 assert(script.includes('PROFESSIONAL_SUITE_VERSION'), 'Suite-Version fehlt.');
-assert(script.includes("const PROFESSIONAL_SUITE_VERSION = 'v0.35.1'"), 'Freeze-Hotfix-Version v0.35.1 fehlt.');
+assert(/const PROFESSIONAL_SUITE_VERSION = 'v0\.35\.\d+'/.test(script), 'Freeze-Hotfix-Version v0.35.x fehlt.');
 assert(script.includes('NAV_GROUPS'), 'Navigationsgruppen fehlen.');
 assert(script.includes('NAV_META'), 'Navigations-Metadaten fehlen.');
 assert(script.includes('applyProfessionalSuite'), 'applyProfessionalSuite fehlt.');
@@ -46,4 +46,4 @@ assert(css.includes('@media(max-width:1180px)'), 'Tablet/mobile Umschaltung fehl
 assert(css.includes('@media(max-width:720px)'), 'Mobile Feinabstimmung fehlt.');
 assert(!css.includes('localhost'), 'Kein localhost-Hinweis im Design-CSS.');
 
-console.log('Professional Suite v0.35.1 regression check passed.');
+console.log('Professional Suite v0.35.x regression check passed.');
