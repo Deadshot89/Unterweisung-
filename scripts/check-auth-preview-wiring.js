@@ -5,6 +5,7 @@ const workflow = readFileSync('.github/workflows/azure-static-web-apps.yml', 'ut
 const frontendConfig = readFileSync('frontend/config.js', 'utf8');
 const index = readFileSync('frontend/index.html', 'utf8');
 const pkg = JSON.parse(readFileSync('package.json', 'utf8'));
+const apiPkg = JSON.parse(readFileSync('api/package.json', 'utf8'));
 const swaConfigPath = 'frontend/staticwebapp.config.json';
 
 assert.equal(existsSync(swaConfigPath), true, 'Static Web Apps config muss im deployten frontend-Verzeichnis liegen.');
@@ -23,5 +24,7 @@ assert.notEqual(anonymousAssetIndex, -1, 'CSS Assets müssen explizit anonym err
 assert.notEqual(authenticatedApiIndex, -1, 'API muss authentifiziert geschützt sein.');
 assert.notEqual(authenticatedAppIndex, -1, 'App muss authentifiziert geschützt sein.');
 assert.ok(anonymousAssetIndex < authenticatedAppIndex, 'Asset-Regeln müssen vor der allgemeinen App-Regel stehen.');
+assert.equal(swa.platform?.apiRuntime, 'node:22', 'Integrierte API muss Node 22 nutzen, da aktuelle Azure-Abhängigkeiten Node >=22 verlangen.');
+assert.match(String(apiPkg.engines?.node || ''), /22/, 'API package engines muss Node 22 deklarieren.');
 
 console.log('Authenticated preview wiring checks passed');
