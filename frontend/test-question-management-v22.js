@@ -46,7 +46,7 @@ function testQuestionManagerCard(){
   const fLang = $('tqLangFilter')?.value || '';
   const q = state.testQuestions || [];
   const filtered = q.filter(x => (!fType || x.instructionTypeId===fType) && (!fLang || x.language===fLang));
-  return `<div class="card span-12"><div class="toolbar"><div><h2>Testfragen</h2><p class="muted">Fragen werden beim externen Test gemischt. Die richtige Antwort bleibt intern über den Antwortindex gespeichert.</p></div><button class="ghost" onclick="loadTestQuestions(true).then(renderInstructions)">Fragen neu laden</button></div>
+  return `<div class="card span-12"><div class="toolbar"><div><h2>Testfragen</h2><p class="muted">Standardfragen verteilen die richtige Antwort auf A, B, C und D. Im externen Test wird die Antwortreihenfolge zusätzlich gemischt.</p></div><button class="ghost" onclick="loadTestQuestions(true).then(renderInstructions)">Fragen neu laden</button></div>
     <div class="filters">
       <select id="tqTypeFilter" onchange="renderInstructions()"><option value="">Alle Unterweisungen</option>${types().filter(t=>t.active!==false).map(t=>`<option value="${esc(t.id)}" ${fType===t.id?'selected':''}>${esc(t.name)}</option>`).join('')}</select>
       <select id="tqLangFilter" onchange="renderInstructions()"><option value="">Alle Sprachen</option>${['de','en','pl'].map(l=>`<option value="${l}" ${fLang===l?'selected':''}>${langLabel(l)}</option>`).join('')}</select>

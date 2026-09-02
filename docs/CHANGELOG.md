@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.36.1 – Ausgewogene Testantworten (Preview)
+
+- Standardfragen verteilen die richtige Antwort gleichmäßig auf A, B, C und D: fünf je Position bei 20 Fragen pro Sprache.
+- Neue externe Tests mischen die Antworten mit möglichst gleichmäßiger Verteilung der richtigen Positionen; die Bewertung bleibt an die jeweilige Antwort gebunden.
+- Die gezielte Datenkorrektur ersetzt unveränderte aktive Standardfragen durch neue Versionen. Ursprüngliche Antwortschlüssel bleiben für bereits geöffnete Tests und historische Ergebnisse erhalten.
+- Manuell bearbeitete und deaktivierte Fragen werden nicht überschrieben. Wiederholte Ausführung erzeugt keine weiteren Versionen.
+
 ## v0.36.1 – Kompakte Verwaltungsansichten (Preview)
 
 - Mitarbeiter: fünf übersichtliche Spalten, vollständige Aktionen, Suche ohne Verlust offener Formulare.

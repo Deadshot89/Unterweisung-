@@ -5,6 +5,7 @@ import { json, badRequest, serverError } from '../lib/http.js';
 import { createReadSasUrl } from '../lib/blob.js';
 import { saveCertificateHtml } from '../lib/certificate.js';
 import { writeAudit } from '../lib/audit.js';
+import { placeCorrectAnswer, balancedPositions } from '../lib/question-order.js';
 
 function hashToken(token) {
   return crypto.createHash('sha256').update(token || '').digest('hex');
@@ -19,11 +20,11 @@ function shuffle(arr) {
   return a;
 }
 
-function safeQuestion(row) {
+function safeQuestion(row, targetIndex) {
   let options = [];
   try { options = JSON.parse(row.optionsJson || '[]'); } catch { options = []; }
   const optionObjects = options.map((text, originalIndex) => ({ text, answerIndex: originalIndex }));
-  return { id: row.id, question: row.question, options: shuffle(optionObjects) };
+  return { id: row.id, question: row.question, options: targetIndex === undefined ? shuffle(optionObjects) : placeCorrectAnswer(options, Number(row.correctIndex), targetIndex) };
 }
 
 function summariseTest(test) {
@@ -65,12 +66,24 @@ async function getRandomQuestions(pool, invitation) {
     .input('companyId', sql.NVarChar(80), invitation.companyId)
     .input('typeId', sql.NVarChar(80), invitation.instructionTypeId)
     .input('language', sql.NVarChar(10), invitation.language || 'de')
-    .query(`SELECT id, question, optionsJson
+    .query(`SELECT id, question, optionsJson, correctIndex
             FROM TestQuestions
             WHERE companyId=@companyId AND instructionTypeId=@typeId AND language=@language AND active=1`);
   const poolQuestions = qres.recordset;
   const count = Math.min(poolQuestions.length, Math.max(5, Math.min(7, poolQuestions.length || 0)));
-  return shuffle(poolQuestions).slice(0, count).map(safeQuestion);
+  const selected = shuffle(poolQuestions).slice(0, count);
+  const groups = new Map();
+  for(const row of selected) {
+    const optionCount = JSON.parse(row.optionsJson || '[]').length;
+    if(!groups.has(optionCount)) groups.set(optionCount, []);
+    groups.get(optionCount).push(row);
+  }
+  const positions = new Map();
+  for(const [optionCount, questions] of groups) {
+    const targets = balancedPositions(questions.length, optionCount);
+    questions.forEach((row,index)=>positions.set(row.id,targets[index]));
+  }
+  return selected.map(row=>safeQuestion(row, positions.get(row.id)));
 }
 
 function normaliseAnswers(body) {

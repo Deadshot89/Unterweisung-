@@ -137,6 +137,15 @@ jobs:
           fi
           sudo rm -f -- api/runtime-settings.deploy.json
 
+      - name: Balance confirmed default test answers
+        if: github.event_name == 'pull_request' && github.head_ref == 'feature/v0.36-instruction-ui' && github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          SQL_CONNECTION_STRING: ${{ secrets.SQL_CONNECTION_STRING }}
+          QUESTION_BALANCE_COMPANY_ID: company-essentra
+        run: |
+          node scripts/rebalance-default-test-questions.js --dry-run
+          node scripts/rebalance-default-test-questions.js --apply
+
       - name: Diagnose deployed API health
         if: steps.builddeploy.outputs.static_web_app_url != ''
         env:
