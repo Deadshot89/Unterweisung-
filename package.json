@@ -1,6 +1,6 @@
 {
   "name": "unterweisungsmanager-online",
-  "version": "0.30.0",
+  "version": "0.30.1",
   "private": true,
   "description": "Mandantenfähiger Unterweisungsmanager für Azure Static Web Apps + Azure Functions + Azure SQL/Blob Storage",
   "scripts": {
