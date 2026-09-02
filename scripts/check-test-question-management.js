@@ -18,10 +18,10 @@ assert.match(api, /Roles\.COMPANY_ADMIN, Roles\.HSE/, 'Schreiben muss auf Compan
 assert.match(ui, /Testfragen/, 'Frontend muss Testfragen-Bereich anzeigen.');
 assert.match(ui, /loadTestQuestions/, 'Frontend muss Testfragen laden.');
 assert.match(ui, /saveNewTestQuestion/, 'Frontend muss neue Testfragen speichern.');
-assert.match(ui, /toggleTestQuestion/, 'Frontend muss Fragen aktivieren/deaktivieren können.');
+assert.match(ui, /toggleTestQuestion/, 'Frontend muss Fragen aktivieren\/deaktivieren können.');
 assert.match(ui, /editTestQuestion/, 'Frontend muss Fragen bearbeiten können.');
 assert.match(ui, /Richtige Antwort/, 'Frontend muss richtige Antwort auswählbar machen.');
 assert.match(index, /test-question-management-v22\.js/, 'Index muss Testfragen-Management laden.');
-assert.match(index, /v0\.22/, 'Index muss Version v0.22 anzeigen.');
+assert.match(index, /Unterweisungsmanager Online · v0\./, 'Index muss eine sichtbare Online-Version anzeigen.');
 
 console.log('Test question management checks passed');
