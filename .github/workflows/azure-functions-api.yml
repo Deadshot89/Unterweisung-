@@ -26,6 +26,10 @@ jobs:
         working-directory: api
         run: npm install --omit=dev
 
+      - name: Run API syntax checks
+        working-directory: api
+        run: npm test
+
       - name: Deploy to Azure Functions
         uses: Azure/functions-action@v1
         with:
