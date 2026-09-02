@@ -1,8 +1,8 @@
-// v0.35 Major Design Refresh.
-// Ein zusammenhaengender Design-Layer fuer App-Shell, Navigation, Arbeitsflaechen und Versionsstand.
+// v0.35.1 Major Design Refresh.
+// Performance-Hotfix: keine dauerhafte Body-Beobachtung mehr, keine Render-Schleife.
 // Keine API-Aenderung, keine Fachlogik-Aenderung.
 
-const PROFESSIONAL_SUITE_VERSION = 'v0.35';
+const PROFESSIONAL_SUITE_VERSION = 'v0.35.1';
 
 const NAV_GROUPS = [
   { key:'overview', label:'Uebersicht', views:['dashboard'] },
@@ -27,10 +27,17 @@ const NAV_META = {
   security: { icon:'13', label:'Sicherheit' }
 };
 
+let professionalSuiteScheduled = false;
+let professionalSuiteApplying = false;
+
 function setProfessionalVersion(){
   const version = document.getElementById('appVersion');
-  if(version) version.textContent = PROFESSIONAL_SUITE_VERSION;
-  document.body.dataset.professionalSuite = PROFESSIONAL_SUITE_VERSION;
+  if(version && version.textContent !== PROFESSIONAL_SUITE_VERSION) {
+    version.textContent = PROFESSIONAL_SUITE_VERSION;
+  }
+  if(document.body.dataset.professionalSuite !== PROFESSIONAL_SUITE_VERSION) {
+    document.body.dataset.professionalSuite = PROFESSIONAL_SUITE_VERSION;
+  }
 }
 
 function navButton(viewId){
@@ -41,9 +48,10 @@ function applyNavigationMeta(){
   Object.entries(NAV_META).forEach(([viewId, meta]) => {
     const button = navButton(viewId);
     if(!button) return;
-    button.dataset.navIcon = meta.icon || '';
-    button.textContent = meta.label || button.textContent.trim();
-    button.setAttribute('title', meta.label || button.textContent.trim());
+    if(button.dataset.navIcon !== (meta.icon || '')) button.dataset.navIcon = meta.icon || '';
+    const label = meta.label || button.textContent.trim();
+    if(button.textContent !== label) button.textContent = label;
+    if(button.getAttribute('title') !== label) button.setAttribute('title', label);
   });
 }
 
@@ -69,7 +77,7 @@ function updateNavigationGroups(){
     group.views.forEach(viewId => {
       const button = navButton(viewId);
       if(!button) return;
-      button.dataset.navGroup = group.key;
+      if(button.dataset.navGroup !== group.key) button.dataset.navGroup = group.key;
       nav.appendChild(button);
       orderedButtons.push(button);
     });
@@ -92,35 +100,55 @@ function applyProfessionalShell(){
 
 function ensureProfessionalFooter(){
   const main = document.querySelector('main');
-  if(!main || document.getElementById('appFooterV35')) return;
-  const footer = document.createElement('footer');
-  footer.id = 'appFooterV35';
-  footer.className = 'app-footer-v35';
-  footer.innerHTML = `<span>Unterweisungsmanager · Essentra Arbeitsstand</span><span class="suite-chip">Betriebsbereit · ${PROFESSIONAL_SUITE_VERSION}</span>`;
-  main.appendChild(footer);
+  if(!main) return;
+  let footer = document.getElementById('appFooterV35');
+  const footerHtml = `<span>Unterweisungsmanager · Essentra Arbeitsstand</span><span class="suite-chip">Betriebsbereit · ${PROFESSIONAL_SUITE_VERSION}</span>`;
+  if(!footer){
+    footer = document.createElement('footer');
+    footer.id = 'appFooterV35';
+    footer.className = 'app-footer-v35';
+    main.appendChild(footer);
+  }
+  if(footer.innerHTML !== footerHtml) footer.innerHTML = footerHtml;
 }
 
 function markCurrentWorkspace(){
   const active = document.querySelector('.view.active');
   if(!active) return;
-  document.body.dataset.currentView = active.id || 'dashboard';
+  const current = active.id || 'dashboard';
+  if(document.body.dataset.currentView !== current) document.body.dataset.currentView = current;
 }
 
 function applyProfessionalSuite(){
-  applyProfessionalShell();
-  ensureProfessionalFooter();
-  markCurrentWorkspace();
-  if(typeof applyTableFormPolish === 'function') applyTableFormPolish();
-  if(typeof applyViewHeaders === 'function') applyViewHeaders();
-  if(typeof applyDesignPolish === 'function') applyDesignPolish();
-  setProfessionalVersion();
+  if(professionalSuiteApplying) return;
+  professionalSuiteApplying = true;
+  try{
+    applyProfessionalShell();
+    ensureProfessionalFooter();
+    markCurrentWorkspace();
+    if(typeof applyTableFormPolish === 'function') applyTableFormPolish();
+    if(typeof applyViewHeaders === 'function') applyViewHeaders();
+    if(typeof applyDesignPolish === 'function') applyDesignPolish();
+    setProfessionalVersion();
+  } finally {
+    professionalSuiteApplying = false;
+  }
+}
+
+function scheduleProfessionalSuite(){
+  if(professionalSuiteScheduled) return;
+  professionalSuiteScheduled = true;
+  window.requestAnimationFrame(() => {
+    professionalSuiteScheduled = false;
+    applyProfessionalSuite();
+  });
 }
 
 if(typeof setView === 'function'){
   const originalSetViewForProfessionalSuite = setView;
   setView = function(id){
     const result = originalSetViewForProfessionalSuite(id);
-    window.requestAnimationFrame(() => applyProfessionalSuite());
+    scheduleProfessionalSuite();
     return result;
   };
 }
@@ -129,28 +157,23 @@ if(typeof render === 'function'){
   const originalRenderForProfessionalSuite = render;
   render = function(id){
     const result = originalRenderForProfessionalSuite(id);
-    window.requestAnimationFrame(() => applyProfessionalSuite());
+    scheduleProfessionalSuite();
     return result;
   };
 }
 
 document.addEventListener('click', (event) => {
-  if(event.target.closest('.primary-tabs button[data-view]')) {
-    window.requestAnimationFrame(() => applyProfessionalSuite());
-  }
+  if(event.target.closest('.primary-tabs button[data-view]')) scheduleProfessionalSuite();
 });
 
-const professionalSuiteObserver = new MutationObserver((mutations) => {
-  if(!mutations.some(m => m.addedNodes && m.addedNodes.length)) return;
-  window.requestAnimationFrame(() => applyProfessionalSuite());
-});
-
-professionalSuiteObserver.observe(document.body, { childList:true, subtree:true });
+document.addEventListener('DOMContentLoaded', scheduleProfessionalSuite);
+window.addEventListener('load', scheduleProfessionalSuite);
 
 window.PROFESSIONAL_SUITE_VERSION = PROFESSIONAL_SUITE_VERSION;
 window.NAV_GROUPS = NAV_GROUPS;
 window.NAV_META = NAV_META;
 window.applyProfessionalSuite = applyProfessionalSuite;
+window.scheduleProfessionalSuite = scheduleProfessionalSuite;
 window.updateNavigationGroups = updateNavigationGroups;
 
-window.requestAnimationFrame(() => applyProfessionalSuite());
+scheduleProfessionalSuite();
