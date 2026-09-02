@@ -42,6 +42,10 @@ function normalizeRoles(roles = []) {
     .filter(Boolean))];
 }
 
+function splitList(value) {
+  return String(value || '').split(/[;,]/).map(v => normalizeEmail(v)).filter(Boolean);
+}
+
 function isProduction() {
   return String(process.env.NODE_ENV || '').toLowerCase() === 'production';
 }
@@ -50,12 +54,18 @@ function parseCompanyHeader(request) {
   return request.headers.get('x-company-id') || request.headers.get('x-company') || null;
 }
 
+function shouldGrantDevSystemAdmin(email) {
+  if (String(process.env.AUTH_DEV_SYSTEM_ADMIN || '').toLowerCase() === 'true') return true;
+  const operators = splitList(process.env.SYSTEM_ADMIN_EMAILS || process.env.OPERATOR_EMAILS || '');
+  return !!email && operators.includes(normalizeEmail(email));
+}
+
 export function getRequestContext(request) {
   const rawPrincipal = request.headers.get('x-ms-client-principal');
   const principal = decodePrincipal(rawPrincipal);
   const localDev = !isProduction() && !rawPrincipal;
   const devRoles = localDev ? request.headers.get('x-dev-roles') : null;
-  const requestedCompanyId = localDev ? parseCompanyHeader(request) : parseCompanyHeader(request); // später nur nach DB-Prüfung nutzbar
+  const requestedCompanyId = parseCompanyHeader(request);
   const principalRoles = normalizeRoles(devRoles ? devRoles.split(',') : (principal?.userRoles || []));
   const userDetails = principal?.userDetails || (localDev ? request.headers.get('x-dev-user') : null) || '';
   const userId = principal?.userId || (localDev ? request.headers.get('x-dev-user-id') : null) || userDetails || 'anonymous';
@@ -94,18 +104,21 @@ export async function getAuthorizedContext(request) {
   const devBypass = String(process.env.AUTH_DEV_BYPASS || '').toLowerCase() === 'true';
   const requireDbUser = String(process.env.AUTH_REQUIRE_DB_USER || (isProduction() ? 'true' : 'false')).toLowerCase() === 'true';
   if (devBypass && !base.isAuthenticated) {
+    const devEmail = normalizeEmail(process.env.DEV_USER_EMAIL || 'pilot-admin@local');
+    const roles = [Roles.COMPANY_ADMIN, Roles.HSE, Roles.LINE_MANAGER, Roles.AUTHENTICATED];
+    if (shouldGrantDevSystemAdmin(devEmail)) roles.unshift(Roles.SYSTEM_ADMIN);
     return {
       ...base,
       companyId: process.env.DEFAULT_COMPANY_ID || process.env.COMPANY_ID || 'company-essentra',
       userId: process.env.DEV_USER_ID || 'dev-admin',
       userDetails: process.env.DEV_USER_NAME || 'Pilot Admin',
-      email: normalizeEmail(process.env.DEV_USER_EMAIL || 'pilot-admin@local'),
-      roles: [Roles.COMPANY_ADMIN, Roles.HSE, Roles.LINE_MANAGER, Roles.AUTHENTICATED],
+      email: devEmail,
+      roles: normalizeRoles(roles),
       allowedCompanies: [{
         companyId: process.env.DEFAULT_COMPANY_ID || process.env.COMPANY_ID || 'company-essentra',
-        role: Roles.COMPANY_ADMIN,
+        role: roles.includes(Roles.SYSTEM_ADMIN) ? Roles.SYSTEM_ADMIN : Roles.COMPANY_ADMIN,
         userId: process.env.DEV_USER_ID || 'dev-admin',
-        email: normalizeEmail(process.env.DEV_USER_EMAIL || 'pilot-admin@local'),
+        email: devEmail,
         displayName: process.env.DEV_USER_NAME || 'Pilot Admin'
       }],
       isAuthenticated: true,
@@ -142,14 +155,15 @@ export async function getAuthorizedContext(request) {
 
   const dbUsers = res.recordset || [];
   const principalRoles = normalizeRoles(base.roles);
-  const isSystemAdminByPrincipal = principalRoles.includes(Roles.SYSTEM_ADMIN);
+  const isSystemAdminByPrincipal = principalRoles.includes(Roles.SYSTEM_ADMIN) || shouldGrantDevSystemAdmin(email);
 
   if (!dbUsers.length && !requireDbUser && base.isLocalDev) {
+    const roles = normalizeRoles([...base.roles, Roles.COMPANY_ADMIN, Roles.HSE, Roles.LINE_MANAGER, Roles.AUTHENTICATED, ...(isSystemAdminByPrincipal ? [Roles.SYSTEM_ADMIN] : [])]);
     return {
       ...base,
       companyId: base.companyId || process.env.DEFAULT_COMPANY_ID || 'company-essentra',
-      roles: normalizeRoles([...base.roles, Roles.COMPANY_ADMIN, Roles.HSE, Roles.LINE_MANAGER, Roles.AUTHENTICATED]),
-      allowedCompanies: [{ companyId: base.companyId || process.env.DEFAULT_COMPANY_ID || 'company-essentra', role: Roles.COMPANY_ADMIN, userId: base.userId, email: base.email, displayName: base.userDetails || 'Lokaler Testbenutzer' }],
+      roles,
+      allowedCompanies: [{ companyId: base.companyId || process.env.DEFAULT_COMPANY_ID || 'company-essentra', role: roles.includes(Roles.SYSTEM_ADMIN) ? Roles.SYSTEM_ADMIN : Roles.COMPANY_ADMIN, userId: base.userId, email: base.email, displayName: base.userDetails || 'Lokaler Testbenutzer' }],
       isAuthenticated: true
     };
   }
@@ -180,7 +194,7 @@ export async function getAuthorizedContext(request) {
     throw err;
   }
 
-  const selectedRoles = normalizeRoles([selected.role, ...principalRoles.filter(r => r === Roles.SYSTEM_ADMIN)]);
+  const selectedRoles = normalizeRoles([selected.role, ...principalRoles.filter(r => r === Roles.SYSTEM_ADMIN), ...(isSystemAdminByPrincipal ? [Roles.SYSTEM_ADMIN] : [])]);
   if (!selectedRoles.includes(Roles.AUTHENTICATED)) selectedRoles.push(Roles.AUTHENTICATED);
 
   // Last-Seen nicht blockierend aktualisieren.
