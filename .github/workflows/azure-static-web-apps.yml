@@ -104,7 +104,8 @@ jobs:
 
       - name: Remove generated runtime settings
         if: always()
-        run: rm -f api/runtime-settings.deploy.json
+        # The Azure Docker action can leave the API directory owned by root.
+        run: sudo rm -f -- api/runtime-settings.deploy.json
 
       - name: Diagnose deployed API health
         if: steps.builddeploy.outputs.static_web_app_url != ''
