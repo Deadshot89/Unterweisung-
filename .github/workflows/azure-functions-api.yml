@@ -8,6 +8,10 @@ on:
       - "api/**"
       - ".github/workflows/azure-functions-api.yml"
 
+concurrency:
+  group: functions-api-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
