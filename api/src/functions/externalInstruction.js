@@ -26,6 +26,17 @@ function safeQuestion(row) {
   return { id: row.id, question: row.question, options: shuffle(optionObjects) };
 }
 
+function summariseTest(test) {
+  const details = Array.isArray(test.details) ? test.details : [];
+  const correctCount = details.filter(x => x.correct).length;
+  const questionCount = details.length;
+  return {
+    correctCount,
+    wrongCount: Math.max(0, questionCount - correctCount),
+    questionCount
+  };
+}
+
 async function loadInvitation(pool, tokenHash) {
   const result = await pool.request()
     .input('tokenHash', sql.NVarChar(128), tokenHash)
@@ -94,7 +105,7 @@ async function evaluateTest(pool, invitation, body) {
     return { questionId: a.questionId, selectedIndex: selected, correctIndex: q ? Number(q.correctIndex) : null, correct: !!isCorrect };
   });
   const scorePercent = answers.length ? Math.round((correct / answers.length) * 10000) / 100 : 0;
-  return { required: true, passed: scorePercent >= Number(invitation.passPercent || 80), scorePercent, details };
+  return { required: true, passed: scorePercent >= Number(invitation.passPercent || 80), scorePercent, details, ...summariseTest({ details }) };
 }
 
 app.http('externalInstruction', {
@@ -149,6 +160,7 @@ app.http('externalInstruction', {
 
       const test = await evaluateTest(pool, invitation, body);
       if (test.error) return badRequest(test.error);
+      const testSummary = summariseTest(test);
 
       const testResultId = crypto.randomUUID();
       if (test.required) {
@@ -171,7 +183,13 @@ app.http('externalInstruction', {
         await pool.request()
           .input('tokenHash', sql.NVarChar(128), tokenHash)
           .query("UPDATE ExternalInvitations SET status='failed', lastAccessedAt=SYSUTCDATETIME() WHERE tokenHash=@tokenHash");
-        return json({ ok: false, passed: false, scorePercent: test.scorePercent, passPercent: invitation.passPercent || 80 }, 200);
+        return json({
+          ok: false,
+          passed: false,
+          scorePercent: test.scorePercent,
+          passPercent: invitation.passPercent || 80,
+          ...testSummary
+        }, 200);
       }
 
       const intervalMonths = invitation.intervalMonths || 12;
@@ -237,8 +255,16 @@ app.http('externalInstruction', {
                     completedIp=@completedIp, completedUserAgent=@completedUserAgent
                 WHERE tokenHash=@tokenHash`);
 
-      await writeAudit(pool, ctx, 'external.completed', 'externalInvitation', invitation.id, { recordId, scorePercent: test.scorePercent });
-      return json({ ok: true, passed: true, scorePercent: test.scorePercent, validUntil: validUntil.toISOString().slice(0,10), certificateFileId: certificate?.id || null });
+      await writeAudit(pool, ctx, 'external.completed', 'externalInvitation', invitation.id, { recordId, scorePercent: test.scorePercent, ...testSummary });
+      return json({
+        ok: true,
+        passed: true,
+        scorePercent: test.scorePercent,
+        passPercent: invitation.passPercent || 80,
+        validUntil: validUntil.toISOString().slice(0,10),
+        certificateFileId: certificate?.id || null,
+        ...testSummary
+      });
     } catch (err) {
       return serverError(err, context);
     }
