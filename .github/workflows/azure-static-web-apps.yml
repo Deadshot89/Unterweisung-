@@ -70,10 +70,16 @@ jobs:
           FUNCTION_APP_URL: https://func-unterweisungsmanager-dev-hkf6czbjd5h0hthq.germanywestcentral-01.azurewebsites.net
         run: |
           echo "Checking standalone Function App health..."
-          health="$(curl --fail --silent --show-error "$FUNCTION_APP_URL/api/health")"
-          HEALTH_JSON="$health" node -e "const d=JSON.parse(process.env.HEALTH_JSON); console.log(JSON.stringify({ok:d.ok,service:d.service,database:d.database,blobStorage:d.blobStorage}));"
-          me_status="$(curl --silent --show-error --output /tmp/function-me.txt --write-out '%{http_code}' "$FUNCTION_APP_URL/api/me" || true)"
-          echo "Standalone /api/me without SWA identity returned HTTP $me_status"
+          health_status="$(curl --connect-timeout 10 --max-time 20 --silent --show-error --output /tmp/function-health.txt --write-out '%{http_code}' "$FUNCTION_APP_URL/api/health" || true)"
+          echo "Standalone /api/health returned HTTP ${health_status:-curl_error}"
+          if [ "$health_status" = "200" ] && [ -s /tmp/function-health.txt ]; then
+            HEALTH_JSON="$(cat /tmp/function-health.txt)" node -e "const d=JSON.parse(process.env.HEALTH_JSON); console.log(JSON.stringify({ok:d.ok,service:d.service,database:d.database,blobStorage:d.blobStorage}));"
+          elif [ -s /tmp/function-health.txt ]; then
+            echo "Standalone health body received but not HTTP 200"
+          fi
+
+          me_status="$(curl --connect-timeout 10 --max-time 20 --silent --show-error --output /tmp/function-me.txt --write-out '%{http_code}' "$FUNCTION_APP_URL/api/me" || true)"
+          echo "Standalone /api/me without SWA identity returned HTTP ${me_status:-curl_error}"
           if [ -s /tmp/function-me.txt ]; then
             node -e "const fs=require('fs'); const t=fs.readFileSync('/tmp/function-me.txt','utf8'); try { const d=JSON.parse(t); console.log(JSON.stringify({error:d.error||d.message||null, authenticated:d.authenticated??null})); } catch { console.log('Standalone /api/me returned non-JSON body'); }"
           fi
@@ -96,7 +102,7 @@ jobs:
           STATIC_WEB_APP_URL: ${{ steps.builddeploy.outputs.static_web_app_url }}
         run: |
           echo "Checking integrated API health at deployed preview..."
-          health="$(curl --fail --silent --show-error "$STATIC_WEB_APP_URL/api/health")"
+          health="$(curl --connect-timeout 10 --max-time 30 --fail --silent --show-error "$STATIC_WEB_APP_URL/api/health")"
           HEALTH_JSON="$health" node -e "const d=JSON.parse(process.env.HEALTH_JSON); console.log(JSON.stringify({ok:d.ok,service:d.service,database:d.database,blobStorage:d.blobStorage}));"
 
   close_pull_request_job:
