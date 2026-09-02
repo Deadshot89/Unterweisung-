@@ -17,11 +17,21 @@ assert.match(systemApi, /assertRole\(ctx, \[Roles\.SYSTEM_ADMIN\]\)/, 'System-AP
 assert.match(systemApi, /MERGE Companies/, 'System-API muss Firmen anlegen/aktualisieren können.');
 assert.match(systemApi, /company_admin/, 'System-API muss ersten Firmen-Admin anlegen können.');
 assert.match(systemApi, /CompanySettings/, 'System-API muss Firmen-Einstellungen initialisieren.');
+assert.match(systemApi, /copyStarterData/, 'System-API muss Starterdaten kopieren können.');
+assert.match(systemApi, /InstructionTypes/, 'Starterdaten müssen Unterweisungstypen kopieren.');
+assert.match(systemApi, /Templates/, 'Starterdaten müssen Vorlagen-Verweise kopieren.');
+assert.match(systemApi, /TestQuestions/, 'Starterdaten müssen Testfragen kopieren.');
+assert.match(systemApi, /targetCompanyId === sourceCompanyId/, 'Starterdaten dürfen nicht in dieselbe Firma zurückkopiert werden.');
+assert.match(systemApi, /tenantHasStarterData/, 'Starterdaten dürfen nicht versehentlich doppelt kopiert werden.');
 
 assert.match(systemUi, /System Admin/, 'Frontend muss System-Admin-Ansicht anzeigen.');
 assert.match(systemUi, /createSystemCompany/, 'Frontend muss Firma anlegen können.');
 assert.match(systemUi, /switchSystemCompany/, 'Frontend muss zwischen Firmen wechseln können.');
+assert.match(systemUi, /Starterdaten übernehmen/, 'Frontend muss Starterdaten manuell übernehmen können.');
+assert.match(systemUi, /copyStarterData/, 'Frontend muss Starterdaten-API aufrufen können.');
+assert.match(systemUi, /copyStarterData:\s*\$\('sysCopyStarter'\)\.value === '1'/, 'Neue Firmen müssen optional direkt mit Startpaket angelegt werden können.');
 assert.match(systemUi, /system\/companies/, 'Frontend muss System-Companies-API nutzen.');
 assert.match(index, /system-admin-v16\.js/, 'Index muss System-Admin-Script laden.');
+assert.match(index, /v0\.17/, 'Index muss den aktuellen Stand v0.17 anzeigen.');
 
 console.log('System admin checks passed');
