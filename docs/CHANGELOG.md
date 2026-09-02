@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.36.1 – Kompakte Verwaltungsansichten (Preview)
+
+- Mitarbeiter: fünf übersichtliche Spalten, vollständige Aktionen, Suche ohne Verlust offener Formulare.
+- Externe Einladungen: einheitliche Formularbreiten, lesbare Buttons und gruppierte Status-, Test-, Termin- und Nachweisangaben.
+- Planung: durchsuchbare Teilnehmerauswahl mit Auswahlzähler, begrenzter Listenhöhe und unveränderter Auswahl beim Filtern.
+- Tabellen wechseln bei schmalem Inhaltsbereich zu beschrifteten Zeilenkarten; die übrigen Seiten bleiben unverändert.
+- Buttons in diesen drei Ansichten werden über JavaScript angebunden, passend zur bestehenden Content Security Policy.
+- Neue Verhaltenstests für Suche, Auswahl, Aktionen und Rollen; vollständiger bestehender Testlauf bleibt erforderlich.
+
 ## v0.7 – Nachweis-Upload gehärtet
 
 - sichere Upload-API `POST /api/proof-files`

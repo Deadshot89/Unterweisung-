@@ -39,7 +39,25 @@ function planningEmployeeCheckboxes(selectedIds=[]){
   const selected = new Set(selectedIds);
   const rows = activeEmployees();
   if(!rows.length) return '<p class="muted">Keine aktiven Mitarbeiter vorhanden.</p>';
-  return `<div class="checkbox-grid">${rows.map(e=>`<label class="checkline"><input type="checkbox" class="planEmployee" value="${esc(e.id)}" ${selected.has(e.id)?'checked':''}> <span><b>${esc(e.name)}</b><br><small>${esc(e.department||'—')} · ${esc(e.email||'')}</small></span></label>`).join('')}</div>`;
+  return `<div class="participant-picker">
+    <div class="participant-toolbar"><div class="admin-search"><label for="planEmployeeSearch">Teilnehmer suchen</label><input id="planEmployeeSearch" type="search" placeholder="Name, E-Mail oder Bereich" aria-controls="planEmployeeList"></div><span id="planEmployeeCount" class="muted" role="status">${rows.filter(e=>selected.has(e.id)).length} ausgewählt · ${rows.length} von ${rows.length} angezeigt</span></div>
+    <div id="planEmployeeList" class="checkbox-grid" role="group" aria-label="Teilnehmer">${rows.map(e=>`<label class="checkline" data-search="${esc([e.name,e.email,e.department].join(' ').toLowerCase())}"><input type="checkbox" class="planEmployee" value="${esc(e.id)}" ${selected.has(e.id)?'checked':''}><span><b>${esc(e.name)}</b><small>${esc(e.department||'—')}</small><small>${esc(e.email||'')}</small></span></label>`).join('')}</div>
+    <p id="planEmployeeEmpty" class="admin-empty" hidden>Keine Teilnehmer für diese Suche gefunden.</p>
+  </div>`;
+}
+
+function updatePlanningParticipants(){
+  const query = String($('planEmployeeSearch')?.value || '').trim().toLowerCase();
+  const rows = Array.from(document.querySelectorAll('#planEmployeeList .checkline'));
+  let visible = 0;
+  let selected = 0;
+  rows.forEach(row => {
+    row.hidden = !row.dataset.search.includes(query);
+    if(!row.hidden) visible++;
+    if(row.querySelector('.planEmployee').checked) selected++;
+  });
+  if($('planEmployeeCount')) $('planEmployeeCount').textContent = `${selected} ausgewählt · ${visible} von ${rows.length} angezeigt`;
+  if($('planEmployeeEmpty')) $('planEmployeeEmpty').hidden = visible !== 0;
 }
 
 function lineManagerSelectOptions(selected=''){
@@ -62,12 +80,15 @@ function planningStatusBadge(status){
 function renderPlanning(){
   const editable = canEditPlanning();
   const rows = plannedTrainings();
-  $('planning').innerHTML = `<div class="grid">
-    <div class="card span-12"><div class="toolbar"><div><h2>Unterweisung planen / zuweisen</h2><p class="muted">Eine geplante Unterweisung enthält Termin, Unterweisung, Teilnehmer, Line Manager und Ort. Beim Abschließen werden für alle Teilnehmer echte Unterweisungseinträge erzeugt.</p></div><button class="ghost" onclick="loadPlannedTrainings(true).then(renderPlanning)">Planungen neu laden</button></div>
+  $('planning').innerHTML = `<div class="grid admin-workspace">
+    <div class="card span-12"><div class="toolbar admin-toolbar"><div><h2>Unterweisung planen / zuweisen</h2><p class="muted">Termin festlegen und Teilnehmer auswählen. Beim Abschließen werden die Unterweisungen für alle Teilnehmer dokumentiert.</p></div><button class="ghost" data-planning-action="refresh">Planungen neu laden</button></div>
       ${editable ? planningFormCard() : '<div class="notice warning">Du hast keine Berechtigung zum Planen von Unterweisungen.</div>'}
     </div>
     <div class="card span-12"><h2>Geplante Unterweisungen</h2>${plannedTrainingTable(rows, editable)}</div>
   </div>`;
+  $('planning').onclick = handlePlanningWorkspaceClick;
+  if($('planEmployeeSearch')) $('planEmployeeSearch').oninput = updatePlanningParticipants;
+  if($('planEmployeeList')) $('planEmployeeList').onchange = updatePlanningParticipants;
   if((state.apiAvailable || API_BASE_URL) && !state.planningLoadedOnce){
     state.planningLoadedOnce = true;
     loadPlannedTrainings(true).then(()=>{
@@ -77,17 +98,33 @@ function renderPlanning(){
   }
 }
 
+function handlePlanningWorkspaceClick(event){
+  const button = event.target.closest('button[data-planning-action]');
+  if(!button) return;
+  const {planningAction, id} = button.dataset;
+  if(planningAction === 'refresh') return loadPlannedTrainings(true).then(renderPlanning);
+  if(!canEditPlanning()) return;
+  switch(planningAction){
+    case 'save': return savePlannedTraining();
+    case 'clear': return clearPlanningForm();
+    case 'edit': return editPlannedTraining(id);
+    case 'complete': return completePlannedTraining(id);
+    case 'mail': return sendPlannedMail(id);
+    case 'cancel': return cancelPlannedTraining(id);
+  }
+}
+
 function planningFormCard(){
   return `<div class="form-grid">
     <input id="planId" type="hidden">
-    <div class="field"><label>Unterweisung *</label><select id="planType"><option value="">Bitte wählen</option>${types().filter(t=>t.active!==false).map(t=>`<option value="${esc(t.id)}">${esc(t.name)}</option>`).join('')}</select></div>
-    <div class="field"><label>Datum/Zeit *</label><input id="planAt" type="datetime-local"></div>
-    <div class="field"><label>Dauer Minuten</label><input id="planDuration" type="number" min="1" max="600" value="30"></div>
-    <div class="field"><label>Ort</label><input id="planLocation" value="Schulungsraum / Warehouse"></div>
-    <div class="field"><label>Line Manager / Verantwortlich</label><select id="planLineManager">${lineManagerSelectOptions('')}</select></div>
-    <div class="field"><label>Status</label><select id="planStatus"><option value="planned">Geplant</option><option value="invited">Eingeladen</option><option value="cancelled">Storniert</option><option value="completed">Abgeschlossen</option></select></div>
-    <div class="field full"><label>Teilnehmer *</label>${planningEmployeeCheckboxes([])}</div>
-    <div class="field full"><button class="primary" onclick="savePlannedTraining()">Planung speichern</button> <button class="ghost" onclick="clearPlanningForm()">Formular leeren</button></div>
+    <div class="field"><label for="planType">Unterweisung *</label><select id="planType"><option value="">Bitte wählen</option>${types().filter(t=>t.active!==false).map(t=>`<option value="${esc(t.id)}">${esc(t.name)}</option>`).join('')}</select></div>
+    <div class="field"><label for="planAt">Datum/Zeit *</label><input id="planAt" type="datetime-local"></div>
+    <div class="field"><label for="planDuration">Dauer Minuten</label><input id="planDuration" type="number" min="1" max="600" value="30"></div>
+    <div class="field"><label for="planLocation">Ort</label><input id="planLocation" value="Schulungsraum / Warehouse"></div>
+    <div class="field"><label for="planLineManager">Line Manager / Verantwortlich</label><select id="planLineManager">${lineManagerSelectOptions('')}</select></div>
+    <div class="field"><label for="planStatus">Status</label><select id="planStatus"><option value="planned">Geplant</option><option value="invited">Eingeladen</option><option value="cancelled">Storniert</option><option value="completed">Abgeschlossen</option></select></div>
+    <div class="field full"><h3 class="field-heading">Teilnehmer *</h3>${planningEmployeeCheckboxes([])}</div>
+    <div class="field full admin-form-actions"><button class="primary" data-planning-action="save">Planung speichern</button> <button class="ghost" data-planning-action="clear">Formular leeren</button></div>
     <div id="planningResult" class="field full muted"></div>
   </div>`;
 }
@@ -104,6 +141,8 @@ function clearPlanningForm(){
   if($('planLineManager')) $('planLineManager').value='';
   if($('planStatus')) $('planStatus').value='planned';
   document.querySelectorAll('.planEmployee').forEach(cb=>cb.checked=false);
+  if($('planEmployeeSearch')) $('planEmployeeSearch').value='';
+  updatePlanningParticipants();
   if($('planningResult')) $('planningResult').innerHTML='';
 }
 
@@ -124,6 +163,8 @@ function editPlannedTraining(id){
   $('planStatus').value = row.status || 'planned';
   const selected = new Set(parseParticipantIds(row));
   document.querySelectorAll('.planEmployee').forEach(cb => cb.checked = selected.has(cb.value));
+  if($('planEmployeeSearch')) $('planEmployeeSearch').value='';
+  updatePlanningParticipants();
   document.getElementById('planType')?.scrollIntoView({ behavior:'smooth', block:'center' });
 }
 
@@ -185,17 +226,14 @@ async function cancelPlannedTraining(id){
 
 function plannedTrainingTable(rows, editable=false){
   if(!rows.length) return '<p class="muted">Noch keine geplanten Unterweisungen.</p>';
-  return `<div class="table-wrap"><table><thead><tr><th>Datum/Zeit</th><th>Unterweisung</th><th>Teilnehmer</th><th>Ort</th><th>Verantwortlich</th><th>Dauer</th><th>Status</th><th>Aktion</th></tr></thead><tbody>${rows.map(p=>{
-    const participants = p.participantNames || `${Number(p.participantCount||0)} Teilnehmer`;
+  return `<div class="table-wrap admin-table-wrap"><table class="admin-table planning-table"><thead><tr><th scope="col">Termin / Unterweisung</th><th scope="col">Teilnehmer</th><th scope="col">Ort / Verantwortlich</th><th scope="col">Status</th><th scope="col">Aktionen</th></tr></thead><tbody>${rows.map(p=>{
+    const count = Number(p.participantCount || parseParticipantIds(p).length);
     return `<tr>
-      <td><b>${fmtDateTime(p.plannedAt)}</b></td>
-      <td>${esc(type(p.instructionTypeId).name || p.instructionName)}</td>
-      <td>${esc(participants)}</td>
-      <td>${esc(p.location || '—')}</td>
-      <td>${esc(p.lineManagerName || emp(p.lineManagerId).name || '—')}</td>
-      <td>${esc(p.durationMinutes || '—')} Min.</td>
-      <td>${planningStatusBadge(p.status)}</td>
-      <td>${editable ? `<button class="small" onclick="editPlannedTraining('${esc(p.id)}')">Bearbeiten</button> <button class="small primary" onclick="completePlannedTraining('${esc(p.id)}')">Abschließen</button> <button class="small" onclick="sendPlannedMail('${esc(p.id)}')">Outlook senden</button> <button class="small ghost" onclick="cancelPlannedTraining('${esc(p.id)}')">Stornieren</button>` : '—'}</td>
+      <td data-label="Termin / Unterweisung"><div class="admin-cell"><b>${esc(type(p.instructionTypeId).name || p.instructionName)}</b><span>${fmtDateTime(p.plannedAt)}</span><small class="muted">${esc(p.durationMinutes || '—')} Min.</small></div></td>
+      <td data-label="Teilnehmer"><div class="admin-cell"><span>${count} Teilnehmer</span>${p.participantNames?`<details class="admin-details"><summary>Namen anzeigen</summary><p>${esc(p.participantNames)}</p></details>`:''}</div></td>
+      <td data-label="Ort / Verantwortlich"><div class="admin-cell"><span>${esc(p.location || '—')}</span><span class="muted">${esc(p.lineManagerName || emp(p.lineManagerId).name || '—')}</span></div></td>
+      <td data-label="Status">${planningStatusBadge(p.status)}</td>
+      <td data-label="Aktionen"><div class="admin-actions">${editable ? `<button class="small" data-planning-action="edit" data-id="${esc(p.id)}">Bearbeiten</button><button class="small primary" data-planning-action="complete" data-id="${esc(p.id)}">Abschließen</button><details class="admin-details"><summary>Weitere Aktionen</summary><div class="admin-actions"><button class="small" data-planning-action="mail" data-id="${esc(p.id)}">Outlook senden</button><button class="small ghost" data-planning-action="cancel" data-id="${esc(p.id)}">Stornieren</button></div></details>` : '—'}</div></td>
     </tr>`;
-  }).join('')}</tbody></table></div><p class="muted">${rows.length} Planungen angezeigt.</p>`;
+  }).join('')}</tbody></table></div><p class="muted admin-count">${rows.length} Planungen angezeigt.</p>`;
 }
