@@ -15,6 +15,7 @@ const instructionWorkspaceState = {
 };
 
 let instructionQuestionsLoadRequested = false;
+let instructionQuestionsCompanyId = state.companyId;
 
 function instructionQuestionCount(t){
   return (state.testQuestions || []).filter(q => q.instructionTypeId === t.id && q.active !== false).length;
@@ -161,6 +162,11 @@ function instructionDetailPanel(editable=false){
 }
 
 function renderInstructions(){
+  if(instructionQuestionsCompanyId!==state.companyId){
+    instructionQuestionsCompanyId=state.companyId;
+    instructionQuestionsLoadRequested=false;
+  }
+  if(typeof questionWorkspace==='function') questionWorkspace();
   const editable = canEditInstructionTypes();
   const rows = filteredInstructionWorkspaceRows();
   $('instructions').innerHTML = `<div class="grid instruction-workspace">
@@ -169,10 +175,10 @@ function renderInstructions(){
         <div><span class="instruction-section-kicker">Verwaltung</span><h2>Unterweisungstypen</h2><p class="muted">Aktuelle Firma: <b>${esc(state.companyId || DEFAULT_COMPANY_ID)}</b>. Unterweisungen kompakt prüfen, filtern und gezielt bearbeiten.</p></div>
         ${editable ? '<button class="primary" type="button" data-instruction-action="newInstruction">Neue Unterweisung</button>' : ''}
       </div>
-      ${instructionWorkspaceMetrics(rows)}
+      <div id="instructionQuestionMetrics">${instructionWorkspaceMetrics(rows)}</div>
       ${instructionWorkspaceFilters()}
-      ${instructionTypeTable(instructionWorkspaceState.search, editable, rows)}
-      ${instructionDetailPanel(editable)}
+      <div id="instructionQuestionOverview">${instructionTypeTable(instructionWorkspaceState.search, editable, rows)}</div>
+      <div id="instructionQuestionDetail">${instructionDetailPanel(editable)}</div>
     </div>
     ${editable ? `<div class="instruction-management-sections span-12">
       <div class="instruction-management-zone">${instructionTypeFormCard()}</div>
@@ -184,17 +190,26 @@ function renderInstructions(){
   </div>`;
   bindInstructionWorkspaceFilters();
   if(typeof bindInstructionManagementActions==='function') bindInstructionManagementActions();
+  if(typeof bindTestQuestionWorkspace==='function') bindTestQuestionWorkspace();
   if(typeof bindTemplateWorkspaceControls==='function') bindTemplateWorkspaceControls();
   if(typeof loadInstructionAnalyses==='function' && editable) loadInstructionAnalyses();
   if(!state.testQuestions?.length && !instructionQuestionsLoadRequested && (state.apiAvailable || API_BASE_URL)){
     instructionQuestionsLoadRequested = true;
-    loadTestQuestions(true).then(()=>{
-      const view = document.getElementById('instructions');
-      if(view?.classList.contains('active')) renderInstructions();
-    }).catch(()=>{
+    loadTestQuestions(true).catch(()=>{
       instructionQuestionsLoadRequested = false;
     });
   }
+}
+
+function refreshInstructionQuestionSummary(){
+  const metrics=$('instructionQuestionMetrics'),overview=$('instructionQuestionOverview'),detail=$('instructionQuestionDetail');
+  if(!metrics || !overview || !detail) return;
+  const editable=canEditInstructionTypes(),rows=filteredInstructionWorkspaceRows();
+  metrics.innerHTML=instructionWorkspaceMetrics(rows);
+  overview.innerHTML=instructionTypeTable(instructionWorkspaceState.search,editable,rows);
+  detail.innerHTML=instructionDetailPanel(editable);
+  if(typeof bindInstructionManagementActions==='function') bindInstructionManagementActions();
+  if(typeof bindTemplateWorkspaceControls==='function') bindTemplateWorkspaceControls();
 }
 
 function instructionTypeTable(search='', editable=false, preparedRows=null){

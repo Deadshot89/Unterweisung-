@@ -158,7 +158,7 @@ const confirmationOnly={...invitation,id:'confirmation-only',testRequired:false,
 assert.equal((await external.questionsForSession(sessionPool,confirmationOnly)).length,0);
 assert.equal(confirmationOnly.description,instructionText(data));assert.equal(confirmationOnly.templatePath,released.sourceBlobPath);
 assert.doesNotMatch(readFileSync('frontend/instruction-type-management-v23.js','utf8'),/onclick=/);
-assert.doesNotMatch(readFileSync('frontend/test-question-management-v22.js','utf8'),/onclick=|onchange=/);
+assert.doesNotMatch(readFileSync('frontend/test-question-management-v22.js','utf8'),/\son(?:click|change|input)\s*=\s*["']/,'HTML event attributes are blocked by CSP; assigning JavaScript handlers is permitted.');
 console.log('Legacy invitation migration and confirmation-only source checks passed');
 
 const missingLanguagePool={request(){return {input(){return this;},async query(query){return {recordset:query.includes('FROM InstructionAnalyses')?[released]:bank};}};}};

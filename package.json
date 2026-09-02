@@ -21,7 +21,8 @@
     "ops:check": "npm run db:check && npm run backup:export"
   },
   "devDependencies": {
-    "@azure/static-web-apps-cli": "^2.0.0"
+    "@azure/static-web-apps-cli": "^2.0.0",
+    "jsdom": "26.1.0"
   },
   "type": "module",
   "dependencies": {

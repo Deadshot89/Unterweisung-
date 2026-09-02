@@ -85,11 +85,9 @@ async function handleInstructionAnalysisAction(button){
 }
 
 function bindInstructionManagementActions(){
-  const actions={clearInstructionWorkspaceFilters,prepareInstructionTypeEdit,toggleInstructionType,selectInstructionWorkspaceItem,saveInstructionType,clearInstructionTypeForm,saveNewTestQuestion,clearTestQuestionForm,editTestQuestion,toggleTestQuestion,
-    newInstruction:()=>document.getElementById('itName')?.scrollIntoView({behavior:'smooth',block:'center'}),
-    refreshQuestions:()=>loadTestQuestions(true).then(renderInstructions)};
+  const actions={clearInstructionWorkspaceFilters,prepareInstructionTypeEdit,toggleInstructionType,selectInstructionWorkspaceItem,saveInstructionType,clearInstructionTypeForm,
+    newInstruction:()=>document.getElementById('itName')?.scrollIntoView({behavior:'smooth',block:'center'})};
   document.querySelectorAll('#instructions [data-instruction-action]').forEach(button=>{
     button.onclick=()=>actions[button.dataset.instructionAction]?.(button.dataset.instructionId,button.dataset.active==='true');
   });
-  document.querySelectorAll('#instructions [data-question-filter]').forEach(select=>select.onchange=renderInstructions);
 }
