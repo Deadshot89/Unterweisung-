@@ -12,6 +12,8 @@ for (const name of names) {
 }
 
 const target = path.resolve('api/runtime-settings.deploy.json');
-writeFileSync(target, JSON.stringify(settings), { encoding: 'utf8', mode: 0o600 });
-chmodSync(target, 0o600);
+// Oryx changes ownership to root. The managed runtime must still be able to
+// read the API-only file; group/other identities cannot modify it.
+writeFileSync(target, JSON.stringify(settings), { encoding: 'utf8', mode: 0o644 });
+chmodSync(target, 0o644);
 console.log('Prepared server-only managed API runtime settings.');

@@ -29,7 +29,9 @@ try {
     SQL_CONNECTION_STRING: sql, AZURE_STORAGE_CONNECTION_STRING: storage
   });
   assert.equal(existsSync(path.join(dir, 'frontend/runtime-settings.deploy.json')), false);
-  assert.equal(statSync(target).mode & 0o777, 0o600);
+  // Oryx copies the package as root; the runtime may use a different identity.
+  assert.equal(statSync(target).mode & 0o444, 0o444, 'Packaged settings must remain readable after Oryx changes the owner');
+  assert.equal(statSync(target).mode & 0o022, 0, 'Other identities must not be able to modify settings');
   assert.equal((result.stdout + result.stderr).includes(sql), false);
   assert.equal((result.stdout + result.stderr).includes(storage), false);
   console.log('Runtime packaging checks passed');
