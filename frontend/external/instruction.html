@@ -7,19 +7,22 @@
   <link rel="stylesheet" href="/styles.css">
   <script src="/config.js"></script>
   <style>
-    main.external-wrap{max-width:1120px;margin:0 auto;padding:28px}
-    .external-title{font-size:30px;margin:0 0 8px}.external-sub{font-size:16px;color:#667085;margin:0 0 20px}
-    .step{border-left:5px solid #0f6f8f;background:#f6fbfd;border-radius:14px;padding:18px;margin:16px 0}
-    .question{border:1px solid #dbe5ed;border-radius:18px;padding:18px;margin:16px 0;background:#fff}
-    .question h3{font-size:20px;margin:0 0 14px}.answer{display:block;border:1px solid #d7e3eb;border-radius:14px;padding:14px 16px;margin:9px 0;font-size:18px;cursor:pointer;background:#f8fbfd}.answer input{width:auto;margin-right:10px;transform:scale(1.25)}
-    .confirm-line{font-size:18px;display:block;margin:18px 0}.confirm-line input{width:auto;margin-right:10px;transform:scale(1.3)}
-    pre.content{white-space:pre-wrap;background:#f8fbfd;color:#172033;border:1px solid #d7e3eb;border-radius:16px;padding:18px;font-size:16px;line-height:1.55;max-height:420px;overflow:auto}
-    .result-ok{background:#ecfdf3;border-left-color:#12b76a}.result-bad{background:#fff1f3;border-left-color:#f04438}
+    body{background:#eef4f8;color:#172033}
+    main.external-wrap{max-width:1280px;margin:0 auto;padding:26px}
+    .external-shell{display:grid;grid-template-columns:1fr;gap:18px}
+    .hero{background:linear-gradient(135deg,#0f6f8f,#155eef);color:#fff;border-radius:28px;padding:28px;box-shadow:0 18px 50px rgba(21,94,239,.22)}
+    .hero h1{font-size:36px;line-height:1.15;margin:0 0 10px}.hero p{font-size:17px;margin:5px 0;color:rgba(255,255,255,.88)}
+    .stepbar{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:18px}.step-pill{background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.28);border-radius:16px;padding:12px;font-weight:800}.step-pill small{display:block;font-weight:600;opacity:.8;margin-top:4px}
+    .reader-grid{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(360px,.8fr);gap:18px;align-items:start}.panel{background:#fff;border:1px solid #d7e3eb;border-radius:24px;box-shadow:0 14px 35px rgba(20,41,56,.12);padding:20px}.panel h2{margin:0 0 12px;font-size:24px}.panel h3{margin:18px 0 10px;font-size:19px}.muted{color:#667085}.content-card{font-size:18px;line-height:1.7}.content-card p{margin:0 0 12px}.content-card ul{margin:10px 0 0;padding-left:24px}.content-card li{margin:8px 0}.pdf-frame{width:100%;height:720px;border:1px solid #d7e3eb;border-radius:18px;background:#f8fbfd}.template-actions{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0 0}.confirm-box{border:2px solid #0f6f8f;background:#ecf8fb;border-radius:20px;padding:16px;font-size:18px;font-weight:700}.confirm-box input{width:auto;margin-right:10px;transform:scale(1.35)}
+    .question{border:1px solid #dbe5ed;border-radius:22px;padding:20px;margin:18px 0;background:#fff}.question h3{font-size:22px;line-height:1.35;margin:0 0 16px}.answer{display:flex;gap:12px;align-items:flex-start;border:2px solid #d7e3eb;border-radius:18px;padding:16px 18px;margin:11px 0;font-size:19px;line-height:1.35;cursor:pointer;background:#f8fbfd}.answer:hover{border-color:#0f6f8f;background:#ecf8fb}.answer input{width:auto;margin-top:4px;transform:scale(1.35)}.answer-letter{min-width:34px;height:34px;border-radius:999px;background:#e7f1f5;color:#0b4f68;display:inline-grid;place-items:center;font-weight:900}.answer:has(input:checked){border-color:#155eef;background:#eef4ff}.answer:has(input:checked) .answer-letter{background:#155eef;color:#fff}
+    .actions-sticky{position:sticky;bottom:0;background:rgba(238,244,248,.92);backdrop-filter:blur(10px);padding:14px 0;margin-top:8px}.complete-btn{font-size:20px;padding:16px 24px;border-radius:16px}.progress{height:12px;background:#e7eef5;border-radius:999px;overflow:hidden;margin:12px 0}.progress span{display:block;height:100%;background:#0f6f8f;width:0%}.notice2{background:#fff8e6;border-left:5px solid #f79009;border-radius:16px;padding:14px;margin:12px 0}.result-ok{background:#ecfdf3;border-left:7px solid #12b76a;border-radius:24px;padding:28px}.result-bad{background:#fff1f3;border-left:7px solid #f04438;border-radius:24px;padding:28px}.big-error{max-width:780px;margin:40px auto;background:#fff;border-radius:24px;padding:28px;border:1px solid #d7e3eb}.lang-chip{display:inline-flex;border-radius:999px;background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.35);padding:6px 10px;font-weight:800;margin-left:8px}.read-checklist{background:#f8fbfd;border-radius:18px;padding:14px}.read-checklist label{display:block;font-size:16px;font-weight:700;margin:10px 0;color:#172033}.read-checklist input{width:auto;margin-right:9px;transform:scale(1.2)}
+    @media(max-width:1050px){.reader-grid{grid-template-columns:1fr}.pdf-frame{height:560px}.stepbar{grid-template-columns:1fr 1fr}.hero h1{font-size:30px}}
+    @media(max-width:700px){main.external-wrap{padding:14px}.hero{padding:20px;border-radius:22px}.stepbar{grid-template-columns:1fr}.question h3{font-size:20px}.answer{font-size:18px}.pdf-frame{height:460px}}
   </style>
 </head>
 <body>
   <main class="external-wrap">
-    <section class="card" id="box">
+    <section class="panel" id="box">
       <h1>Unterweisung laden …</h1>
       <p class="muted">Bitte warten.</p>
     </section>
@@ -33,41 +36,98 @@
     let current = null;
     const startedAt = Date.now();
     function esc(s=''){return String(s??'').replace(/[&<>\"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+    function fmtDate(d){return d ? new Date(d).toLocaleDateString('de-DE') : '—'}
     function langText(key){
       const l=current?.language||'de';
       const t={
         loading:{de:'Unterweisung laden …',en:'Loading instruction …',pl:'Ładowanie instruktażu …'},
-        confirm:{de:'Ich bestätige, dass ich die Inhalte gelesen und verstanden habe.',en:'I confirm that I have read and understood the content.',pl:'Potwierdzam, że przeczytałem/przeczytałam i zrozumiałem/zrozumiałam treść.'},
+        confirm:{de:'Ich bestätige, dass ich die Unterweisung gelesen, verstanden und den Inhalt beachtet habe.',en:'I confirm that I have read and understood the instruction and will follow the content.',pl:'Potwierdzam, że przeczytałem/przeczytałam i zrozumiałem/zrozumiałam instruktaż oraz będę stosować jego treść.'},
         complete:{de:'Unterweisung abschließen',en:'Complete instruction',pl:'Zakończ instruktaż'},
-        questions:{de:'Testfragen',en:'Test questions',pl:'Pytania testowe'},
-        content:{de:'Inhalte',en:'Content',pl:'Treść'},
-        template:{de:'Vorlage / Schulungsunterlage öffnen',en:'Open template / training material',pl:'Otwórz szablon / materiał szkoleniowy'},
-        noQuestions:{de:'Für diese Unterweisung sind aktuell keine Testfragen hinterlegt. Es wird nur die Bestätigung gespeichert.',en:'There are currently no test questions for this instruction. Only the confirmation will be saved.',pl:'Obecnie nie ma pytań testowych do tego instruktażu. Zapisane zostanie tylko potwierdzenie.'}
+        questions:{de:'Wissenstest',en:'Knowledge test',pl:'Test wiedzy'},
+        content:{de:'Unterweisung lesen',en:'Read instruction',pl:'Przeczytaj instruktaż'},
+        template:{de:'Unterlage in neuem Fenster öffnen',en:'Open material in a new window',pl:'Otwórz materiał w nowym oknie'},
+        noQuestions:{de:'Für diese Unterweisung sind aktuell keine Testfragen hinterlegt. Es wird nur die Bestätigung gespeichert.',en:'There are currently no test questions for this instruction. Only the confirmation will be saved.',pl:'Obecnie nie ma pytań testowych do tego instruktażu. Zapisane zostanie tylko potwierdzenie.'},
+        checklist:{de:'Vor dem Abschluss prüfen',en:'Check before completing',pl:'Sprawdź przed zakończeniem'},
+        step1:{de:'1. Lesen',en:'1. Read',pl:'1. Czytaj'},
+        step2:{de:'2. Unterlage prüfen',en:'2. Review material',pl:'2. Sprawdź materiał'},
+        step3:{de:'3. Fragen beantworten',en:'3. Answer questions',pl:'3. Odpowiedz'},
+        step4:{de:'4. Abschließen',en:'4. Complete',pl:'4. Zakończ'}
       };
       return t[key]?.[l] || t[key]?.de || key;
     }
+    function optionText(o){ return typeof o === 'object' && o ? (o.text ?? '') : o; }
+    function optionValue(o,i){ return typeof o === 'object' && o && Number.isFinite(Number(o.answerIndex)) ? Number(o.answerIndex) : i; }
+    function buildContentHtml(text){
+      const raw = String(text || '').trim();
+      if(!raw) return '<p class="muted">Für diese Unterweisung ist noch kein Beschreibungstext hinterlegt. Bitte die geöffnete Schulungsunterlage vollständig lesen.</p>';
+      const lines = raw.split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
+      if(lines.length <= 1){
+        const parts = raw.split(/(?:;|\.\s+)/).map(x=>x.trim()).filter(x=>x.length>8).slice(0,14);
+        if(parts.length > 1) return `<ul>${parts.map(p=>`<li>${esc(p.replace(/\.$/,''))}</li>`).join('')}</ul>`;
+        return `<p>${esc(raw)}</p>`;
+      }
+      return `<ul>${lines.slice(0,24).map(l=>`<li>${esc(l.replace(/^[-•*]\s*/,''))}</li>`).join('')}</ul>`;
+    }
     async function load(){
-      if(!token){ box.innerHTML='<h1>Kein gültiger Link</h1>'; return; }
+      if(!token){ box.innerHTML='<div class="big-error"><h1>Kein gültiger Link</h1><p>Der Unterweisungslink fehlt oder ist beschädigt.</p></div>'; return; }
       const res = await fetch(apiUrl('/api/external/' + encodeURIComponent(token)), {mode:'cors'});
       const data = await res.json();
-      if(!res.ok){ box.innerHTML='<h1>Link nicht verfügbar</h1><p>'+esc(data.error||'Fehler')+'</p>'; return; }
+      if(!res.ok){ box.innerHTML='<div class="big-error"><h1>Link nicht verfügbar</h1><p>'+esc(data.error||'Fehler')+'</p></div>'; return; }
       current=data;
       renderInstruction();
     }
     function renderInstruction(){
       const questions = current.questions || [];
-      box.innerHTML = `<h1 class="external-title">${esc(current.instructionName)}</h1>
-        <p class="external-sub">${esc(current.companyName||'')} · ${esc(current.recipientName||current.email||'')}</p>
-        <div class="step"><b>${langText('content')}</b></div>
-        <pre class="content">${esc(current.description||'')}</pre>
-        ${current.templateUrl?`<p><a class="btn ghost" href="${esc(current.templateUrl)}" target="_blank" rel="noopener">${langText('template')}</a></p>`:''}
-        <label class="confirm-line"><input type="checkbox" id="confirm"> ${langText('confirm')}</label>
-        <div class="step"><b>${langText('questions')}</b> ${current.testRequired?`<span class="muted">Bestehen ab ${esc(current.passPercent||80)} %</span>`:''}</div>
-        <div id="questionsBox">${questions.length ? questions.map(renderQuestion).join('') : `<p class="muted">${langText('noQuestions')}</p>`}</div>
-        <p><button class="primary" style="font-size:18px;padding:14px 20px" onclick="complete()">${langText('complete')}</button></p>`;
+      const showPdf = !!current.templateUrl;
+      box.className = '';
+      box.innerHTML = `<div class="external-shell">
+        <section class="hero">
+          <h1>${esc(current.instructionName)}</h1>
+          <p>${esc(current.companyName||'')} · ${esc(current.recipientName||current.email||'')} <span class="lang-chip">${esc((current.language||'de').toUpperCase())}</span></p>
+          <p>Link gültig bis: <b>${fmtDate(current.expiresAt)}</b>${current.testRequired?` · Bestehen ab <b>${esc(current.passPercent||80)} %</b>`:''}</p>
+          <div class="stepbar"><div class="step-pill">${langText('step1')}<small>${langText('content')}</small></div><div class="step-pill">${langText('step2')}<small>${esc(current.templateTitle||'PDF / Vorlage')}</small></div><div class="step-pill">${langText('step3')}<small>${questions.length} Fragen</small></div><div class="step-pill">${langText('step4')}<small>Nachweis speichern</small></div></div>
+        </section>
+        <section class="reader-grid">
+          <div class="panel">
+            <h2>${langText('content')}</h2>
+            <div class="content-card">${buildContentHtml(current.description)}</div>
+            ${showPdf?`<div class="template-actions"><a class="btn primary" href="${esc(current.templateUrl)}" target="_blank" rel="noopener">${langText('template')}</a></div>`:''}
+            <h3>${langText('checklist')}</h3>
+            <div class="read-checklist">
+              <label><input type="checkbox" class="readCheck"> Ich habe die Schulungsunterlage geöffnet bzw. den Inhalt geprüft.</label>
+              <label><input type="checkbox" class="readCheck"> Ich kenne die wichtigsten Regeln und weiß, was im Arbeitsbereich zu beachten ist.</label>
+              <label><input type="checkbox" class="readCheck"> Ich weiß, dass ich bei Unsicherheit den Vorgesetzten / Line Manager fragen muss.</label>
+            </div>
+          </div>
+          <aside class="panel">
+            <h2>Schulungsunterlage</h2>
+            ${showPdf?`<iframe class="pdf-frame" src="${esc(current.templateUrl)}" title="Schulungsunterlage"></iframe><div class="template-actions"><a class="btn ghost" href="${esc(current.templateUrl)}" target="_blank" rel="noopener">PDF groß öffnen</a></div>`:`<div class="notice2">Keine PDF-Unterlage verknüpft. Bitte den Text links vollständig lesen.</div>`}
+          </aside>
+        </section>
+        <section class="panel">
+          <h2>${langText('questions')}</h2>
+          <div class="progress"><span id="progressBar"></span></div>
+          <p class="muted" id="progressText">0 / ${questions.length} beantwortet</p>
+          <div id="questionsBox">${questions.length ? questions.map(renderQuestion).join('') : `<p class="muted">${langText('noQuestions')}</p>`}</div>
+        </section>
+        <section class="panel">
+          <label class="confirm-box"><input type="checkbox" id="confirm"> ${langText('confirm')}</label>
+          <div class="actions-sticky"><button class="primary complete-btn" onclick="complete()">${langText('complete')}</button></div>
+        </section>
+      </div>`;
+      document.querySelectorAll('input[type="radio"]').forEach(i=>i.addEventListener('change',updateProgress));
+      updateProgress();
     }
     function renderQuestion(q,idx){
-      return `<div class="question"><h3>${idx+1}. ${esc(q.question)}</h3>${(q.options||[]).map((o,i)=>`<label class="answer"><input type="radio" name="q_${esc(q.id)}" value="${i}"> ${esc(o)}</label>`).join('')}</div>`;
+      const letters = ['A','B','C','D','E','F'];
+      return `<div class="question"><h3>${idx+1}. ${esc(q.question)}</h3>${(q.options||[]).map((o,i)=>`<label class="answer"><input type="radio" name="q_${esc(q.id)}" value="${esc(optionValue(o,i))}"><span class="answer-letter">${letters[i]||String(i+1)}</span><span>${esc(optionText(o))}</span></label>`).join('')}</div>`;
+    }
+    function updateProgress(){
+      const questions=current?.questions||[];
+      const answered=questions.filter(q=>document.querySelector(`input[name="q_${CSS.escape(q.id)}"]:checked`)).length;
+      const pct=questions.length?Math.round(answered/questions.length*100):100;
+      const bar=document.getElementById('progressBar'); if(bar) bar.style.width=pct+'%';
+      const text=document.getElementById('progressText'); if(text) text.textContent=`${answered} / ${questions.length} beantwortet`;
     }
     function collectAnswers(){
       return (current.questions||[]).map(q=>{
@@ -77,6 +137,8 @@
     }
     async function complete(){
       if(!document.getElementById('confirm')?.checked) return alert('Bitte Bestätigung anhaken.');
+      const readChecks=[...document.querySelectorAll('.readCheck')];
+      if(readChecks.some(c=>!c.checked)) return alert('Bitte zuerst alle Punkte unter "Vor dem Abschluss prüfen" bestätigen.');
       const questions=current.questions||[];
       const answers=collectAnswers();
       if(current.testRequired && questions.length && answers.length !== questions.length) return alert('Bitte alle Testfragen beantworten.');
@@ -84,10 +146,10 @@
       const data = await res.json();
       if(!res.ok) return alert(data.error||'Fehler');
       if(data.passed===false){
-        box.innerHTML = `<div class="step result-bad"><h1>Test nicht bestanden</h1><p>Ergebnis: ${esc(data.scorePercent)} %. Benötigt: ${esc(data.passPercent)} %.</p><p>Bitte den Link erneut öffnen und die Unterweisung noch einmal sorgfältig durchführen.</p></div>`;
+        box.innerHTML = `<div class="result-bad"><h1>Test nicht bestanden</h1><p>Ergebnis: ${esc(data.scorePercent)} %. Benötigt: ${esc(data.passPercent)} %.</p><p>Bitte die Unterweisung erneut sorgfältig lesen und den Test noch einmal durchführen.</p></div>`;
         return;
       }
-      box.innerHTML = `<div class="step result-ok"><h1>Abgeschlossen</h1><p>Die Unterweisung wurde gespeichert und ist bis <b>${esc(data.validUntil)}</b> gültig.</p><p>Das Ergebnis ist jetzt in der Admin-Website sichtbar.</p></div>`;
+      box.innerHTML = `<div class="result-ok"><h1>Abgeschlossen</h1><p>Die Unterweisung wurde gespeichert und ist bis <b>${esc(data.validUntil)}</b> gültig.</p><p>Das Ergebnis ist jetzt in der Admin-Website sichtbar.</p></div>`;
     }
     load();
   </script>
