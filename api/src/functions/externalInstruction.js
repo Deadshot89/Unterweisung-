@@ -78,9 +78,10 @@ async function questionsForSession(pool, invitation) {
   let source={instructionName:invitation.instructionName,description:invitation.description,intervalMonths:invitation.intervalMonths,templateTitle:invitation.templateTitle,templatePath:invitation.templatePath};
   const release=await pool.request().input('companyId',sql.NVarChar(80),invitation.companyId).input('typeId',sql.NVarChar(80),invitation.instructionTypeId)
     .input('language',sql.NVarChar(10),invitation.language||'de')
-    .query("SELECT TOP 1 * FROM InstructionAnalyses WHERE companyId=@companyId AND instructionTypeId=@typeId AND language=@language AND status='published' ORDER BY publishedAt DESC");
+    .query("SELECT TOP 1 * FROM InstructionAnalyses WHERE companyId=@companyId AND instructionTypeId=@typeId AND status='published' ORDER BY CASE WHEN language=@language THEN 0 ELSE 1 END,publishedAt DESC");
   const published=release.recordset[0];
   if(published?.resultJson && !invitation.testInstructionSnapshotJson){
+    if(published.language!==String(invitation.language||'de').toLowerCase()) throw Object.assign(new Error('Für die gewählte Sprache fehlt eine freigegebene Fassung dieser Unterweisung. Bitte eine verfügbare Sprache verwenden oder die passende Sprachfassung erstellen.'),{status:409});
     const result=validateAnalysis(JSON.parse(published.resultJson).data,published);
     if(!result.publishable) throw new Error('Die freigegebene Sicherheitsabdeckung ist unvollständig.');
     const expected=result.data.aspects.filter(a=>a.status==='covered').map(a=>a.id);

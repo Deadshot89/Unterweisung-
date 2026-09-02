@@ -160,3 +160,7 @@ assert.equal(confirmationOnly.description,instructionText(data));assert.equal(co
 assert.doesNotMatch(readFileSync('frontend/instruction-type-management-v23.js','utf8'),/onclick=/);
 assert.doesNotMatch(readFileSync('frontend/test-question-management-v22.js','utf8'),/onclick=|onchange=/);
 console.log('Legacy invitation migration and confirmation-only source checks passed');
+
+const missingLanguagePool={request(){return {input(){return this;},async query(query){return {recordset:query.includes('FROM InstructionAnalyses')?[released]:bank};}};}};
+await assert.rejects(()=>external.questionsForSession(missingLanguagePool,{...confirmationOnly,id:'missing-language',language:'pl',testInstructionSnapshotJson:null}),/gewählte Sprache/,'Never combine another language release with legacy questions.');
+console.log('Unavailable language release is blocked instead of silently mixing sources.');
