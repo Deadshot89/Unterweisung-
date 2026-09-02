@@ -17,6 +17,6 @@ assert.match(roleGuard, /applyRoleVisibility/, 'Menüpunkte müssen je Rolle aus
 assert.match(roleGuard, /accessDeniedHtml/, 'Direktzugriff auf gesperrte Views muss abgefangen werden.');
 assert.match(roleGuard, /setView\s*=\s*function/, 'setView muss durch Rollenprüfung geschützt werden.');
 assert.match(index, /role-guard-v20\.js/, 'Index muss den Rollen-Guard laden.');
-assert.match(index, /v0\.20/, 'Index muss Version v0.20 anzeigen.');
+assert.match(index, /Unterweisungsmanager Online · v0\./, 'Index muss eine sichtbare Online-Version anzeigen.');
 
 console.log('Role guard checks passed');
