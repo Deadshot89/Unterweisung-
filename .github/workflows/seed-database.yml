@@ -11,6 +11,10 @@ on:
       - "templates/**"
       - ".github/workflows/seed-database.yml"
 
+concurrency:
+  group: seed-database-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   seed:
     runs-on: ubuntu-latest
