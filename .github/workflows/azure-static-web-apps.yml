@@ -39,6 +39,32 @@ jobs:
       - name: Run frontend/API syntax checks
         run: npm test
 
+      - name: Diagnose Azure configuration bridge
+        env:
+          SQL_SECRET_PRESENT: ${{ secrets.SQL_CONNECTION_STRING != '' }}
+          STORAGE_SECRET_PRESENT: ${{ secrets.AZURE_STORAGE_CONNECTION_STRING != '' }}
+          SWA_TOKEN_PRESENT: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN != '' }}
+          FUNCTION_PROFILE_PRESENT: ${{ secrets.AZURE_FUNCTIONAPP_PUBLISH_PROFILE != '' }}
+          AZURE_CREDENTIALS_PRESENT: ${{ secrets.AZURE_CREDENTIALS != '' }}
+          AZURE_CLIENT_ID_SECRET_PRESENT: ${{ secrets.AZURE_CLIENT_ID != '' }}
+          AZURE_TENANT_ID_SECRET_PRESENT: ${{ secrets.AZURE_TENANT_ID != '' }}
+          AZURE_SUBSCRIPTION_ID_SECRET_PRESENT: ${{ secrets.AZURE_SUBSCRIPTION_ID != '' }}
+          AZURE_CLIENT_ID_VAR_PRESENT: ${{ vars.AZURE_CLIENT_ID != '' }}
+          AZURE_TENANT_ID_VAR_PRESENT: ${{ vars.AZURE_TENANT_ID != '' }}
+          AZURE_SUBSCRIPTION_ID_VAR_PRESENT: ${{ vars.AZURE_SUBSCRIPTION_ID != '' }}
+        run: |
+          echo "SQL_CONNECTION_STRING secret present: $SQL_SECRET_PRESENT"
+          echo "AZURE_STORAGE_CONNECTION_STRING secret present: $STORAGE_SECRET_PRESENT"
+          echo "SWA deployment token present: $SWA_TOKEN_PRESENT"
+          echo "Function publish profile present: $FUNCTION_PROFILE_PRESENT"
+          echo "AZURE_CREDENTIALS present: $AZURE_CREDENTIALS_PRESENT"
+          echo "AZURE_CLIENT_ID secret present: $AZURE_CLIENT_ID_SECRET_PRESENT"
+          echo "AZURE_TENANT_ID secret present: $AZURE_TENANT_ID_SECRET_PRESENT"
+          echo "AZURE_SUBSCRIPTION_ID secret present: $AZURE_SUBSCRIPTION_ID_SECRET_PRESENT"
+          echo "AZURE_CLIENT_ID repository variable present: $AZURE_CLIENT_ID_VAR_PRESENT"
+          echo "AZURE_TENANT_ID repository variable present: $AZURE_TENANT_ID_VAR_PRESENT"
+          echo "AZURE_SUBSCRIPTION_ID repository variable present: $AZURE_SUBSCRIPTION_ID_VAR_PRESENT"
+
       - name: Build And Deploy
         id: builddeploy
         uses: Azure/static-web-apps-deploy@v1
