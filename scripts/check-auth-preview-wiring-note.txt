@@ -1,0 +1,1 @@
+Expected RED condition before implementation: frontend/staticwebapp.config.json does not yet exist, frontend/config.js still points to standalone Function App, workflow has no api_location, and release is v0.36.0.
