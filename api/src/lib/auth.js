@@ -60,6 +60,10 @@ function shouldGrantDevSystemAdmin(email) {
   return !!email && operators.includes(normalizeEmail(email));
 }
 
+function defaultCompanyId() {
+  return process.env.DEFAULT_COMPANY_ID || process.env.COMPANY_ID || 'company-essentra';
+}
+
 export function getRequestContext(request) {
   const rawPrincipal = request.headers.get('x-ms-client-principal');
   const principal = decodePrincipal(rawPrincipal);
@@ -76,7 +80,7 @@ export function getRequestContext(request) {
   }
 
   return {
-    companyId: localDev ? (requestedCompanyId || process.env.DEFAULT_COMPANY_ID || process.env.COMPANY_ID || 'company-essentra') : (requestedCompanyId || null),
+    companyId: localDev ? (requestedCompanyId || defaultCompanyId()) : (requestedCompanyId || null),
     requestedCompanyId,
     userId,
     userDetails,
@@ -107,16 +111,18 @@ export async function getAuthorizedContext(request) {
     const devEmail = normalizeEmail(process.env.DEV_USER_EMAIL || 'pilot-admin@local');
     const roles = [Roles.COMPANY_ADMIN, Roles.HSE, Roles.LINE_MANAGER, Roles.AUTHENTICATED];
     if (shouldGrantDevSystemAdmin(devEmail)) roles.unshift(Roles.SYSTEM_ADMIN);
+    const isDevSystemAdmin = roles.includes(Roles.SYSTEM_ADMIN);
+    const selectedCompanyId = isDevSystemAdmin ? (base.requestedCompanyId || defaultCompanyId()) : defaultCompanyId();
     return {
       ...base,
-      companyId: process.env.DEFAULT_COMPANY_ID || process.env.COMPANY_ID || 'company-essentra',
+      companyId: selectedCompanyId,
       userId: process.env.DEV_USER_ID || 'dev-admin',
       userDetails: process.env.DEV_USER_NAME || 'Pilot Admin',
       email: devEmail,
       roles: normalizeRoles(roles),
       allowedCompanies: [{
-        companyId: process.env.DEFAULT_COMPANY_ID || process.env.COMPANY_ID || 'company-essentra',
-        role: roles.includes(Roles.SYSTEM_ADMIN) ? Roles.SYSTEM_ADMIN : Roles.COMPANY_ADMIN,
+        companyId: selectedCompanyId,
+        role: isDevSystemAdmin ? Roles.SYSTEM_ADMIN : Roles.COMPANY_ADMIN,
         userId: process.env.DEV_USER_ID || 'dev-admin',
         email: devEmail,
         displayName: process.env.DEV_USER_NAME || 'Pilot Admin'
@@ -159,11 +165,12 @@ export async function getAuthorizedContext(request) {
 
   if (!dbUsers.length && !requireDbUser && base.isLocalDev) {
     const roles = normalizeRoles([...base.roles, Roles.COMPANY_ADMIN, Roles.HSE, Roles.LINE_MANAGER, Roles.AUTHENTICATED, ...(isSystemAdminByPrincipal ? [Roles.SYSTEM_ADMIN] : [])]);
+    const selectedCompanyId = roles.includes(Roles.SYSTEM_ADMIN) ? (base.requestedCompanyId || defaultCompanyId()) : (base.companyId || defaultCompanyId());
     return {
       ...base,
-      companyId: base.companyId || process.env.DEFAULT_COMPANY_ID || 'company-essentra',
+      companyId: selectedCompanyId,
       roles,
-      allowedCompanies: [{ companyId: base.companyId || process.env.DEFAULT_COMPANY_ID || 'company-essentra', role: roles.includes(Roles.SYSTEM_ADMIN) ? Roles.SYSTEM_ADMIN : Roles.COMPANY_ADMIN, userId: base.userId, email: base.email, displayName: base.userDetails || 'Lokaler Testbenutzer' }],
+      allowedCompanies: [{ companyId: selectedCompanyId, role: roles.includes(Roles.SYSTEM_ADMIN) ? Roles.SYSTEM_ADMIN : Roles.COMPANY_ADMIN, userId: base.userId, email: base.email, displayName: base.userDetails || 'Lokaler Testbenutzer' }],
       isAuthenticated: true
     };
   }
@@ -185,7 +192,7 @@ export async function getAuthorizedContext(request) {
     selected = selected || { companyId: requested, role: Roles.SYSTEM_ADMIN, userId: base.userId, email: base.email, displayName: base.userDetails };
   }
   if (isSystemAdminByPrincipal && !selected) {
-    selected = { companyId: process.env.DEFAULT_COMPANY_ID || 'company-essentra', role: Roles.SYSTEM_ADMIN, userId: base.userId, email: base.email, displayName: base.userDetails };
+    selected = { companyId: defaultCompanyId(), role: Roles.SYSTEM_ADMIN, userId: base.userId, email: base.email, displayName: base.userDetails };
   }
 
   if (!selected) {
