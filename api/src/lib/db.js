@@ -1,3 +1,4 @@
+import './runtime-settings.js';
 import sql from 'mssql';
 
 let poolPromise;

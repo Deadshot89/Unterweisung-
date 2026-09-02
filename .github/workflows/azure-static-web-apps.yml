@@ -84,6 +84,12 @@ jobs:
             node -e "const fs=require('fs'); const t=fs.readFileSync('/tmp/function-me.txt','utf8'); try { const d=JSON.parse(t); console.log(JSON.stringify({error:d.error||d.message||null, authenticated:d.authenticated??null})); } catch { console.log('Standalone /api/me returned non-JSON body'); }"
           fi
 
+      - name: Prepare managed API runtime settings
+        env:
+          SQL_CONNECTION_STRING: ${{ secrets.SQL_CONNECTION_STRING }}
+          AZURE_STORAGE_CONNECTION_STRING: ${{ secrets.AZURE_STORAGE_CONNECTION_STRING }}
+        run: node scripts/prepare-managed-api-settings.js
+
       - name: Build And Deploy
         id: builddeploy
         uses: Azure/static-web-apps-deploy@v1
@@ -96,6 +102,10 @@ jobs:
           output_location: ""
           skip_app_build: true
 
+      - name: Remove generated runtime settings
+        if: always()
+        run: rm -f api/runtime-settings.deploy.json
+
       - name: Diagnose deployed API health
         if: steps.builddeploy.outputs.static_web_app_url != ''
         env:
@@ -103,7 +113,27 @@ jobs:
         run: |
           echo "Checking integrated API health at deployed preview..."
           health="$(curl --connect-timeout 10 --max-time 30 --fail --silent --show-error "$STATIC_WEB_APP_URL/api/health")"
-          HEALTH_JSON="$health" node -e "const d=JSON.parse(process.env.HEALTH_JSON); console.log(JSON.stringify({ok:d.ok,service:d.service,database:d.database,blobStorage:d.blobStorage}));"
+          HEALTH_JSON="$health" node -e "const d=JSON.parse(process.env.HEALTH_JSON); const database=d.database==='ok'; const blobStorage=/^ok(?::|$)/.test(d.blobStorage||''); console.log(JSON.stringify({ok:d.ok,database:database?'ok':'unavailable',blobStorage:blobStorage?'ok':'unavailable'})); if(!d.ok||!database||!blobStorage) process.exit(1);"
+
+      - name: Verify deployed stylesheets
+        if: steps.builddeploy.outputs.static_web_app_url != ''
+        env:
+          STATIC_WEB_APP_URL: ${{ steps.builddeploy.outputs.static_web_app_url }}
+        run: |
+          node --input-type=module <<'NODE'
+          import { readFileSync } from 'node:fs';
+          import assert from 'node:assert/strict';
+          const index = readFileSync('frontend/index.html', 'utf8');
+          const paths = [...index.matchAll(/<link\b[^>]*rel="stylesheet"[^>]*href="([^"]+)"/g)].map(m => m[1]);
+          assert.ok(paths.length > 0, 'No stylesheet references found');
+          for (const path of paths) {
+            const response = await fetch(new URL(path, process.env.STATIC_WEB_APP_URL), { redirect: 'manual', signal: AbortSignal.timeout(30000) });
+            assert.equal(response.status, 200, `Stylesheet unavailable: ${path}`);
+            assert.match(response.headers.get('content-type') || '', /^text\/css\b/i, `Stylesheet redirected or wrong MIME type: ${path}`);
+            assert.equal((await response.text()).replace(/\r\n/g, '\n'), readFileSync(`frontend${path}`, 'utf8').replace(/\r\n/g, '\n'), `Unexpected stylesheet content: ${path}`);
+            console.log(`Stylesheet verified: ${path}`);
+          }
+          NODE
 
   close_pull_request_job:
     if: github.event_name == 'pull_request' && github.event.action == 'closed'

@@ -27,7 +27,8 @@ const dir = mkdtempSync(path.join(tmpdir(), 'um-runtime-settings-'));
 const settingsFile = path.join(dir, 'runtime-settings.deploy.json');
 writeFileSync(settingsFile, JSON.stringify({
   SQL_CONNECTION_STRING: 'Server=test-sql;Database=test-db;',
-  AZURE_STORAGE_CONNECTION_STRING: 'DefaultEndpointsProtocol=https;AccountName=test;AccountKey=test;'
+  AZURE_STORAGE_CONNECTION_STRING: 'DefaultEndpointsProtocol=https;AccountName=test;AccountKey=test;EndpointSuffix=core.windows.net;',
+  AUTH_LOCAL_DEV: 'true'
 }), 'utf8');
 
 const childCode = `
@@ -37,7 +38,7 @@ const childCode = `
   process.env.RUNTIME_SETTINGS_FILE = ${JSON.stringify(settingsFile)};
   await import(${JSON.stringify(pathToFileURL(modulePath).href)});
   assert.equal(process.env.SQL_CONNECTION_STRING, 'Server=test-sql;Database=test-db;');
-  assert.equal(process.env.AZURE_STORAGE_CONNECTION_STRING, 'DefaultEndpointsProtocol=https;AccountName=test;AccountKey=test;');
+  assert.equal(process.env.AZURE_STORAGE_CONNECTION_STRING, 'DefaultEndpointsProtocol=https;AccountName=test;AccountKey=test;EndpointSuffix=core.windows.net;');
 `;
 
 try {
@@ -51,6 +52,26 @@ try {
     0,
     `Runtime-Settings-Loader hat die serverseitigen Einstellungen nicht geladen.\n${result.stderr || result.stdout}`
   );
+  for (const [module, check] of [
+    ['db.js', "assert.equal(lib.getSqlConnectionString(), 'Server=test-sql;Database=test-db;'); assert.equal(lib.isDbConfigured(), true);"],
+    ['blob.js', "assert.equal(lib.getBlobServiceClient().accountName, 'test');"]
+  ]) {
+    const integration = spawnSync(process.execPath, ['--input-type=module', '--eval', `
+      import assert from 'node:assert/strict';
+      delete process.env.SQL_CONNECTION_STRING;
+      delete process.env.AZURE_STORAGE_CONNECTION_STRING;
+      delete process.env.AUTH_LOCAL_DEV;
+      process.env.RUNTIME_SETTINGS_FILE = ${JSON.stringify(settingsFile)};
+      const lib = await import(${JSON.stringify(pathToFileURL(path.resolve('api/src/lib')).href)} + '/' + ${JSON.stringify(module)});
+      ${check}
+      assert.equal(process.env.AUTH_LOCAL_DEV, undefined, 'Packaged data must not enable auth bypass');
+      process.env.SQL_CONNECTION_STRING = 'Server=azure-setting;Database=real;';
+      const { applyPackagedRuntimeSettings } = await import(${JSON.stringify(pathToFileURL(modulePath).href)});
+      applyPackagedRuntimeSettings();
+      assert.equal(process.env.SQL_CONNECTION_STRING, 'Server=azure-setting;Database=real;', 'Azure settings take precedence');
+    `], { encoding: 'utf8', env: { ...process.env } });
+    assert.equal(integration.status, 0, `${module} did not load runtime settings: ${integration.stderr}`);
+  }
   console.log('Managed API runtime settings checks passed');
 } finally {
   rmSync(dir, { recursive: true, force: true });
