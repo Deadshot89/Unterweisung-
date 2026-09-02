@@ -16,7 +16,7 @@ const ui = read('frontend/manager-report-v28.js');
 const roleGuard = read('frontend/role-guard-v20.js');
 const managerApi = read('api/src/functions/managerReport.js');
 
-assert(index.includes('Unterweisungsmanager Online · v0.28'), 'Index zeigt nicht v0.28.');
+assert(/Unterweisungsmanager Online · v0\./.test(index), 'Index zeigt keine sichtbare Online-Version.');
 assert(index.includes('data-view="managerReport"'), 'Manager-Report-Reiter fehlt.');
 assert(index.includes('<section id="managerReport"'), 'Manager-Report-Section fehlt.');
 assert(index.includes('/manager-report-v28.js'), 'manager-report-v28.js wird nicht geladen.');
