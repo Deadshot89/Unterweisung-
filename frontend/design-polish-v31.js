@@ -1,7 +1,7 @@
-// v0.31: Professioneller Kopfbereich und saubere Benutzeranzeige.
+// v0.32: Professioneller Kopfbereich und saubere Benutzeranzeige.
 // Entfernt technische Rollen-/Systemtexte aus der sichtbaren Hauptoberflaeche.
 
-const DESIGN_VERSION = 'v0.31';
+const DESIGN_VERSION = 'v0.32';
 
 const FRIENDLY_ROLE_LABELS = {
   system_admin: 'System Admin',
