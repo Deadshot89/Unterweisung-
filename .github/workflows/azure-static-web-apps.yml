@@ -39,6 +39,20 @@ jobs:
       - name: Run frontend/API syntax checks
         run: npm test
 
+      - name: Diagnose current preview before deployment
+        if: github.event_name == 'pull_request' && github.event.number == 1
+        run: |
+          status="$(curl --connect-timeout 10 --max-time 30 --silent --show-error --output /tmp/preview-health.json --write-out '%{http_code}' https://delightful-sky-05dbf7603-1.westeurope.7.azurestaticapps.net/api/health || true)"
+          echo "Previous preview health HTTP: $status"
+          node --input-type=module <<'NODE'
+          import { readFileSync } from 'node:fs';
+          try {
+            const d = JSON.parse(readFileSync('/tmp/preview-health.json', 'utf8'));
+            const state = v => /^ok(?::|$)/.test(v || '') ? 'ok' : v === 'not_configured' ? v : 'unavailable';
+            console.log(JSON.stringify({ ok: d.ok, database: state(d.database), blobStorage: state(d.blobStorage) }));
+          } catch { console.log('Previous preview did not return JSON health data.'); }
+          NODE
+
       - name: Diagnose Azure configuration bridge
         env:
           SQL_SECRET_PRESENT: ${{ secrets.SQL_CONNECTION_STRING != '' }}
@@ -105,7 +119,12 @@ jobs:
       - name: Remove generated runtime settings
         if: always()
         # The Azure Docker action can leave the API directory owned by root.
-        run: sudo rm -f -- api/runtime-settings.deploy.json
+        run: |
+          if [ -f api/runtime-settings.deploy.json ]; then
+            stat --format='Packaged settings permissions: %a; owner UID: %u; group GID: %g' api/runtime-settings.deploy.json
+            if [ -r api/runtime-settings.deploy.json ]; then echo 'Runner can read packaged settings'; else echo 'Runner cannot read packaged settings'; fi
+          fi
+          sudo rm -f -- api/runtime-settings.deploy.json
 
       - name: Diagnose deployed API health
         if: steps.builddeploy.outputs.static_web_app_url != ''
