@@ -1,10 +1,49 @@
-// Hotfix v0.14: Externe Links + externe Abschlüsse sauber sichtbar machen.
+// Hotfix v0.15: Externe Links + Firmen-Mailsteuerung.
 // Standard ist manuelle Mail: Link erzeugen, Mailtext kopieren, kein Graph-Zwang.
 
-function buildManualInvitationText(result, form){
+async function getCompanyMailSettingsSafe(){
+  if(state.companyMailSettings) return state.companyMailSettings;
+  if(!state.apiAvailable && !API_BASE_URL){
+    state.companyMailSettings = { mailMode:'manual', mailFromName:'Unterweisungsmanager', mailSubjectPrefix:'Unterweisung', mailSignature:'Vielen Dank.' };
+    return state.companyMailSettings;
+  }
+  try{
+    state.companyMailSettings = await api('/company-mail-settings');
+  }catch{
+    state.companyMailSettings = { mailMode:'manual', mailFromName:'Unterweisungsmanager', mailSubjectPrefix:'Unterweisung', mailSignature:'Vielen Dank.' };
+  }
+  return state.companyMailSettings;
+}
+
+function selectedMailMode(settings){
+  const mode = settings?.mailMode || 'manual';
+  return ['manual','outlook','graph'].includes(mode) ? mode : 'manual';
+}
+
+function buildManualInvitationText(result, form, settings={}){
   const typeName = type(form.instructionTypeId).name || 'Unterweisung';
   const recipient = form.recipientName || 'Teilnehmer/in';
-  return `Betreff: Unterweisung durchführen - ${typeName}\n\nHallo ${recipient},\n\nbitte führe die folgende Unterweisung durch:\n${typeName}\n\nLink zur Unterweisung:\n${result.url}\n\nDer Link ist zeitlich begrenzt gültig. Bitte öffne den Link am Rechner oder Handy, lies die Unterweisung vollständig und schließe den Test ab. Nach Abschluss wird der Status automatisch im Unterweisungsmanager gespeichert.\n\nVielen Dank.`;
+  const prefix = settings.mailSubjectPrefix || 'Unterweisung';
+  const subject = `${prefix}: ${typeName}`;
+  const reply = settings.replyToEmail ? `\n\nBei Rückfragen bitte antworten an: ${settings.replyToEmail}` : '';
+  const sender = settings.mailFromName ? `\n\nAbsender: ${settings.mailFromName}${settings.mailFromEmail ? ' <' + settings.mailFromEmail + '>' : ''}` : '';
+  const signature = settings.mailSignature || 'Vielen Dank.';
+  return `Betreff: ${subject}\n\nHallo ${recipient},\n\nbitte führe die folgende Unterweisung durch:\n${typeName}\n\nLink zur Unterweisung:\n${result.url}\n\nDer Link ist zeitlich begrenzt gültig. Bitte öffne den Link am Rechner oder Handy, lies die Unterweisung vollständig und schließe den Test ab. Nach Abschluss wird der Status automatisch im Unterweisungsmanager gespeichert.${reply}${sender}\n\n${signature}`;
+}
+
+function mailSubjectFromText(text){
+  const line = String(text || '').split('\n')[0] || 'Betreff: Unterweisung durchführen';
+  return line.replace(/^Betreff:\s*/i,'').trim() || 'Unterweisung durchführen';
+}
+
+function mailBodyFromText(text){
+  return String(text || '').replace(/^Betreff:.*\n\n?/i,'');
+}
+
+function openMailClient(email, text){
+  const subject = mailSubjectFromText(text);
+  const body = mailBodyFromText(text);
+  window.location.href = `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 }
 
 function scoreLabel(row){
@@ -44,12 +83,15 @@ function renderExternal(){
   const instructionTypes = types().filter(t => t && t.active !== false);
   const apiText = state.apiAvailable ? 'Azure API verbunden' : (API_BASE_URL ? 'API konfiguriert, Status wird beim Senden geprüft' : 'Keine API konfiguriert');
   const apiClass = state.apiAvailable || API_BASE_URL ? 'ok' : 'warn';
+  const settings = state.companyMailSettings;
+  const defaultMode = selectedMailMode(settings);
+  const settingsLine = settings ? `${mailModeLabel(defaultMode)} · ${settings.mailFromName || 'Unterweisungsmanager'}${settings.replyToEmail ? ' · Antwort an ' + settings.replyToEmail : ''}` : 'Firmen-Mailsteuerung wird geladen ...';
 
   $('external').innerHTML = `<div class="grid">
     <div class="card span-12">
       <h2>Externe Unterweisung senden</h2>
       <p class="muted">Erzeugt einen sicheren Einmal-Link. Der Empfänger liest die Unterweisung, beantwortet den Test und der Abschluss erscheint danach automatisch unten in der Tabelle.</p>
-      <div class="notice"><b>API-Status:</b> ${badge(apiClass === 'ok' ? 'valid' : 'missing')} ${esc(apiText)}</div>
+      <div class="notice"><b>API-Status:</b> ${badge(apiClass === 'ok' ? 'valid' : 'missing')} ${esc(apiText)}<br><b>Mailsteuerung:</b> ${esc(settingsLine)}</div>
       <div class="form-grid external-form">
         <div class="field"><label>Empfänger E-Mail</label><input id="inviteEmail" placeholder="name@firma.de"></div>
         <div class="field"><label>Name optional</label><input id="inviteName" placeholder="Vorname Nachname"></div>
@@ -58,7 +100,11 @@ function renderExternal(){
         <div class="field"><label>Gültig Tage</label><input id="inviteDays" type="number" value="14" min="1" max="365"></div>
         <div class="field"><label>Bestehen ab %</label><input id="invitePass" type="number" value="80" min="0" max="100"></div>
         <div class="field"><label>Test erforderlich</label><select id="inviteTest"><option value="1">Ja</option><option value="0">Nein, nur Bestätigung</option></select></div>
-        <div class="field"><label>Mailmodus</label><select id="inviteSendMail"><option value="0" selected>Nur Link + Mailtext erzeugen</option><option value="1">Graph senden (nur wenn Firmenmail aktiv)</option></select></div>
+        <div class="field"><label>Mailmodus</label><select id="inviteMailMode">
+          <option value="manual" ${defaultMode==='manual'?'selected':''}>Nur Link + Mailtext erzeugen</option>
+          <option value="outlook" ${defaultMode==='outlook'?'selected':''}>Mailprogramm / Outlook öffnen</option>
+          <option value="graph" ${defaultMode==='graph'?'selected':''}>Graph senden (nur Firmenmail aktiv)</option>
+        </select></div>
         <div class="field full"><button class="primary" onclick="createInvitation()">Einmal-Link erzeugen</button></div>
         <div class="field full"><textarea id="inviteResult" readonly placeholder="Link und Mailtext erscheinen hier"></textarea></div>
       </div>
@@ -68,6 +114,12 @@ function renderExternal(){
 
   if(!instructionTypes.length){
     $('inviteResult').value = 'Keine Unterweisungstypen geladen. Bitte Dashboard prüfen und Seite mit Strg+F5 neu laden.';
+  }
+  if(!settings && (state.apiAvailable || API_BASE_URL)){
+    getCompanyMailSettingsSafe().then(()=>{
+      const externalView = document.getElementById('external');
+      if(externalView?.classList.contains('active')) renderExternal();
+    });
   }
 }
 
@@ -79,6 +131,7 @@ async function createInvitation(){
     if(!email){ alert('E-Mail fehlt.'); return; }
     if(!instructionTypeId){ alert('Bitte eine Unterweisung auswählen.'); return; }
 
+    const mailMode = $('inviteMailMode').value;
     const form = {
       email,
       recipientName: $('inviteName').value.trim(),
@@ -87,11 +140,12 @@ async function createInvitation(){
       validDays: Number($('inviteDays').value || 14),
       passPercent: Number($('invitePass').value || 80),
       testRequired: $('inviteTest').value === '1',
-      sendMail: $('inviteSendMail').value === '1'
+      sendMail: mailMode === 'graph'
     };
 
     resultBox.value = 'Einmal-Link wird erstellt ...';
 
+    const settings = await getCompanyMailSettingsSafe();
     const result = await api('/invitations', {
       method: 'POST',
       body: JSON.stringify(form)
@@ -99,7 +153,7 @@ async function createInvitation(){
 
     state.apiAvailable = true;
     state.source = 'api';
-    const manualText = buildManualInvitationText(result, form);
+    const manualText = buildManualInvitationText(result, form, settings);
     const output = (result.mail?.sent ? 'Mail gesendet.\n\n' : 'Link erstellt.\n\n') +
       result.url +
       (result.mail?.error ? '\n\nMailfehler: ' + result.mail.error : '') +
@@ -107,6 +161,7 @@ async function createInvitation(){
 
     resultBox.value = output;
     try { await navigator.clipboard.writeText(manualText); } catch {}
+    if(mailMode === 'outlook') openMailClient(email, manualText);
     await loadData();
     setView('external');
     const nextBox = $('inviteResult');
