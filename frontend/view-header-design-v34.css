@@ -1,0 +1,5 @@
+/* v0.34 Seitenkoepfe */
+.view-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin:0 0 16px;padding:18px 20px;border:1px solid #dbe8f0;border-radius:20px;background:linear-gradient(135deg,#ffffff,#f5fbfd);box-shadow:0 10px 26px rgba(20,41,56,.06)}
+.view-head h2{margin:4px 0 4px;font-size:24px;line-height:1.08;letter-spacing:-.025em;color:#101828}.view-head p{margin:0;color:#667085;font-size:14px;line-height:1.35;max-width:760px}.view-eyebrow{display:inline-flex;align-items:center;border-radius:999px;background:#e8f6fa;color:#0a5269;border:1px solid #cdebf2;padding:4px 8px;font-size:11px;font-weight:850;text-transform:uppercase;letter-spacing:.04em}
+.view-head + .grid,.view-head + .card{margin-top:0}.view.active>.view-head:first-child + .card,.view.active>.view-head:first-child + .grid{animation:viewHeaderContentIn .18s ease both}@keyframes viewHeaderContentIn{from{opacity:.75;transform:translateY(4px)}to{opacity:1;transform:none}}
+@media(max-width:900px){.view-head{align-items:flex-start;flex-direction:column;padding:16px}.view-head h2{font-size:21px}.view-head p{font-size:13px}}
