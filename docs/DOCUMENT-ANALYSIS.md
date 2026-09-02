@@ -6,7 +6,9 @@ Die Analyseansicht zeigt den gegliederten Text, Seitenfundstellen, bewertete Sic
 
 ## Azure einrichten
 
-Benötigt wird eine Azure-OpenAI-Bereitstellung mit PDF-/Bildeingabe, Responses API, Hintergrundverarbeitung und strukturierten Ausgaben. Modell und Region müssen diese Funktionen unterstützen. Kein Modellname wird automatisch angenommen.
+Benötigt wird eine Azure-OpenAI-Bereitstellung mit PDF-/Bildeingabe, Responses API, Hintergrundverarbeitung und strukturierten Ausgaben. Modell und Region müssen diese Funktionen unterstützen.
+
+Am 02.09.2026 wurde die Bereitstellung `gpt-5.4-mini` (Modellversion `2026-03-17`, Datenzonenstandard EUR, 100.000 TPM) im Azure-Portal als erfolgreich bestätigt. Der Deployment-Workflow verwendet diesen tatsächlichen Bereitstellungsnamen und `https://aoai-unterweisungsmanager-dev.openai.azure.com/` als Standardwerte. Abweichende GitHub-Secrets oder Repository-Variablen haben weiterhin Vorrang. Der API-Schlüssel muss als `AZURE_OPENAI_API_KEY` hinterlegt werden; für ihn gibt es keinen Standardwert. Die erfolgreiche Azure-Bereitstellung bestätigt noch keinen erfolgreichen Analysetest aus der Anwendung.
 
 Diese Einstellungen serverseitig als SWA-Anwendungseinstellungen hinterlegen. Für den bestehenden Deployment-Workflow können sie stattdessen über GitHub Actions bereitgestellt werden:
 
