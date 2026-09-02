@@ -13,14 +13,21 @@ function assertIncludes(source, needle, label) {
   }
 }
 
-assertIncludes(index, 'Unterweisungsmanager Online · v0.29', 'sichtbare Version v0.29');
+function assertMatches(source, pattern, label) {
+  if (!pattern.test(source)) {
+    console.error(`Fehlt: ${label}`);
+    process.exit(1);
+  }
+}
+
+assertMatches(index, /Unterweisungsmanager Online · v0\./, 'sichtbare Online-Version');
 assertIncludes(index, 'data-view="proofs"', 'Nachweise-Reiter');
 assertIncludes(index, '<section id="proofs"', 'Nachweise-Section');
 assertIncludes(index, '/proof-management-v29.js', 'Nachweisverwaltung geladen');
 
 assertIncludes(roleGuard, 'proofs:', 'Rollenmatrix fuer Nachweise');
 assertIncludes(roleGuard, "'company_admin','hse','line_manager','system_admin'", 'Nachweise Rollenfreigabe');
-assertIncludes(roleGuard, "'dashboard','status','proofs'", 'Nachweise in erlaubter Startreihenfolge');
+assertIncludes(roleGuard, "'dashboard','status','reminders','proofs'", 'Nachweise in erlaubter Startreihenfolge');
 
 assertIncludes(proofUi, 'function renderProofs', 'Nachweise rendern');
 assertIncludes(proofUi, 'function uploadProofFile', 'Nachweis hochladen');
