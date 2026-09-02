@@ -7,10 +7,27 @@ import { writeAudit } from '../lib/audit.js';
 import { writeSecurityEvent } from '../lib/securityEvents.js';
 
 const VALID_ROLES = new Set([Roles.COMPANY_ADMIN, Roles.HSE, Roles.LINE_MANAGER, Roles.EMPLOYEE, Roles.SYSTEM_ADMIN]);
+
 function normEmail(email) { return String(email || '').trim().toLowerCase(); }
+function clean(value, max) {
+  const text = String(value ?? '').trim();
+  return text ? text.slice(0, max) : null;
+}
+function validEmail(value) {
+  const email = normEmail(value);
+  return email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : null;
+}
 function roleOrDefault(role) {
   const value = String(role || Roles.EMPLOYEE).toLowerCase().trim();
   return VALID_ROLES.has(value) ? value : Roles.EMPLOYEE;
+}
+function targetCompanyId(ctx, value) {
+  return ctx.roles.includes(Roles.SYSTEM_ADMIN) && value ? clean(value, 80) : ctx.companyId;
+}
+function canManageRole(ctx, role) {
+  if (role === Roles.SYSTEM_ADMIN) return ctx.roles.includes(Roles.SYSTEM_ADMIN);
+  if (ctx.roles.includes(Roles.SYSTEM_ADMIN)) return true;
+  return [Roles.COMPANY_ADMIN, Roles.HSE, Roles.LINE_MANAGER, Roles.EMPLOYEE].includes(role);
 }
 
 app.http('users', {
@@ -24,10 +41,10 @@ app.http('users', {
 
       if (request.method === 'GET') {
         assertRole(ctx, [Roles.SYSTEM_ADMIN, Roles.COMPANY_ADMIN, Roles.HSE]);
-        const companyId = ctx.roles.includes(Roles.SYSTEM_ADMIN) && request.query.get('companyId') ? request.query.get('companyId') : ctx.companyId;
+        const companyId = targetCompanyId(ctx, request.query.get('companyId'));
         const result = await pool.request()
           .input('companyId', sql.NVarChar(80), companyId)
-          .query(`SELECT id,companyId,email,displayName,role,active,entraObjectId,provider,lastSeenAt,createdAt,updatedAt
+          .query(`SELECT id,companyId,email,displayName,role,active,entraObjectId,provider,lastSeenAt,createdAt,updatedAt,notes
                   FROM Users WHERE companyId=@companyId ORDER BY displayName,email`);
         return json(result.recordset);
       }
@@ -36,21 +53,21 @@ app.http('users', {
       assertRole(ctx, [Roles.SYSTEM_ADMIN, Roles.COMPANY_ADMIN]);
 
       if (request.method === 'POST') {
-        const companyId = ctx.roles.includes(Roles.SYSTEM_ADMIN) && body.companyId ? body.companyId : ctx.companyId;
-        const email = normEmail(body.email);
-        if (!email) return badRequest('email is required');
-        const displayName = body.displayName || email;
+        const companyId = targetCompanyId(ctx, body.companyId);
+        const email = validEmail(body.email);
+        if (!email) return badRequest('Gültige E-Mail-Adresse fehlt.');
+        const displayName = clean(body.displayName, 200) || email;
         const role = roleOrDefault(body.role);
-        if (role === Roles.SYSTEM_ADMIN && !ctx.roles.includes(Roles.SYSTEM_ADMIN)) return badRequest('Nur System Admin darf System Admin anlegen');
-        const id = body.id || `user-${uuidv4()}`;
+        if (!canManageRole(ctx, role)) return badRequest('Diese Rolle darfst du nicht vergeben.');
+        const id = clean(body.id, 120) || `user-${uuidv4()}`;
         await pool.request()
           .input('id', sql.NVarChar(120), id)
           .input('companyId', sql.NVarChar(80), companyId)
           .input('email', sql.NVarChar(254), email)
           .input('displayName', sql.NVarChar(200), displayName)
           .input('role', sql.NVarChar(60), role)
-          .input('entraObjectId', sql.NVarChar(120), body.entraObjectId || null)
-          .input('notes', sql.NVarChar(1000), body.notes || null)
+          .input('entraObjectId', sql.NVarChar(120), clean(body.entraObjectId, 120))
+          .input('notes', sql.NVarChar(1000), clean(body.notes, 1000))
           .query(`MERGE Users AS t USING (SELECT @companyId AS companyId, @email AS email) AS s
                   ON t.companyId=s.companyId AND LOWER(t.email)=LOWER(s.email)
                   WHEN MATCHED THEN UPDATE SET displayName=@displayName,role=@role,active=1,entraObjectId=COALESCE(@entraObjectId,entraObjectId),notes=@notes,updatedAt=SYSUTCDATETIME()
@@ -64,15 +81,18 @@ app.http('users', {
       const id = request.params.id;
       if (!id) return badRequest('id is required');
       const role = body.role ? roleOrDefault(body.role) : null;
-      if (role === Roles.SYSTEM_ADMIN && !ctx.roles.includes(Roles.SYSTEM_ADMIN)) return badRequest('Nur System Admin darf System Admin setzen');
+      if (role && !canManageRole(ctx, role)) return badRequest('Diese Rolle darfst du nicht setzen.');
+      const companyId = targetCompanyId(ctx, body.companyId);
+      const active = body.active === false ? 0 : 1;
+
       await pool.request()
         .input('id', sql.NVarChar(120), id)
-        .input('companyId', sql.NVarChar(80), ctx.companyId)
-        .input('displayName', sql.NVarChar(200), body.displayName || null)
+        .input('companyId', sql.NVarChar(80), companyId)
+        .input('displayName', sql.NVarChar(200), clean(body.displayName, 200))
         .input('role', sql.NVarChar(60), role)
-        .input('active', sql.Bit, body.active === false ? 0 : 1)
-        .input('entraObjectId', sql.NVarChar(120), body.entraObjectId || null)
-        .input('notes', sql.NVarChar(1000), body.notes || null)
+        .input('active', sql.Bit, active)
+        .input('entraObjectId', sql.NVarChar(120), clean(body.entraObjectId, 120))
+        .input('notes', sql.NVarChar(1000), clean(body.notes, 1000))
         .query(`UPDATE Users SET
                   displayName=COALESCE(@displayName,displayName),
                   role=COALESCE(@role,role),
@@ -80,9 +100,9 @@ app.http('users', {
                   entraObjectId=COALESCE(@entraObjectId,entraObjectId),
                   notes=COALESCE(@notes,notes),
                   updatedAt=SYSUTCDATETIME()
-                WHERE id=@id AND (@companyId=companyId OR EXISTS(SELECT 1 FROM Users WHERE id=@id AND @companyId IS NOT NULL))`);
-      await writeAudit(pool, ctx, 'user.updated', 'user', id, body);
-      await writeSecurityEvent(pool, ctx, 'user.updated', 'info', { id, role, active: body.active !== false });
+                WHERE id=@id AND companyId=@companyId`);
+      await writeAudit(pool, ctx, 'user.updated', 'user', id, { ...body, companyId });
+      await writeSecurityEvent(pool, ctx, 'user.updated', 'info', { id, role, active: active === 1, companyId });
       return json({ ok: true });
     } catch (err) {
       return serverError(err, context);
