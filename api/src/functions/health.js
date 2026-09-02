@@ -1,6 +1,7 @@
 import { app } from '@azure/functions';
 import { json } from '../lib/http.js';
 import { getPool, isDbConfigured } from '../lib/db.js';
+import { aiConfiguration } from '../lib/instruction-analysis/provider.js';
 import { ensureConfiguredContainers } from '../lib/blob.js';
 
 app.http('health', {
@@ -13,7 +14,8 @@ app.http('health', {
       service: 'unterweisungsmanager-api',
       version: '0.9.0',
       database: 'not_configured',
-      blobStorage: 'not_configured'
+      blobStorage: 'not_configured',
+      documentAnalysis: aiConfiguration().configured ? 'configured' : 'not_configured'
     };
 
     if (isDbConfigured()) {

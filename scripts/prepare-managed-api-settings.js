@@ -11,6 +11,11 @@ for (const name of names) {
   settings[name] = value;
 }
 
+for (const name of ['AZURE_OPENAI_ENDPOINT','AZURE_OPENAI_API_KEY','AZURE_OPENAI_DEPLOYMENT']) {
+  if(process.env[name]?.trim()) settings[name]=process.env[name].trim();
+}
+console.log('Document analysis settings complete: '+['AZURE_OPENAI_ENDPOINT','AZURE_OPENAI_API_KEY','AZURE_OPENAI_DEPLOYMENT'].every(name=>!!settings[name]));
+
 const target = path.resolve('api/runtime-settings.deploy.json');
 // Oryx changes ownership to root. The managed runtime must still be able to
 // read the API-only file; group/other identities cannot modify it.

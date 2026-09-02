@@ -1,6 +1,9 @@
 import { existsSync, readFileSync } from 'node:fs';
 
 const ALLOWED_RUNTIME_SETTINGS = Object.freeze([
+  'AZURE_OPENAI_ENDPOINT',
+  'AZURE_OPENAI_API_KEY',
+  'AZURE_OPENAI_DEPLOYMENT',
   'SQL_CONNECTION_STRING',
   'SQL_SERVER',
   'SQL_DATABASE',

@@ -35,22 +35,23 @@ function instructionTable(search='', editable=false){
       <td>${esc(t.intervalMonths||12)} Monate</td>
       <td>${tpl ? `<b>${esc(tpl.title)}</b><br><span class="muted">${esc(tpl.fileName||'')}</span>` : '<span class="badge warn">Keine Unterlage</span>'}</td>
       <td>${t.active!==false?'<span class="badge ok">Aktiv</span>':'<span class="badge warn">Inaktiv</span>'}</td>
-      <td>${tpl?`<button class="small" onclick="openTemplate('${esc(tpl.id)}')">Unterlage öffnen</button>`:''} ${editable?`<button class="small" onclick="prepareTemplateUpload('${esc(t.id)}')">Unterlage hochladen</button>`:'—'}</td>
+      <td>${tpl?`<button class="small" data-template-action="open" data-template-id="${esc(tpl.id)}">Unterlage öffnen</button>`:''} ${editable?`<button class="small" data-template-action="prepare" data-template-id="${esc(t.id)}">Unterlage hochladen</button>`:'—'}</td>
     </tr>`;
   }).join('')}</tbody></table></div><p class="muted">${rows.length} Unterweisungstypen angezeigt.</p>`;
 }
 
 function templateUploadCard(){
-  return `<div class="card span-12"><h2>Unterweisungsunterlage hochladen</h2>
-    <p class="muted">Erlaubt sind PDF, JPG, PNG und WEBP. Die Datei wird im privaten Azure Blob Storage gespeichert und der ausgewählten Unterweisung zugeordnet.</p>
+  return `<div class="card span-12 admin-workspace analysis-upload"><h2>Unterweisungsunterlage hochladen</h2>
+    <p class="muted">PDF oder Bild hochladen – auch mit anderem Layout. Daraus entstehen ein gegliederter Entwurf, Sicherheitsaspekte mit Fundstellen und passende Testfragen. Unlesbare oder fehlende Angaben werden zur Prüfung angezeigt.</p>
     <div class="form-grid">
       <input id="tplReplaceId" type="hidden">
-      <div class="field"><label>Unterweisung zuordnen</label><select id="tplInstructionType"><option value="">Nur als Vorlage speichern</option>${types().filter(t=>t.active!==false).map(t=>`<option value="${esc(t.id)}">${esc(t.name)}</option>`).join('')}</select></div>
+      <div class="field"><label>Unterweisung zuordnen</label><select id="tplInstructionType"><option value="__new__">Neue Unterweisung mit Test erstellen</option><option value="">Nur als Vorlage speichern</option>${types().map(t=>`<option value="${esc(t.id)}">${esc(t.name)}</option>`).join('')}</select></div>
+      <div class="field"><label for="tplAnalysisLanguage">Sprache des Entwurfs</label><select id="tplAnalysisLanguage"><option value="de">Deutsch</option><option value="en">Englisch</option><option value="pl">Polnisch</option></select></div>
       <div class="field"><label>Titel *</label><input id="tplTitle" placeholder="z. B. Stapler-Unterweisung 2026"></div>
       <div class="field"><label>Bereich/Kategorie</label><input id="tplCategory" placeholder="z. B. Arbeitssicherheit"></div>
       <div class="field"><label>Datei *</label><input id="tplFile" type="file" accept="application/pdf,image/jpeg,image/png,image/webp"></div>
       <div class="field full"><label>Beschreibung / Hinweise</label><textarea id="tplDescription" placeholder="Kurze Beschreibung der Unterlage"></textarea></div>
-      <div class="field full"><button class="primary" onclick="uploadTemplateFile()">Unterlage hochladen</button> <button class="ghost" onclick="clearTemplateUploadForm()">Formular leeren</button></div>
+      <div class="field full"><button class="primary" data-template-action="upload">Hochladen und verarbeiten</button> <button class="ghost" data-template-action="clear">Formular leeren</button></div>
       <div id="tplUploadResult" class="field full muted"></div>
     </div>
   </div>`;
@@ -60,13 +61,13 @@ function templateListCard(){
   const rows = templates().filter(t=>t.active!==false).sort((a,b)=>String(a.title||'').localeCompare(String(b.title||''),'de'));
   return `<div class="card span-12"><h2>Vorlagen dieser Firma</h2>${rows.length ? `<div class="table-wrap"><table><thead><tr><th>Titel</th><th>Datei</th><th>Bereich</th><th>Verwendet bei</th><th>Aktion</th></tr></thead><tbody>${rows.map(t=>{
     const usedBy = types().filter(x=>x.templateId===t.id).map(x=>x.name).join(', ') || '—';
-    return `<tr><td><b>${esc(t.title)}</b></td><td>${esc(t.fileName||'')}</td><td>${esc(t.category||'—')}</td><td>${esc(usedBy)}</td><td><button class="small" onclick="openTemplate('${esc(t.id)}')">Öffnen</button> <button class="small" onclick="prepareTemplateReplace('${esc(t.id)}')">Ersetzen</button></td></tr>`;
+    return `<tr><td><b>${esc(t.title)}</b></td><td>${esc(t.fileName||'')}</td><td>${esc(t.category||'—')}</td><td>${esc(usedBy)}</td><td><button class="small" data-template-action="open" data-template-id="${esc(t.id)}">Öffnen</button> <button class="small" data-template-action="replace" data-template-id="${esc(t.id)}">Ersetzen</button></td></tr>`;
   }).join('')}</tbody></table></div>` : '<p class="muted">Noch keine Vorlagen vorhanden.</p>'}</div>`;
 }
 
 function clearTemplateUploadForm(){
   ['tplReplaceId','tplTitle','tplCategory','tplDescription'].forEach(id=>{ const el=$(id); if(el) el.value=''; });
-  if($('tplInstructionType')) $('tplInstructionType').value='';
+  if($('tplInstructionType')) $('tplInstructionType').value='__new__';
   if($('tplFile')) $('tplFile').value='';
   if($('tplUploadResult')) $('tplUploadResult').innerHTML='';
 }
@@ -111,12 +112,19 @@ async function uploadTemplateFile(){
   const title = $('tplTitle').value.trim() || file.name;
   if(!title){ alert('Titel fehlt.'); return; }
   const target = $('tplUploadResult');
-  target.innerHTML = 'Upload läuft ...';
+  if(state.templateUploadBusy) return;
+  state.templateUploadBusy=true;
+  const button=document.querySelector('[data-template-action="upload"]');
+  if(button) button.disabled=true;
+  target.innerHTML = 'Upload läuft …';
   try{
     const base64 = await fileToBase64(file);
     const body = {
       templateId: $('tplReplaceId').value.trim() || undefined,
-      instructionTypeId: $('tplInstructionType').value || undefined,
+      instructionTypeId: ['','__new__'].includes($('tplInstructionType').value) ? undefined : $('tplInstructionType').value,
+      createInstruction: $('tplInstructionType').value === '__new__',
+      analyse: !!$('tplInstructionType').value,
+      language: $('tplAnalysisLanguage').value,
       title,
       category: $('tplCategory').value.trim(),
       description: $('tplDescription').value.trim(),
@@ -127,8 +135,27 @@ async function uploadTemplateFile(){
     const result = await api('/templates/upload', { method:'POST', body: JSON.stringify(body) });
     target.innerHTML = `<div class="notice"><b>Unterlage hochgeladen.</b><br>${esc(result.fileName)} · ${Number(result.sizeBytes||0).toLocaleString('de-DE')} Bytes · Scanstatus: ${esc(result.scanStatus||'pending')}</div>`;
     await loadData();
+    if(typeof resetInstructionAnalyses === 'function') resetInstructionAnalyses(result.analysis?.id);
     setView('instructions');
+    if(result.analysisError && $('tplUploadResult')) $('tplUploadResult').textContent=result.analysisError;
+    if(result.analysis && typeof openInstructionAnalysis === 'function') await openInstructionAnalysis(result.analysis.id, true);
   }catch(err){
     target.innerHTML = `<div class="notice dangerbox">Upload fehlgeschlagen: ${esc(err.message || err)}</div>`;
+  }finally{
+    state.templateUploadBusy=false;
+    if(button) button.disabled=false;
   }
+}
+
+function bindTemplateWorkspaceControls(){
+  document.querySelectorAll('#instructions [data-template-action]').forEach(button=>{
+    button.onclick=()=>{
+      const action=button.dataset.templateAction,id=button.dataset.templateId;
+      if(action==='upload') return uploadTemplateFile();
+      if(action==='clear') return clearTemplateUploadForm();
+      if(action==='open') return openTemplate(id);
+      if(action==='replace') return prepareTemplateReplace(id);
+      if(action==='prepare') return prepareTemplateUpload(id);
+    };
+  });
 }

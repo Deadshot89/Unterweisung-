@@ -167,6 +167,8 @@ app.http('testQuestions', {
         fields.push('active=@active');
       }
       if (!fields.length) return badRequest('Keine Änderung angegeben.');
+      // A manual edit no longer claims the generated source coverage or automatic replacement lifecycle.
+      fields.push('sourceAspectId=NULL','explanation=NULL','sourceEvidenceJson=NULL');
       fields.push('updatedAt=SYSUTCDATETIME()');
       await req.query(`UPDATE TestQuestions SET ${fields.join(', ')} WHERE companyId=@companyId AND id=@id`);
       await writeAudit(pool, ctx, 'testQuestion.updated', 'testQuestion', id, body);

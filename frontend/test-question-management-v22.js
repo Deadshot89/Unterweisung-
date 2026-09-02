@@ -46,10 +46,10 @@ function testQuestionManagerCard(){
   const fLang = $('tqLangFilter')?.value || '';
   const q = state.testQuestions || [];
   const filtered = q.filter(x => (!fType || x.instructionTypeId===fType) && (!fLang || x.language===fLang));
-  return `<div class="card span-12"><div class="toolbar"><div><h2>Testfragen</h2><p class="muted">Standardfragen verteilen die richtige Antwort auf A, B, C und D. Im externen Test wird die Antwortreihenfolge zusätzlich gemischt.</p></div><button class="ghost" onclick="loadTestQuestions(true).then(renderInstructions)">Fragen neu laden</button></div>
+  return `<div class="card span-12"><div class="toolbar"><div><h2>Testfragen</h2><p class="muted">Standardfragen verteilen die richtige Antwort auf A, B, C und D. Im externen Test wird die Antwortreihenfolge zusätzlich gemischt.</p></div><button class="ghost" data-instruction-action="refreshQuestions">Fragen neu laden</button></div>
     <div class="filters">
-      <select id="tqTypeFilter" onchange="renderInstructions()"><option value="">Alle Unterweisungen</option>${types().filter(t=>t.active!==false).map(t=>`<option value="${esc(t.id)}" ${fType===t.id?'selected':''}>${esc(t.name)}</option>`).join('')}</select>
-      <select id="tqLangFilter" onchange="renderInstructions()"><option value="">Alle Sprachen</option>${['de','en','pl'].map(l=>`<option value="${l}" ${fLang===l?'selected':''}>${langLabel(l)}</option>`).join('')}</select>
+      <select id="tqTypeFilter" data-question-filter="true"><option value="">Alle Unterweisungen</option>${types().filter(t=>t.active!==false).map(t=>`<option value="${esc(t.id)}" ${fType===t.id?'selected':''}>${esc(t.name)}</option>`).join('')}</select>
+      <select id="tqLangFilter" data-question-filter="true"><option value="">Alle Sprachen</option>${['de','en','pl'].map(l=>`<option value="${l}" ${fLang===l?'selected':''}>${langLabel(l)}</option>`).join('')}</select>
     </div>
     ${testQuestionForm(fType, fLang)}
     ${testQuestionTable(filtered)}
@@ -68,7 +68,7 @@ function testQuestionForm(selectedType='', selectedLang=''){
       <div class="field"><label>Antwort D</label><input id="tqD" placeholder="Antwort D"></div>
       <div class="field"><label>Richtige Antwort</label><select id="tqCorrect"><option value="0">A</option><option value="1">B</option><option value="2">C</option><option value="3">D</option></select></div>
       <div class="field"><label>Status</label><select id="tqActive"><option value="1">Aktiv</option><option value="0">Inaktiv</option></select></div>
-      <div class="field full"><button class="primary" onclick="saveNewTestQuestion()">Testfrage speichern</button> <button class="ghost" onclick="clearTestQuestionForm()">Leeren</button></div>
+      <div class="field full"><button class="primary" data-instruction-action="saveNewTestQuestion">Testfrage speichern</button> <button class="ghost" data-instruction-action="clearTestQuestionForm">Leeren</button></div>
       <div id="tqResult" class="field full muted"></div>
     </div>
   </div>`;
@@ -86,7 +86,7 @@ function testQuestionTable(rows){
       <td>${options.map((o,i)=>`<div><b>${String.fromCharCode(65+i)}:</b> ${esc(o)}</div>`).join('')}</td>
       <td><span class="badge ok">${esc(String.fromCharCode(65+Number(row.correctIndex||0)))}: ${esc(correct)}</span></td>
       <td>${row.active?'<span class="badge ok">Aktiv</span>':'<span class="badge warn">Inaktiv</span>'}</td>
-      <td><button class="small" onclick="editTestQuestion('${esc(row.id)}')">Bearbeiten</button> <button class="small" onclick="toggleTestQuestion('${esc(row.id)}', ${row.active?'false':'true'})">${row.active?'Deaktivieren':'Aktivieren'}</button></td>
+      <td><button class="small" data-instruction-action="editTestQuestion" data-instruction-id="${esc(row.id)}">Bearbeiten</button> <button class="small" data-instruction-action="toggleTestQuestion" data-instruction-id="${esc(row.id)}" data-active="${row.active?'false':'true'}">${row.active?'Deaktivieren':'Aktivieren'}</button></td>
     </tr>`;
   }).join('')}</tbody></table></div><p class="muted">${rows.length} Testfragen angezeigt.</p>`;
 }

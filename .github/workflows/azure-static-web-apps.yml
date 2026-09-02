@@ -109,10 +109,18 @@ jobs:
             node -e "const fs=require('fs'); const t=fs.readFileSync('/tmp/function-me.txt','utf8'); try { const d=JSON.parse(t); console.log(JSON.stringify({error:d.error||d.message||null, authenticated:d.authenticated??null})); } catch { console.log('Standalone /api/me returned non-JSON body'); }"
           fi
 
+      - name: Add document analysis schema
+        env:
+          SQL_CONNECTION_STRING: ${{ secrets.SQL_CONNECTION_STRING }}
+        run: node scripts/ensure-instruction-analysis-schema.js
+
       - name: Prepare managed API runtime settings
         env:
           SQL_CONNECTION_STRING: ${{ secrets.SQL_CONNECTION_STRING }}
           AZURE_STORAGE_CONNECTION_STRING: ${{ secrets.AZURE_STORAGE_CONNECTION_STRING }}
+          AZURE_OPENAI_ENDPOINT: ${{ secrets.AZURE_OPENAI_ENDPOINT || vars.AZURE_OPENAI_ENDPOINT }}
+          AZURE_OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
+          AZURE_OPENAI_DEPLOYMENT: ${{ secrets.AZURE_OPENAI_DEPLOYMENT || vars.AZURE_OPENAI_DEPLOYMENT }}
         run: node scripts/prepare-managed-api-settings.js
 
       - name: Build And Deploy
@@ -153,7 +161,7 @@ jobs:
         run: |
           echo "Checking integrated API health at deployed preview..."
           health="$(curl --connect-timeout 10 --max-time 30 --fail --silent --show-error "$STATIC_WEB_APP_URL/api/health")"
-          HEALTH_JSON="$health" node -e "const d=JSON.parse(process.env.HEALTH_JSON); const database=d.database==='ok'; const blobStorage=/^ok(?::|$)/.test(d.blobStorage||''); console.log(JSON.stringify({ok:d.ok,database:database?'ok':'unavailable',blobStorage:blobStorage?'ok':'unavailable'})); if(!d.ok||!database||!blobStorage) process.exit(1);"
+          HEALTH_JSON="$health" node -e "const d=JSON.parse(process.env.HEALTH_JSON); const database=d.database==='ok'; const blobStorage=/^ok(?::|$)/.test(d.blobStorage||''); console.log(JSON.stringify({ok:d.ok,database:database?'ok':'unavailable',blobStorage:blobStorage?'ok':'unavailable',documentAnalysis:d.documentAnalysis})); if(!d.ok||!database||!blobStorage) process.exit(1);"
 
       - name: Verify deployed stylesheets
         if: steps.builddeploy.outputs.static_web_app_url != ''

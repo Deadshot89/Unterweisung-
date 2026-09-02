@@ -87,7 +87,7 @@ function instructionWorkspaceFilters(){
         <option value="missing" ${instructionWorkspaceState.questions==='missing'?'selected':''}>Fehlen</option>
       </select>
     </div>
-    <div class="instruction-filter-actions"><button class="ghost small" type="button" onclick="clearInstructionWorkspaceFilters()">Filter zurücksetzen</button></div>
+    <div class="instruction-filter-actions"><button class="ghost small" type="button" data-instruction-action="clearInstructionWorkspaceFilters">Filter zurücksetzen</button></div>
   </div>`;
 }
 
@@ -138,9 +138,9 @@ function instructionDetailPanel(editable=false){
   const tpl = templateForType(t);
   const qCount = instructionQuestionCount(t);
   const editActions = editable ? `
-    <button class="primary" onclick="prepareInstructionTypeEdit('${esc(t.id)}')">Bearbeiten</button>
-    <button class="ghost" onclick="prepareTemplateUpload('${esc(t.id)}')">Unterlage hochladen</button>
-    <button class="ghost" onclick="toggleInstructionType('${esc(t.id)}', ${t.active!==false?'false':'true'})">${t.active!==false?'Deaktivieren':'Aktivieren'}</button>` : '';
+    <button class="primary" data-instruction-action="prepareInstructionTypeEdit" data-instruction-id="${esc(t.id)}">Bearbeiten</button>
+    <button class="ghost" data-template-action="prepare" data-template-id="${esc(t.id)}">Unterlage hochladen</button>
+    <button class="ghost" data-instruction-action="toggleInstructionType" data-instruction-id="${esc(t.id)}" data-active="${t.active!==false?'false':'true'}">${t.active!==false?'Deaktivieren':'Aktivieren'}</button>` : '';
   return `<div class="instruction-detail-panel">
     <div class="instruction-detail-head">
       <div><span class="instruction-section-kicker">Detailansicht</span><h3>${esc(t.name)}</h3><p class="muted">${esc(t.category || 'Ohne Bereich')} · ${esc(t.intervalMonths || 12)} Monate</p></div>
@@ -154,7 +154,7 @@ function instructionDetailPanel(editable=false){
       <div class="instruction-detail-description"><span>Inhalte / Beschreibung</span><p>${esc(t.description || 'Keine Beschreibung hinterlegt.')}</p></div>
     </div>
     <div class="instruction-detail-actions">
-      ${tpl ? `<button class="ghost" onclick="openTemplate('${esc(tpl.id)}')">Unterlage öffnen</button>` : ''}
+      ${tpl ? `<button class="ghost" data-template-action="open" data-template-id="${esc(tpl.id)}">Unterlage öffnen</button>` : ''}
       ${editActions}
     </div>
   </div>`;
@@ -167,7 +167,7 @@ function renderInstructions(){
     <div class="card span-12 instruction-overview-card">
       <div class="instruction-workspace-head">
         <div><span class="instruction-section-kicker">Verwaltung</span><h2>Unterweisungstypen</h2><p class="muted">Aktuelle Firma: <b>${esc(state.companyId || DEFAULT_COMPANY_ID)}</b>. Unterweisungen kompakt prüfen, filtern und gezielt bearbeiten.</p></div>
-        ${editable ? '<button class="primary" type="button" onclick="document.getElementById(\'itName\')?.scrollIntoView({behavior:\'smooth\',block:\'center\'})">Neue Unterweisung</button>' : ''}
+        ${editable ? '<button class="primary" type="button" data-instruction-action="newInstruction">Neue Unterweisung</button>' : ''}
       </div>
       ${instructionWorkspaceMetrics(rows)}
       ${instructionWorkspaceFilters()}
@@ -177,11 +177,15 @@ function renderInstructions(){
     ${editable ? `<div class="instruction-management-sections span-12">
       <div class="instruction-management-zone">${instructionTypeFormCard()}</div>
       <div class="instruction-management-zone">${templateUploadCard()}</div>
+      <div class="instruction-management-zone">${typeof instructionAnalysisCard==='function' ? instructionAnalysisCard() : ''}</div>
       <div class="instruction-management-zone">${templateListCard()}</div>
       <div class="instruction-management-zone">${testQuestionManagerCard()}</div>
     </div>` : '<div class="card span-12"><div class="notice warning">Du hast keine Berechtigung zum Ändern von Unterweisungen, Vorlagen oder Testfragen.</div></div>'}
   </div>`;
   bindInstructionWorkspaceFilters();
+  if(typeof bindInstructionManagementActions==='function') bindInstructionManagementActions();
+  if(typeof bindTemplateWorkspaceControls==='function') bindTemplateWorkspaceControls();
+  if(typeof loadInstructionAnalyses==='function' && editable) loadInstructionAnalyses();
   if(!state.testQuestions?.length && !instructionQuestionsLoadRequested && (state.apiAvailable || API_BASE_URL)){
     instructionQuestionsLoadRequested = true;
     loadTestQuestions(true).then(()=>{
@@ -202,7 +206,7 @@ function instructionTypeTable(search='', editable=false, preparedRows=null){
     const selected = instructionWorkspaceState.selectedId === t.id;
     return `<tr class="instruction-row ${selected?'is-selected':''}">
       <td class="instruction-name-cell">
-        <button class="instruction-name-button" onclick="selectInstructionWorkspaceItem('${esc(t.id)}')">${esc(t.name)}</button>
+        <button class="instruction-name-button" data-instruction-action="selectInstructionWorkspaceItem" data-instruction-id="${esc(t.id)}">${esc(t.name)}</button>
         <span class="instruction-description-preview">${esc(t.description || 'Keine Beschreibung hinterlegt.')}</span>
       </td>
       <td>${esc(t.category||'—')}</td>
@@ -210,7 +214,7 @@ function instructionTypeTable(search='', editable=false, preparedRows=null){
       <td>${tpl ? `<b>${esc(tpl.title)}</b>${tpl.fileName ? `<br><span class="muted instruction-file-name">${esc(tpl.fileName)}</span>` : ''}` : '<span class="badge warn">Keine Unterlage</span>'}</td>
       <td>${qCount ? `<span class="badge ok">${qCount} aktiv</span>` : '<span class="badge warn">Keine aktiven Fragen</span>'}</td>
       <td>${t.active!==false?'<span class="badge ok">Aktiv</span>':'<span class="badge warn">Inaktiv</span>'}</td>
-      <td class="actions-cell instruction-row-action"><button class="small" onclick="selectInstructionWorkspaceItem('${esc(t.id)}')">Öffnen</button></td>
+      <td class="actions-cell instruction-row-action"><button class="small" data-instruction-action="selectInstructionWorkspaceItem" data-instruction-id="${esc(t.id)}">Öffnen</button></td>
     </tr>`;
   }).join('')}</tbody></table></div><p class="muted instruction-table-count">${rows.length} Unterweisungstypen angezeigt.</p>`;
 }
@@ -226,7 +230,7 @@ function instructionTypeFormCard(){
       <div class="field"><label>Vorlage</label><select id="itTemplate">${templateOptions('')}</select></div>
       <div class="field"><label>Status</label><select id="itActive"><option value="1">Aktiv</option><option value="0">Inaktiv</option></select></div>
       <div class="field full"><label>Beschreibung / Inhalte</label><textarea id="itDescription" placeholder="Was wird in dieser Unterweisung behandelt?"></textarea></div>
-      <div class="field full"><button class="primary" onclick="saveInstructionType()">Unterweisung speichern</button> <button class="ghost" onclick="clearInstructionTypeForm()">Formular leeren</button></div>
+      <div class="field full"><button class="primary" data-instruction-action="saveInstructionType">Unterweisung speichern</button> <button class="ghost" data-instruction-action="clearInstructionTypeForm">Formular leeren</button></div>
       <div id="itResult" class="field full muted"></div>
     </div>
   </div>`;

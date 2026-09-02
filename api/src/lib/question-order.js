@@ -38,3 +38,16 @@ export function currentQuestionVersions(rows) {
     return !(replacement && replacement.companyId === row.companyId && (row.active === false || row.active === 0));
   });
 }
+
+// A generated test must cover every reviewed source aspect, even when that needs more than seven questions.
+export function selectTestQuestions(rows, random = Math.random) {
+  const shuffled=shuffleAnswers(rows,random), required=new Map();
+  for(const row of shuffled) if(row.sourceAnalysisId && row.sourceAspectId) {
+    const key=row.sourceAnalysisId+':'+row.sourceAspectId;
+    if(!required.has(key)) required.set(key,row);
+  }
+  const selected=[...required.values()], ids=new Set(selected.map(row=>row.id));
+  const count=Math.min(rows.length,Math.max(7,selected.length));
+  for(const row of shuffled) if(selected.length<count && !ids.has(row.id)){selected.push(row);ids.add(row.id);}
+  return shuffleAnswers(selected,random);
+}

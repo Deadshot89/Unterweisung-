@@ -9,7 +9,7 @@ const script = path.resolve('scripts/prepare-managed-api-settings.js');
 const sql = 'Server=test;Database=fixture;Password=quote\"and\\slash;';
 const storage = 'DefaultEndpointsProtocol=https;AccountName=fixture;AccountKey=ZmFrZQ==;EndpointSuffix=core.windows.net';
 const cleanEnv = { ...process.env };
-for (const name of ['SQL_CONNECTION_STRING', 'AZURE_STORAGE_CONNECTION_STRING']) delete cleanEnv[name];
+for (const name of ['SQL_CONNECTION_STRING', 'AZURE_STORAGE_CONNECTION_STRING','AZURE_OPENAI_ENDPOINT','AZURE_OPENAI_API_KEY','AZURE_OPENAI_DEPLOYMENT']) delete cleanEnv[name];
 const target = path.join(dir, 'api/runtime-settings.deploy.json');
 
 try {
@@ -34,6 +34,12 @@ try {
   assert.equal(statSync(target).mode & 0o022, 0, 'Other identities must not be able to modify settings');
   assert.equal((result.stdout + result.stderr).includes(sql), false);
   assert.equal((result.stdout + result.stderr).includes(storage), false);
+  const ai={AZURE_OPENAI_ENDPOINT:'https://fixture.openai.azure.com',AZURE_OPENAI_API_KEY:'fixture-secret',AZURE_OPENAI_DEPLOYMENT:'fixture-model'};
+  const optional=spawnSync(process.execPath,[script],{cwd:dir,env:{...cleanEnv,...ai,SQL_CONNECTION_STRING:sql,AZURE_STORAGE_CONNECTION_STRING:storage,AUTH_LOCAL_DEV:'true'},encoding:'utf8'});
+  assert.equal(optional.status,0);
+  const packaged=JSON.parse(readFileSync(target,'utf8'));
+  for(const [key,value] of Object.entries(ai)){assert.equal(packaged[key],value);assert.ok(!(optional.stdout+optional.stderr).includes(value));}
+  assert.equal(packaged.AUTH_LOCAL_DEV,undefined);
   console.log('Runtime packaging checks passed');
 } finally {
   rmSync(dir, { recursive: true, force: true });

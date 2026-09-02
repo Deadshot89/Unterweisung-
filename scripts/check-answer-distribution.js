@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 import { defaultQuestionSet, legacyDefaultQuestionSet, planDefaultQuestionBalance, assertBalancedSeedReady } from './lib/default-test-questions.js';
-import { balancedQuestionId, balancedPositions, placeCorrectAnswer, currentQuestionVersions } from '../api/src/lib/question-order.js';
+import { balancedQuestionId, balancedPositions, placeCorrectAnswer, currentQuestionVersions, selectTestQuestions } from '../api/src/lib/question-order.js';
 
 const companyId='company-test';
 const types=JSON.parse(fs.readFileSync('database/seed_essentra_data.json','utf8')).types;
@@ -57,7 +57,7 @@ assert.ok(managed.every(row=>row.id.startsWith('qb1-')));
 
 // Evaluate real external API selection and grading functions with an in-memory query adapter.
 const runtimeSource=fs.readFileSync('api/src/functions/externalInstruction.js','utf8').split("app.http('externalInstruction'")[0].replace(/^import .*;\n/gm,'');
-const context=vm.createContext({placeCorrectAnswer,balancedPositions,Math:Object.assign(Object.create(Math),{random:()=>0}),sql:{NVarChar:()=>{}}});
+const context=vm.createContext({placeCorrectAnswer,balancedPositions,selectTestQuestions,Math:Object.assign(Object.create(Math),{random:()=>0}),sql:{NVarChar:()=>{}}});
 vm.runInContext(runtimeSource,context);
 let servedRows=original;
 const pool={request(){return {input(){return this;},async query(query){return {recordset:query.includes('active=1')?servedRows.filter(row=>row.active):servedRows};}};}};
