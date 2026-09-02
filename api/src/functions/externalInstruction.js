@@ -22,7 +22,8 @@ function shuffle(arr) {
 function safeQuestion(row) {
   let options = [];
   try { options = JSON.parse(row.optionsJson || '[]'); } catch { options = []; }
-  return { id: row.id, question: row.question, options };
+  const optionObjects = options.map((text, originalIndex) => ({ text, answerIndex: originalIndex }));
+  return { id: row.id, question: row.question, options: shuffle(optionObjects) };
 }
 
 async function loadInvitation(pool, tokenHash) {
