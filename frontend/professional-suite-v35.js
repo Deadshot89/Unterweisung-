@@ -37,11 +37,25 @@ function navButton(viewId){
   return document.querySelector(`.primary-tabs button[data-view="${viewId}"]`);
 }
 
+function applyNavigationMeta(){
+  Object.entries(NAV_META).forEach(([viewId, meta]) => {
+    const button = navButton(viewId);
+    if(!button) return;
+    button.dataset.navIcon = meta.icon || '';
+    button.textContent = meta.label || button.textContent.trim();
+    button.setAttribute('title', meta.label || button.textContent.trim());
+  });
+}
+
 function updateNavigationGroups(){
   const nav = document.querySelector('.primary-tabs');
   if(!nav) return;
 
   nav.classList.add('pro-navigation');
+  applyNavigationMeta();
+
+  if(nav.dataset.groupedVersion === PROFESSIONAL_SUITE_VERSION) return;
+
   nav.querySelectorAll('.nav-group-title').forEach(el => el.remove());
 
   const orderedButtons = [];
@@ -55,11 +69,7 @@ function updateNavigationGroups(){
     group.views.forEach(viewId => {
       const button = navButton(viewId);
       if(!button) return;
-      const meta = NAV_META[viewId] || {};
       button.dataset.navGroup = group.key;
-      button.dataset.navIcon = meta.icon || '';
-      button.textContent = meta.label || button.textContent.trim();
-      button.setAttribute('title', meta.label || button.textContent.trim());
       nav.appendChild(button);
       orderedButtons.push(button);
     });
@@ -68,6 +78,8 @@ function updateNavigationGroups(){
   Array.from(nav.querySelectorAll('button[data-view]')).forEach(button => {
     if(!orderedButtons.includes(button)) nav.appendChild(button);
   });
+
+  nav.dataset.groupedVersion = PROFESSIONAL_SUITE_VERSION;
 }
 
 function applyProfessionalShell(){
