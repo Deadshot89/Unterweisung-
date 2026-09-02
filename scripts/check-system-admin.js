@@ -10,7 +10,7 @@ assert.match(auth, /AUTH_DEV_SYSTEM_ADMIN/, 'Auth muss einen expliziten Dev-Syst
 assert.match(auth, /SYSTEM_ADMIN_EMAILS/, 'Auth muss Betreiber-E-Mail-Adressen als System Admin erkennen können.');
 assert.match(auth, /Roles\.SYSTEM_ADMIN/, 'Auth muss System-Admin-Rolle ausgeben können.');
 assert.match(auth, /selectedCompanyId/, 'Auth muss im Dev-System-Admin-Modus den gewünschten Mandanten auswählen können.');
-assert.match(auth, /base\.requestedCompanyId \|\| process\.env\.DEFAULT_COMPANY_ID/, 'Dev-Bypass muss x-company-id für den Firmenwechsel beachten.');
+assert.match(auth, /base\.requestedCompanyId \|\| defaultCompanyId\(\)/, 'Dev-Bypass muss x-company-id für den Firmenwechsel beachten.');
 
 assert.match(systemApi, /route:\s*'system\/companies\/{id\?}'/, 'System-API muss system/companies bereitstellen.');
 assert.match(systemApi, /assertRole\(ctx, \[Roles\.SYSTEM_ADMIN\]\)/, 'System-API muss nur System Admin erlauben.');
