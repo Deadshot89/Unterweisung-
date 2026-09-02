@@ -1,48 +1,223 @@
-// v0.23: Unterweisungstypen vollständig verwalten.
+// v0.36.0: Unterweisungstypen als kompakter Verwaltungs-Workspace.
 
 function canEditInstructionTypes(){
   const roles = state.me?.roles || [];
   return roles.includes('system_admin') || roles.includes('company_admin') || roles.includes('hse');
 }
 
+const instructionWorkspaceState = {
+  selectedId: '',
+  search: '',
+  category: '',
+  status: '',
+  template: '',
+  questions: ''
+};
+
+let instructionQuestionsLoadRequested = false;
+
+function instructionQuestionCount(t){
+  return (state.testQuestions || []).filter(q => q.instructionTypeId === t.id && q.active !== false).length;
+}
+
+function filteredInstructionWorkspaceRows(search = instructionWorkspaceState.search){
+  const q = String(search || '').toLowerCase().trim();
+  return types().filter(t => {
+    const tpl = templateForType(t);
+    const questions = instructionQuestionCount(t);
+    if(q && ![t.name,t.category,t.description,tpl?.title,tpl?.fileName].join(' ').toLowerCase().includes(q)) return false;
+    if(instructionWorkspaceState.category && String(t.category || '') !== instructionWorkspaceState.category) return false;
+    if(instructionWorkspaceState.status === 'active' && t.active === false) return false;
+    if(instructionWorkspaceState.status === 'inactive' && t.active !== false) return false;
+    if(instructionWorkspaceState.template === 'assigned' && !tpl) return false;
+    if(instructionWorkspaceState.template === 'missing' && tpl) return false;
+    if(instructionWorkspaceState.questions === 'available' && questions < 1) return false;
+    if(instructionWorkspaceState.questions === 'missing' && questions > 0) return false;
+    return true;
+  }).sort((a,b) => String(a.category||'').localeCompare(String(b.category||''),'de') || String(a.name||'').localeCompare(String(b.name||''),'de'));
+}
+
+function instructionWorkspaceMetrics(rows = filteredInstructionWorkspaceRows()){
+  const active = rows.filter(t => t.active !== false).length;
+  const missingTemplate = rows.filter(t => !templateForType(t)).length;
+  const missingQuestions = rows.filter(t => instructionQuestionCount(t) < 1).length;
+  return `<div class="instruction-metrics" aria-label="Unterweisungskennzahlen">
+    <div class="instruction-metric"><span class="instruction-metric-label">Angezeigt</span><strong>${rows.length}</strong></div>
+    <div class="instruction-metric"><span class="instruction-metric-label">Aktiv</span><strong>${active}</strong></div>
+    <div class="instruction-metric"><span class="instruction-metric-label">Ohne Unterlage</span><strong>${missingTemplate}</strong></div>
+    <div class="instruction-metric"><span class="instruction-metric-label">Ohne Testfragen</span><strong>${missingQuestions}</strong></div>
+  </div>`;
+}
+
+function instructionWorkspaceFilters(){
+  const categories = [...new Set(types().map(t => String(t.category || '').trim()).filter(Boolean))].sort((a,b) => a.localeCompare(b,'de'));
+  return `<div class="instruction-filters" aria-label="Unterweisungen filtern">
+    <div class="field instruction-search-field">
+      <label for="instructionSearch">Suche</label>
+      <input id="instructionSearch" placeholder="Unterweisung, Inhalt oder Unterlage suchen" value="${esc(instructionWorkspaceState.search)}">
+    </div>
+    <div class="field">
+      <label for="instructionCategoryFilter">Bereich</label>
+      <select id="instructionCategoryFilter">
+        <option value="">Alle Bereiche</option>
+        ${categories.map(category => `<option value="${esc(category)}" ${instructionWorkspaceState.category===category?'selected':''}>${esc(category)}</option>`).join('')}
+      </select>
+    </div>
+    <div class="field">
+      <label for="instructionStatusFilter">Status</label>
+      <select id="instructionStatusFilter">
+        <option value="" ${instructionWorkspaceState.status===''?'selected':''}>Alle</option>
+        <option value="active" ${instructionWorkspaceState.status==='active'?'selected':''}>Aktiv</option>
+        <option value="inactive" ${instructionWorkspaceState.status==='inactive'?'selected':''}>Inaktiv</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="instructionTemplateFilter">Unterlage</label>
+      <select id="instructionTemplateFilter">
+        <option value="" ${instructionWorkspaceState.template===''?'selected':''}>Alle</option>
+        <option value="assigned" ${instructionWorkspaceState.template==='assigned'?'selected':''}>Vorhanden</option>
+        <option value="missing" ${instructionWorkspaceState.template==='missing'?'selected':''}>Fehlt</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="instructionQuestionFilter">Testfragen</label>
+      <select id="instructionQuestionFilter">
+        <option value="" ${instructionWorkspaceState.questions===''?'selected':''}>Alle</option>
+        <option value="available" ${instructionWorkspaceState.questions==='available'?'selected':''}>Vorhanden</option>
+        <option value="missing" ${instructionWorkspaceState.questions==='missing'?'selected':''}>Fehlen</option>
+      </select>
+    </div>
+    <div class="instruction-filter-actions"><button class="ghost small" type="button" onclick="clearInstructionWorkspaceFilters()">Filter zurücksetzen</button></div>
+  </div>`;
+}
+
+function bindInstructionWorkspaceFilters(){
+  const bindings = [
+    ['instructionSearch','input','search'],
+    ['instructionCategoryFilter','change','category'],
+    ['instructionStatusFilter','change','status'],
+    ['instructionTemplateFilter','change','template'],
+    ['instructionQuestionFilter','change','questions']
+  ];
+  bindings.forEach(([id,eventName,key]) => {
+    $(id)?.addEventListener(eventName, event => {
+      instructionWorkspaceState[key] = event.target.value;
+      renderInstructions();
+      if(key === 'search'){
+        const search = $('instructionSearch');
+        search?.focus();
+        if(search) search.setSelectionRange(search.value.length, search.value.length);
+      }
+    });
+  });
+}
+
+function clearInstructionWorkspaceFilters(){
+  instructionWorkspaceState.search = '';
+  instructionWorkspaceState.category = '';
+  instructionWorkspaceState.status = '';
+  instructionWorkspaceState.template = '';
+  instructionWorkspaceState.questions = '';
+  renderInstructions();
+}
+
+function selectInstructionWorkspaceItem(id){
+  instructionWorkspaceState.selectedId = id || '';
+  renderInstructions();
+  document.querySelector('.instruction-detail-panel')?.scrollIntoView({ behavior:'smooth', block:'nearest' });
+}
+
+function instructionDetailPanel(editable=false){
+  const t = type(instructionWorkspaceState.selectedId);
+  if(!t || !t.id){
+    return `<div class="instruction-detail-panel instruction-detail-empty">
+      <div><span class="instruction-section-kicker">Detailansicht</span><h3>Unterweisung auswählen</h3></div>
+      <p class="muted">Über „Öffnen“ siehst du den vollständigen Inhalt, die zugeordnete Unterlage, Testfragen und alle verfügbaren Aktionen.</p>
+    </div>`;
+  }
+  const tpl = templateForType(t);
+  const qCount = instructionQuestionCount(t);
+  const editActions = editable ? `
+    <button class="primary" onclick="prepareInstructionTypeEdit('${esc(t.id)}')">Bearbeiten</button>
+    <button class="ghost" onclick="prepareTemplateUpload('${esc(t.id)}')">Unterlage hochladen</button>
+    <button class="ghost" onclick="toggleInstructionType('${esc(t.id)}', ${t.active!==false?'false':'true'})">${t.active!==false?'Deaktivieren':'Aktivieren'}</button>` : '';
+  return `<div class="instruction-detail-panel">
+    <div class="instruction-detail-head">
+      <div><span class="instruction-section-kicker">Detailansicht</span><h3>${esc(t.name)}</h3><p class="muted">${esc(t.category || 'Ohne Bereich')} · ${esc(t.intervalMonths || 12)} Monate</p></div>
+      <span class="badge ${t.active!==false?'ok':'warn'}">${t.active!==false?'Aktiv':'Inaktiv'}</span>
+    </div>
+    <div class="instruction-detail-grid">
+      <div class="instruction-detail-item"><span>Bereich</span><strong>${esc(t.category || '—')}</strong></div>
+      <div class="instruction-detail-item"><span>Intervall</span><strong>${esc(t.intervalMonths || 12)} Monate</strong></div>
+      <div class="instruction-detail-item"><span>Unterlage</span><strong>${tpl ? esc(tpl.title || tpl.fileName || 'Vorhanden') : 'Nicht zugeordnet'}</strong>${tpl?.fileName ? `<small>${esc(tpl.fileName)}</small>` : ''}</div>
+      <div class="instruction-detail-item"><span>Testfragen</span><strong>${qCount} aktiv</strong></div>
+      <div class="instruction-detail-description"><span>Inhalte / Beschreibung</span><p>${esc(t.description || 'Keine Beschreibung hinterlegt.')}</p></div>
+    </div>
+    <div class="instruction-detail-actions">
+      ${tpl ? `<button class="ghost" onclick="openTemplate('${esc(tpl.id)}')">Unterlage öffnen</button>` : ''}
+      ${editActions}
+    </div>
+  </div>`;
+}
+
 function renderInstructions(){
   const editable = canEditInstructionTypes();
-  const old = $('instructionSearch')?.value || '';
-  $('instructions').innerHTML = `<div class="grid">
-    <div class="card span-12"><div class="toolbar"><div><h2>Unterweisungstypen</h2><p class="muted">Aktuelle Firma: <b>${esc(state.companyId || DEFAULT_COMPANY_ID)}</b>. Hier werden Unterweisung, Gültigkeit, Unterlage und Testfragen verwaltet.</p></div><input id="instructionSearch" placeholder="Suchen" value="${esc(old)}"></div>${instructionTypeTable(old, editable)}</div>
-    ${editable ? instructionTypeFormCard() + templateUploadCard() + templateListCard() + testQuestionManagerCard() : '<div class="card span-12"><div class="notice warning">Du hast keine Berechtigung zum Ändern von Unterweisungen, Vorlagen oder Testfragen.</div></div>'}
+  const rows = filteredInstructionWorkspaceRows();
+  $('instructions').innerHTML = `<div class="grid instruction-workspace">
+    <div class="card span-12 instruction-overview-card">
+      <div class="instruction-workspace-head">
+        <div><span class="instruction-section-kicker">Verwaltung</span><h2>Unterweisungstypen</h2><p class="muted">Aktuelle Firma: <b>${esc(state.companyId || DEFAULT_COMPANY_ID)}</b>. Unterweisungen kompakt prüfen, filtern und gezielt bearbeiten.</p></div>
+        ${editable ? '<button class="primary" type="button" onclick="document.getElementById(\'itName\')?.scrollIntoView({behavior:\'smooth\',block:\'center\'})">Neue Unterweisung</button>' : ''}
+      </div>
+      ${instructionWorkspaceMetrics(rows)}
+      ${instructionWorkspaceFilters()}
+      ${instructionTypeTable(instructionWorkspaceState.search, editable, rows)}
+      ${instructionDetailPanel(editable)}
+    </div>
+    ${editable ? `<div class="instruction-management-sections span-12">
+      <div class="instruction-management-zone">${instructionTypeFormCard()}</div>
+      <div class="instruction-management-zone">${templateUploadCard()}</div>
+      <div class="instruction-management-zone">${templateListCard()}</div>
+      <div class="instruction-management-zone">${testQuestionManagerCard()}</div>
+    </div>` : '<div class="card span-12"><div class="notice warning">Du hast keine Berechtigung zum Ändern von Unterweisungen, Vorlagen oder Testfragen.</div></div>'}
   </div>`;
-  $('instructionSearch')?.addEventListener('input', renderInstructions);
-  if(!state.testQuestions?.length && (state.apiAvailable || API_BASE_URL)){
+  bindInstructionWorkspaceFilters();
+  if(!state.testQuestions?.length && !instructionQuestionsLoadRequested && (state.apiAvailable || API_BASE_URL)){
+    instructionQuestionsLoadRequested = true;
     loadTestQuestions(true).then(()=>{
       const view = document.getElementById('instructions');
       if(view?.classList.contains('active')) renderInstructions();
+    }).catch(()=>{
+      instructionQuestionsLoadRequested = false;
     });
   }
 }
 
-function instructionTypeTable(search='', editable=false){
-  const q = String(search||'').toLowerCase();
-  const rows = types().filter(t=>!q || [t.name,t.category,t.description,templateForType(t)?.title,templateForType(t)?.fileName].join(' ').toLowerCase().includes(q)).sort((a,b)=>String(a.category||'').localeCompare(String(b.category||''),'de') || String(a.name||'').localeCompare(String(b.name||''),'de'));
-  if(!rows.length) return '<p class="muted">Keine Unterweisungen vorhanden.</p>';
-  return `<div class="table-wrap"><table><thead><tr><th>Unterweisung</th><th>Bereich</th><th>Intervall</th><th>Unterlage/Vorlage</th><th>Testfragen</th><th>Status</th><th>Aktion</th></tr></thead><tbody>${rows.map(t=>{
+function instructionTypeTable(search='', editable=false, preparedRows=null){
+  const rows = preparedRows || filteredInstructionWorkspaceRows(search);
+  if(!rows.length) return '<div class="instruction-empty-state"><b>Keine passenden Unterweisungen.</b><span>Suche oder Filter anpassen.</span></div>';
+  return `<div class="table-wrap instruction-table-wrap"><table class="instruction-table"><thead><tr><th>Unterweisung</th><th>Bereich</th><th>Intervall</th><th>Unterlage/Vorlage</th><th>Testfragen</th><th>Status</th><th>Aktion</th></tr></thead><tbody>${rows.map(t=>{
     const tpl = templateForType(t);
-    const qCount = (state.testQuestions||[]).filter(x=>x.instructionTypeId===t.id && x.active!==false).length;
-    return `<tr>
-      <td><b>${esc(t.name)}</b><br><span class="muted">${esc(t.description||'')}</span></td>
+    const qCount = instructionQuestionCount(t);
+    const selected = instructionWorkspaceState.selectedId === t.id;
+    return `<tr class="instruction-row ${selected?'is-selected':''}">
+      <td class="instruction-name-cell">
+        <button class="instruction-name-button" onclick="selectInstructionWorkspaceItem('${esc(t.id)}')">${esc(t.name)}</button>
+        <span class="instruction-description-preview">${esc(t.description || 'Keine Beschreibung hinterlegt.')}</span>
+      </td>
       <td>${esc(t.category||'—')}</td>
       <td>${esc(t.intervalMonths||12)} Monate</td>
-      <td>${tpl ? `<b>${esc(tpl.title)}</b><br><span class="muted">${esc(tpl.fileName||'')}</span>` : '<span class="badge warn">Keine Unterlage</span>'}</td>
+      <td>${tpl ? `<b>${esc(tpl.title)}</b>${tpl.fileName ? `<br><span class="muted instruction-file-name">${esc(tpl.fileName)}</span>` : ''}` : '<span class="badge warn">Keine Unterlage</span>'}</td>
       <td>${qCount ? `<span class="badge ok">${qCount} aktiv</span>` : '<span class="badge warn">Keine aktiven Fragen</span>'}</td>
       <td>${t.active!==false?'<span class="badge ok">Aktiv</span>':'<span class="badge warn">Inaktiv</span>'}</td>
-      <td>${tpl?`<button class="small" onclick="openTemplate('${esc(tpl.id)}')">Unterlage öffnen</button>`:''} ${editable?`<button class="small" onclick="prepareInstructionTypeEdit('${esc(t.id)}')">Bearbeiten</button> <button class="small" onclick="prepareTemplateUpload('${esc(t.id)}')">Unterlage hochladen</button> <button class="small" onclick="toggleInstructionType('${esc(t.id)}', ${t.active!==false?'false':'true'})">${t.active!==false?'Deaktivieren':'Aktivieren'}</button>`:'—'}</td>
+      <td class="actions-cell instruction-row-action"><button class="small" onclick="selectInstructionWorkspaceItem('${esc(t.id)}')">Öffnen</button></td>
     </tr>`;
-  }).join('')}</tbody></table></div><p class="muted">${rows.length} Unterweisungstypen angezeigt.</p>`;
+  }).join('')}</tbody></table></div><p class="muted instruction-table-count">${rows.length} Unterweisungstypen angezeigt.</p>`;
 }
 
 function instructionTypeFormCard(){
-  return `<div class="card span-12"><h2>Unterweisung anlegen / bearbeiten</h2>
-    <p class="muted">Hier legt eine Firma eigene Unterweisungstypen an. Die Vorlage/PDF und die Testfragen werden danach direkt im selben Reiter gepflegt.</p>
+  return `<div class="card span-12 instruction-management-card"><div class="instruction-card-head"><div><span class="instruction-section-kicker">Stammdaten</span><h2>Unterweisung anlegen / bearbeiten</h2></div></div>
+    <p class="muted">Eigene Unterweisungstypen anlegen oder die ausgewählte Unterweisung bearbeiten. Unterlage und Testfragen werden in den nächsten Bereichen gepflegt.</p>
     <div class="form-grid">
       <input id="itId" type="hidden">
       <div class="field"><label>Name *</label><input id="itName" placeholder="z. B. Stapler-Unterweisung"></div>
@@ -68,6 +243,7 @@ function clearInstructionTypeForm(){
 function prepareInstructionTypeEdit(id){
   const row = type(id);
   if(!row || !row.id) return;
+  instructionWorkspaceState.selectedId = id;
   $('itId').value = row.id;
   $('itName').value = row.name || '';
   $('itCategory').value = row.category || '';
