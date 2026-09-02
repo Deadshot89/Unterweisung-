@@ -9,6 +9,7 @@ const ROLE_VIEW_RULES = {
   employees: ['company_admin','hse','line_manager','system_admin'],
   instructions: ['company_admin','hse','line_manager','system_admin'],
   status: ['company_admin','hse','line_manager','employee','system_admin'],
+  managerReport: ['company_admin','hse','line_manager','system_admin'],
   planning: ['company_admin','hse','line_manager','system_admin'],
   external: ['company_admin','hse','line_manager','system_admin'],
   users: ['company_admin','hse','system_admin'],
@@ -40,7 +41,7 @@ function viewAllowed(view){
 }
 
 function firstAllowedView(){
-  const preferred = ['dashboard','status','employees','external','companies','users','operations','security'];
+  const preferred = ['dashboard','status','managerReport','employees','external','companies','users','operations','security'];
   return preferred.find(viewAllowed) || 'dashboard';
 }
 
