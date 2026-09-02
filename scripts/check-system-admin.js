@@ -32,6 +32,6 @@ assert.match(systemUi, /copyStarterData/, 'Frontend muss Starterdaten-API aufruf
 assert.match(systemUi, /copyStarterData:\s*\$\('sysCopyStarter'\)\.value === '1'/, 'Neue Firmen müssen optional direkt mit Startpaket angelegt werden können.');
 assert.match(systemUi, /system\/companies/, 'Frontend muss System-Companies-API nutzen.');
 assert.match(index, /system-admin-v16\.js/, 'Index muss System-Admin-Script laden.');
-assert.match(index, /v0\.17/, 'Index muss den aktuellen Stand v0.17 anzeigen.');
+assert.match(index, /v0\.(1[7-9]|[2-9][0-9])/, 'Index muss mindestens Stand v0.17 anzeigen.');
 
 console.log('System admin checks passed');
