@@ -51,6 +51,15 @@ jobs:
           output_location: ""
           skip_app_build: true
 
+      - name: Diagnose deployed API health
+        if: steps.builddeploy.outputs.static_web_app_url != ''
+        env:
+          STATIC_WEB_APP_URL: ${{ steps.builddeploy.outputs.static_web_app_url }}
+        run: |
+          echo "Checking integrated API health at deployed preview..."
+          health="$(curl --fail --silent --show-error "$STATIC_WEB_APP_URL/api/health")"
+          HEALTH_JSON="$health" node -e "const d=JSON.parse(process.env.HEALTH_JSON); console.log(JSON.stringify({ok:d.ok,service:d.service,database:d.database,blobStorage:d.blobStorage}));"
+
   close_pull_request_job:
     if: github.event_name == 'pull_request' && github.event.action == 'closed'
     runs-on: ubuntu-latest
