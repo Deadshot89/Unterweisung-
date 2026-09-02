@@ -27,9 +27,9 @@ assert.match(css, /\.instruction-description-preview/, 'Description-Clamp-CSS fe
 assert.match(css, /overflow-x:\s*auto/, 'Responsive Tabellen-Scroll fehlt.');
 
 assert.match(index, /professional-suite-v36\.css/, 'v0.36 Stylesheet muss geladen werden.');
-assert.match(index, /v0\.36\.0/, 'Sichtbare Version v0.36.0 fehlt.');
-assert.match(suite, /const APP_RELEASE_VERSION = 'v0\.36\.0'/, 'Professional Suite muss v0.36.0 als sichtbare Release-Version führen.');
+assert.match(index, /v0\.36\.1/, 'Sichtbare Version v0.36.1 fehlt.');
+assert.match(suite, /const APP_RELEASE_VERSION = 'v0\.36\.1'/, 'Professional Suite muss v0.36.1 als sichtbare Release-Version führen.');
 assert.match(suite, /version\.textContent = APP_RELEASE_VERSION/, 'Professional Suite darf die sichtbare Version nicht auf v0.35.x zurücksetzen.');
-assert.equal(pkg.version, '0.36.0');
+assert.equal(pkg.version, '0.36.1');
 
 console.log('Instruction workspace v0.36 checks passed');
