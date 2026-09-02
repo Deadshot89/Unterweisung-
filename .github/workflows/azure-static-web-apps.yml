@@ -65,6 +65,19 @@ jobs:
           echo "AZURE_TENANT_ID repository variable present: $AZURE_TENANT_ID_VAR_PRESENT"
           echo "AZURE_SUBSCRIPTION_ID repository variable present: $AZURE_SUBSCRIPTION_ID_VAR_PRESENT"
 
+      - name: Diagnose existing Function App
+        env:
+          FUNCTION_APP_URL: https://func-unterweisungsmanager-dev-hkf6czbjd5h0hthq.germanywestcentral-01.azurewebsites.net
+        run: |
+          echo "Checking standalone Function App health..."
+          health="$(curl --fail --silent --show-error "$FUNCTION_APP_URL/api/health")"
+          HEALTH_JSON="$health" node -e "const d=JSON.parse(process.env.HEALTH_JSON); console.log(JSON.stringify({ok:d.ok,service:d.service,database:d.database,blobStorage:d.blobStorage}));"
+          me_status="$(curl --silent --show-error --output /tmp/function-me.txt --write-out '%{http_code}' "$FUNCTION_APP_URL/api/me" || true)"
+          echo "Standalone /api/me without SWA identity returned HTTP $me_status"
+          if [ -s /tmp/function-me.txt ]; then
+            node -e "const fs=require('fs'); const t=fs.readFileSync('/tmp/function-me.txt','utf8'); try { const d=JSON.parse(t); console.log(JSON.stringify({error:d.error||d.message||null, authenticated:d.authenticated??null})); } catch { console.log('Standalone /api/me returned non-JSON body'); }"
+          fi
+
       - name: Build And Deploy
         id: builddeploy
         uses: Azure/static-web-apps-deploy@v1
