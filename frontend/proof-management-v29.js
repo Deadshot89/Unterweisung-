@@ -1,5 +1,5 @@
 // v0.29: Nachweisverwaltung fuer Essentra.
-// Ziel: Nachweise nicht nur hochladen, sondern im Arbeitsablauf prüfen, öffnen und nachverfolgen.
+// Ziel: Nachweise nicht nur hochladen, sondern im Arbeitsablauf pruefen, oeffnen und nachverfolgen.
 
 let proofFileCache = [];
 
@@ -54,11 +54,10 @@ function uniqueProofGroups(){
 
 function proofStats(){
   const all = proofRequiredRows();
-  const missing = proofMissingRows();
   const present = proofPresentRows();
   return {
     total: all.length,
-    missing: missing.length,
+    missing: proofMissingRows().length,
     present: present.length,
     pending: present.filter(r => String(r.certificateScanStatus || '').toLowerCase() === 'pending').length,
     blocked: present.filter(r => ['blocked','quarantined'].includes(String(r.certificateScanStatus || '').toLowerCase())).length
@@ -68,10 +67,10 @@ function proofStats(){
 function proofScanBadge(scan){
   const value = String(scan || 'pending').toLowerCase();
   const map = {
-    clean:['ok','Geprüft'],
-    pending:['soon','Prüfung offen'],
+    clean:['ok','Geprueft'],
+    pending:['soon','Pruefung offen'],
     not_configured:['info','Scanner aus'],
-    quarantined:['bad','Quarantäne'],
+    quarantined:['bad','Quarantaene'],
     blocked:['bad','Gesperrt']
   };
   const m = map[value] || ['info', value];
@@ -88,7 +87,7 @@ function renderProofs(){
   const el = $('proofs');
   if(!el) return;
   if(!canManageProofs()){
-    el.innerHTML = '<div class="card span-12"><h2>Nachweise</h2><div class="notice warning">Für deine Rolle nicht freigeschaltet.</div></div>';
+    el.innerHTML = '<div class="card span-12"><h2>Nachweise</h2><div class="notice warning">Fuer deine Rolle nicht freigeschaltet.</div></div>';
     return;
   }
   const f = currentProofFilters();
@@ -96,31 +95,35 @@ function renderProofs(){
   const s = proofStats();
   el.innerHTML = `<div class="grid">
     <div class="card span-12">
-      <div class="toolbar"><div><h2>Nachweise verwalten</h2><p class="muted">Nachweise hochladen, öffnen und Prüfstatus setzen. Wichtig für Essentra vor dem Design-Test.</p></div><div class="filters"><button class="ghost" onclick="reloadProofs()">Neu laden</button><button class="ghost" onclick="exportProofCsv()">CSV exportieren</button></div></div>
+      <div class="toolbar">
+        <div><h2>Nachweise verwalten</h2><p class="muted">Nachweise hochladen, oeffnen und Pruefstatus setzen. Wichtig fuer Essentra vor dem Design-Test.</p></div>
+        <div class="filters"><button class="ghost" onclick="reloadProofs()">Neu laden</button><button class="ghost" onclick="exportProofCsv()">CSV exportieren</button></div>
+      </div>
       <div class="grid compact-kpis">
-        <div class="card kpi mini"><div class="label">Einträge</div><div class="value blue">${s.total}</div></div>
+        <div class="card kpi mini"><div class="label">Eintraege</div><div class="value blue">${s.total}</div></div>
         <div class="card kpi mini"><div class="label">Nachweis fehlt</div><div class="value yellow">${s.missing}</div></div>
         <div class="card kpi mini"><div class="label">Nachweis vorhanden</div><div class="value green">${s.present}</div></div>
-        <div class="card kpi mini"><div class="label">Prüfung offen</div><div class="value yellow">${s.pending}</div></div>
+        <div class="card kpi mini"><div class="label">Pruefung offen</div><div class="value yellow">${s.pending}</div></div>
         <div class="card kpi mini"><div class="label">Gesperrt</div><div class="value red">${s.blocked}</div></div>
       </div>
       ${proofUploadCard()}
       <div class="filters status-filterbar">
         <input id="proofSearch" placeholder="Mitarbeiter, Unterweisung, Gruppe, Datei" value="${esc(f.search)}">
         <select id="proofState"><option value="missing" ${f.state==='missing'?'selected':''}>Nachweis fehlt</option><option value="present" ${f.state==='present'?'selected':''}>Nachweis vorhanden</option><option value="all" ${f.state==='all'?'selected':''}>Alle</option></select>
-        <select id="proofScan"><option value="">Alle Prüfstatus</option>${['pending','clean','not_configured','quarantined','blocked'].map(x=>`<option value="${x}" ${f.scan===x?'selected':''}>${esc(x)}</option>`).join('')}</select>
+        <select id="proofScan"><option value="">Alle Pruefstatus</option>${['pending','clean','not_configured','quarantined','blocked'].map(x=>`<option value="${x}" ${f.scan===x?'selected':''}>${esc(x)}</option>`).join('')}</select>
         <select id="proofType"><option value="">Alle Unterweisungen</option>${types().map(t=>`<option value="${esc(t.id)}" ${f.typeId===t.id?'selected':''}>${esc(t.name)}</option>`).join('')}</select>
         <select id="proofGroup"><option value="">Alle Gruppen</option>${uniqueProofGroups().map(g=>`<option value="${esc(g)}" ${f.groupId===g?'selected':''}>${esc(g)}</option>`).join('')}</select>
       </div>
       <div id="proofResult"></div>
       ${proofWorkTable(rows)}
     </div>
-    <div class="card span-12"><h2>Hochgeladene Nachweisdateien</h2><p class="muted">Liste aus Azure Blob/SQL. Über „Datei öffnen“ wird ein kurzer Download-Link erzeugt.</p><div id="proofFileList">${proofFileTable(proofFileCache)}</div></div>
+    <div class="card span-12"><h2>Hochgeladene Nachweisdateien</h2><p class="muted">Liste aus Azure Blob/SQL. Ueber Datei oeffnen wird ein kurzer Download-Link erzeugt.</p><div id="proofFileList">${proofFileTable(proofFileCache)}</div></div>
   </div>`;
-  ['proofSearch','proofState','proofScan','proofType','proofGroup'].forEach(id=>$(id)?.addEventListener('input', renderProofs));
+  ['proofSearch','proofState','proofScan','proofType','proofGroup'].forEach(id => $(id)?.addEventListener('input', renderProofs));
+  syncProofGroupHint();
   if((state.apiAvailable || API_BASE_URL) && !state.proofsLoadedOnce){
     state.proofsLoadedOnce = true;
-    loadProofFiles().then(()=>{
+    loadProofFiles().then(() => {
       const view = document.getElementById('proofs');
       if(view?.classList.contains('active')) renderProofs();
     });
@@ -134,7 +137,7 @@ function proofUploadCard(){
       <div class="field"><label>Unterweisungseintrag</label><select id="proofRecordId" onchange="syncProofGroupHint()">${proofFileSelectOptions()}</select></div>
       <div class="field"><label>Auf ganze Gruppe anwenden?</label><select id="proofApplyGroup"><option value="no">Nein, nur diese Person</option><option value="yes">Ja, gleiche Gruppenunterweisung</option></select></div>
       <div class="field"><label>Datei *</label><input id="proofFileInput" type="file" accept="application/pdf,image/jpeg,image/png,image/webp"></div>
-      <div class="field"><label>Gruppen-ID</label><input id="proofGroupHint" readonly placeholder="wird automatisch aus Auswahl übernommen"></div>
+      <div class="field"><label>Gruppen-ID</label><input id="proofGroupHint" readonly placeholder="wird automatisch aus Auswahl uebernommen"></div>
       <div class="field full"><button class="primary" onclick="uploadProofFile()">Nachweis hochladen</button> <button class="ghost" onclick="loadProofFiles().then(renderProofs)">Dateiliste laden</button></div>
     </div>
   </div>`;
@@ -146,8 +149,8 @@ function syncProofGroupHint(){
 }
 
 function proofWorkTable(rows){
-  if(!rows.length) return '<p class="muted">Keine Nachweis-Einträge für die aktuelle Auswahl.</p>';
-  return `<div class="table-wrap"><table><thead><tr><th>Mitarbeiter</th><th>Unterweisung</th><th>Gruppe</th><th>Datum</th><th>Gültig bis</th><th>Status</th><th>Nachweis</th><th>Prüfung</th><th>Aktion</th></tr></thead><tbody>${rows.slice(0,1000).map(r=>`<tr>
+  if(!rows.length) return '<p class="muted">Keine Nachweis-Eintraege fuer die aktuelle Auswahl.</p>';
+  return `<div class="table-wrap"><table><thead><tr><th>Mitarbeiter</th><th>Unterweisung</th><th>Gruppe</th><th>Datum</th><th>Gueltig bis</th><th>Status</th><th>Nachweis</th><th>Pruefung</th><th>Aktion</th></tr></thead><tbody>${rows.slice(0,1000).map(r=>`<tr>
     <td><b>${esc(r.employeeName)}</b><br><span class="muted">${esc(r.email || '')}</span></td>
     <td>${esc(r.instructionName)}<br><span class="muted">${esc(r.category || '')}</span></td>
     <td>${esc(r.groupId || '—')}</td>
@@ -157,25 +160,25 @@ function proofWorkTable(rows){
     <td>${r.certificateFileId ? `<b>${esc(r.certificateFileName || r.certificateFileId)}</b>` : '<span class="badge warn">Fehlt</span>'}</td>
     <td>${proofScanBadge(r.certificateScanStatus)}</td>
     <td>${proofActionButtons(r)}</td>
-  </tr>`).join('')}</tbody></table></div><p class="muted">${rows.length} Nachweis-Einträge angezeigt, maximal 1000 sichtbar.</p>`;
+  </tr>`).join('')}</tbody></table></div><p class="muted">${rows.length} Nachweis-Eintraege angezeigt, maximal 1000 sichtbar.</p>`;
 }
 
 function proofActionButtons(r){
-  const openBtn = r.certificateFileId ? `<button class="small" onclick="openFileById('${esc(r.certificateFileId)}')">Datei öffnen</button>` : '';
-  const cleanBtn = r.certificateFileId ? `<button class="small primary" onclick="setProofScanStatus('${esc(r.certificateFileId)}','clean')">Geprüft</button>` : '';
+  const openBtn = r.certificateFileId ? `<button class="small" onclick="openFileById('${esc(r.certificateFileId)}')">Datei oeffnen</button>` : '';
+  const cleanBtn = r.certificateFileId ? `<button class="small primary" onclick="setProofScanStatus('${esc(r.certificateFileId)}','clean')">Geprueft</button>` : '';
   const blockBtn = r.certificateFileId ? `<button class="small ghost" onclick="setProofScanStatus('${esc(r.certificateFileId)}','blocked')">Sperren</button>` : '';
   return `${openBtn} ${cleanBtn} ${blockBtn}` || '—';
 }
 
 function proofFileTable(files){
   if(!files.length) return '<p class="muted">Dateiliste noch nicht geladen oder keine Nachweise vorhanden.</p>';
-  return `<div class="table-wrap"><table><thead><tr><th>Datei</th><th>Größe</th><th>Prüfung</th><th>Verknüpfung</th><th>Datum</th><th>Aktion</th></tr></thead><tbody>${files.map(f=>`<tr>
+  return `<div class="table-wrap"><table><thead><tr><th>Datei</th><th>Groesse</th><th>Pruefung</th><th>Verknuepfung</th><th>Datum</th><th>Aktion</th></tr></thead><tbody>${files.map(f=>`<tr>
     <td><b>${esc(f.originalFileName || f.fileName)}</b><br><span class="muted">${esc(f.id)}</span></td>
     <td>${formatBytes(f.sizeBytes)}</td>
     <td>${proofScanBadge(f.scanStatus)}</td>
     <td>${esc(f.linkedEntityType || '')}<br><span class="muted">${esc(f.linkedEntityId || '')}</span></td>
     <td>${fmtDate(f.createdAt)}</td>
-    <td><button class="small" onclick="openFileById('${esc(f.id)}')">Öffnen</button> <button class="small primary" onclick="setProofScanStatus('${esc(f.id)}','clean')">Geprüft</button> <button class="small ghost" onclick="setProofScanStatus('${esc(f.id)}','blocked')">Sperren</button></td>
+    <td><button class="small" onclick="openFileById('${esc(f.id)}')">Oeffnen</button> <button class="small primary" onclick="setProofScanStatus('${esc(f.id)}','clean')">Geprueft</button> <button class="small ghost" onclick="setProofScanStatus('${esc(f.id)}','blocked')">Sperren</button></td>
   </tr>`).join('')}</tbody></table></div>`;
 }
 
@@ -200,8 +203,8 @@ async function uploadProofFile(){
   if(!state.apiAvailable){ alert('Nachweis-Upload braucht die Azure API.'); return; }
   const recordId = $('proofRecordId')?.value || '';
   const file = $('proofFileInput')?.files?.[0];
-  if(!recordId){ alert('Bitte Unterweisungseintrag auswählen.'); return; }
-  if(!file){ alert('Bitte Datei auswählen.'); return; }
+  if(!recordId){ alert('Bitte Unterweisungseintrag auswaehlen.'); return; }
+  if(!file){ alert('Bitte Datei auswaehlen.'); return; }
   const opt = $('proofRecordId')?.selectedOptions?.[0];
   const groupId = $('proofApplyGroup')?.value === 'yes' ? (opt?.dataset?.group || '') : '';
   const target = $('proofResult');
@@ -212,7 +215,7 @@ async function uploadProofFile(){
     if(groupId) body.groupId = groupId;
     else body.recordId = recordId;
     const result = await api('/proof-files', { method:'POST', body: JSON.stringify(body) });
-    if(target) target.innerHTML = `<div class="notice"><b>Nachweis hochgeladen.</b> Datei: ${esc(result.fileName)} · aktualisierte Einträge: ${esc(result.recordsUpdated || 1)} · Prüfung: ${esc(result.scanStatus || '')}</div>`;
+    if(target) target.innerHTML = `<div class="notice"><b>Nachweis hochgeladen.</b> Datei: ${esc(result.fileName)} · aktualisierte Eintraege: ${esc(result.recordsUpdated || 1)} · Pruefung: ${esc(result.scanStatus || '')}</div>`;
     await loadData();
     await reloadProofs();
   }catch(err){
@@ -248,7 +251,7 @@ async function openFileById(fileId){
     const result = await api('/files/' + encodeURIComponent(fileId) + '/download');
     if(result?.url) window.open(result.url, '_blank', 'noopener');
     else alert('Kein Download-Link erhalten.');
-  }catch(err){ alert('Datei konnte nicht geöffnet werden: ' + String(err.message || err)); }
+  }catch(err){ alert('Datei konnte nicht geoeffnet werden: ' + String(err.message || err)); }
 }
 
 async function setProofScanStatus(fileId, scanStatus){
@@ -257,13 +260,13 @@ async function setProofScanStatus(fileId, scanStatus){
   try{
     await api('/proof-files/' + encodeURIComponent(fileId), { method:'PATCH', body: JSON.stringify({ scanStatus }) });
     await reloadProofs();
-  }catch(err){ alert('Prüfstatus konnte nicht gesetzt werden: ' + String(err.message || err)); }
+  }catch(err){ alert('Pruefstatus konnte nicht gesetzt werden: ' + String(err.message || err)); }
 }
 
 function exportProofCsv(){
   const rows = filteredProofStatusRows();
-  const header = ['Mitarbeiter','E-Mail','Unterweisung','Bereich','Gruppe','Datum','Gültig bis','Status','Nachweisdatei','Datei-ID','Prüfstatus'];
-  const csvRows = [header, ...rows.map(r=>[
+  const header = ['Mitarbeiter','E-Mail','Unterweisung','Bereich','Gruppe','Datum','Gueltig bis','Status','Nachweisdatei','Datei-ID','Pruefstatus'];
+  const csvRows = [header, ...rows.map(r => [
     r.employeeName,
     r.email,
     r.instructionName,
@@ -276,7 +279,7 @@ function exportProofCsv(){
     r.certificateFileId,
     r.certificateScanStatus
   ])];
-  const csv = csvRows.map(row=>row.map(cell=>`"${String(cell ?? '').replace(/"/g,'""')}"`).join(';')).join('\n');
+  const csv = csvRows.map(row => row.map(cell => `"${String(cell ?? '').replace(/"/g, '""')}"`).join(';')).join('\n');
   const blob = new Blob(['\ufeff' + csv], { type:'text/csv;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
