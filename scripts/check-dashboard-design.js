@@ -12,7 +12,7 @@ function assert(condition, message) {
 }
 
 assert(/Unterweisungsmanager Online · v0\./.test(index), 'Browser-Titel muss kompatible v0-Version behalten.');
-assert(/Version <span id="appVersion">v0\.\d+<\/span>/.test(index), 'Systemleiste muss eine sichtbare v0-Version zeigen.');
+assert(/Version <span id="appVersion">v0\.\d+(?:\.\d+)?<\/span>/.test(index), 'Systemleiste muss eine sichtbare v0-Version zeigen.');
 assert(index.includes('/dashboard-design-v32.js'), 'Dashboard-Design-Datei wird nicht geladen.');
 
 assert(dashboard.includes('function renderModernDashboard'), 'Modernes Dashboard-Rendering fehlt.');
