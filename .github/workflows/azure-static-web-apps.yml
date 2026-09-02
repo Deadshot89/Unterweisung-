@@ -39,6 +39,17 @@ jobs:
       - name: Run frontend/API syntax checks
         run: npm test
 
+      - name: Repair confirmed Essentra administrator access once
+        if: github.event_name == 'pull_request' && github.head_ref == 'feature/v0.36-instruction-ui' && github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          SQL_CONNECTION_STRING: ${{ secrets.SQL_CONNECTION_STRING }}
+          ACCESS_REPAIR_EMAIL: UnterweisungManagment@outlook.de
+          ACCESS_REPAIR_COMPANY_ID: company-essentra
+          ACCESS_REPAIR_DISPLAY_NAME: Tobias Limberg
+        run: |
+          node scripts/repair-confirmed-admin-access.js --dry-run
+          node scripts/repair-confirmed-admin-access.js --apply
+
       - name: Diagnose current preview before deployment
         if: github.event_name == 'pull_request' && github.event.number == 1
         run: |
