@@ -1,5 +1,5 @@
-// v0.16: Betreiber-/System-Admin-Konsole.
-// System Admin sieht alle Firmen/Mandanten und kann neue Firmen mit erstem Firmen-Admin anlegen.
+// v0.17: Betreiber-/System-Admin-Konsole + Startpaket für neue Firmen.
+// System Admin sieht alle Firmen/Mandanten, kann neue Firmen anlegen und Starterdaten übernehmen.
 
 (function(){
   const originalRender = typeof render === 'function' ? render : null;
@@ -76,14 +76,21 @@ function systemStatusBox(){
   </div>`;
 }
 
+function starterAction(c){
+  const hasStarter = Number(c.instructionTypeCount||0) > 0 || Number(c.testQuestionCount||0) > 0 || Number(c.templateCount||0) > 0;
+  if(c.id === (window.UM_DEFAULT_COMPANY_ID || 'company-essentra')) return '<span class="muted">Vorlagefirma</span>';
+  if(hasStarter) return '<span class="badge ok">Startpaket vorhanden</span>';
+  return `<button class="small" onclick="copyStarterData('${esc(c.id)}')">Starterdaten übernehmen</button>`;
+}
+
 function systemCompaniesTable(rows){
   if(!rows?.length) return '<p class="muted">Noch keine Firmen vorhanden.</p>';
-  return `<div class="table-wrap"><table><thead><tr><th>Firma</th><th>ID</th><th>Benutzer</th><th>Mitarbeiter</th><th>Unterweisungen</th><th>Mail</th><th>Status</th><th>Öffnen</th></tr></thead><tbody>${rows.map(c=>`<tr>
+  return `<div class="table-wrap"><table><thead><tr><th>Firma</th><th>ID</th><th>Benutzer</th><th>Mitarbeiter</th><th>Startpaket</th><th>Mail</th><th>Status</th><th>Aktion</th></tr></thead><tbody>${rows.map(c=>`<tr>
     <td><b>${esc(c.name)}</b><br><span class="muted">${esc(c.legalName || '')}</span></td>
     <td><code>${esc(c.id)}</code></td>
     <td>${Number(c.userCount||0)} Benutzer<br><span class="muted">${Number(c.companyAdminCount||0)} Firmen-Admin</span></td>
     <td>${Number(c.employeeCount||0)}</td>
-    <td>${Number(c.instructionTypeCount||0)}</td>
+    <td>${Number(c.instructionTypeCount||0)} Unterweisungen<br><span class="muted">${Number(c.templateCount||0)} Vorlagen · ${Number(c.testQuestionCount||0)} Fragen</span><br>${starterAction(c)}</td>
     <td>${esc(mailModeLabel(c.mailMode || 'manual'))}<br><span class="muted">${esc(c.mailFromEmail || c.replyToEmail || 'keine Adresse')}</span></td>
     <td>${c.active!==false?'<span class="badge ok">Aktiv</span>':'<span class="badge warn">Inaktiv</span>'}</td>
     <td><button class="small" onclick="switchSystemCompany('${esc(c.id)}')">Als Firma öffnen</button></td>
@@ -101,7 +108,7 @@ function renderSystemAdmin(){
   el.innerHTML = `<div class="grid">
     ${systemStatusBox()}
     <div class="card span-12"><div class="toolbar"><div><h2>Firmen / Mandanten verwalten</h2><p class="muted">Hier legst du später Firma A, Firma B usw. an. Jede Firma bekommt eigene Benutzer, Unterweisungen, Mail-Einstellungen und Daten.</p></div><button class="ghost" onclick="refreshSystemCompanies()">Aktualisieren</button></div><div id="systemCompaniesTable"><p class="muted">Firmen werden geladen ...</p></div></div>
-    <div class="card span-12"><h2>Neue Firma anlegen</h2><p class="muted">Damit entsteht ein neuer Mandant. Optional wird direkt der erste Firmen-Admin angelegt.</p>
+    <div class="card span-12"><h2>Neue Firma anlegen</h2><p class="muted">Damit entsteht ein neuer Mandant. Optional wird direkt der erste Firmen-Admin angelegt. Das Startpaket kopiert nur Unterweisungstypen, Vorlagen-Verweise und Testfragen — keine Mitarbeiterdaten.</p>
       <div class="form-grid">
         <div class="field"><label>Firmenname *</label><input id="sysCompanyName" placeholder="z. B. Firma A GmbH"></div>
         <div class="field"><label>Mandanten-ID optional</label><input id="sysCompanyId" placeholder="z. B. company-firma-a"></div>
@@ -109,6 +116,8 @@ function renderSystemAdmin(){
         <div class="field full"><label>Adresse</label><input id="sysCompanyAddress" placeholder="Straße, PLZ Ort, Land"></div>
         <div class="field"><label>Erster Firmen-Admin E-Mail</label><input id="sysAdminEmail" placeholder="admin@firma-a.de"></div>
         <div class="field"><label>Erster Firmen-Admin Name</label><input id="sysAdminName" placeholder="Vorname Nachname"></div>
+        <div class="field"><label>Startpaket</label><select id="sysCopyStarter"><option value="1" selected>Ja, Standard-Unterweisungen kopieren</option><option value="0">Nein, leer starten</option></select></div>
+        <div class="field"><label>Vorlagefirma</label><input id="sysSourceCompanyId" value="${esc(window.UM_DEFAULT_COMPANY_ID || 'company-essentra')}" placeholder="company-essentra"></div>
         <div class="field full"><button class="primary" onclick="createSystemCompany()">Firma anlegen</button></div>
       </div>
     </div>
@@ -116,6 +125,7 @@ function renderSystemAdmin(){
       <ol>
         <li>Du legst die Firma hier an.</li>
         <li>Du legst den ersten Firmen-Admin an.</li>
+        <li>Du übernimmst das Startpaket oder startest leer.</li>
         <li>Der Firmen-Admin meldet sich per Microsoft/Entra an.</li>
         <li>Die API ordnet ihn anhand seiner E-Mail genau dieser Firma zu.</li>
         <li>Er sieht nur seine Firma, seine Mitarbeiter und seine Unterweisungen.</li>
@@ -146,15 +156,33 @@ async function createSystemCompany(){
     addressLine: $('sysCompanyAddress').value.trim(),
     defaultLanguage: $('sysCompanyLang').value,
     adminEmail: $('sysAdminEmail').value.trim(),
-    adminName: $('sysAdminName').value.trim()
+    adminName: $('sysAdminName').value.trim(),
+    copyStarterData: $('sysCopyStarter').value === '1',
+    sourceCompanyId: $('sysSourceCompanyId').value.trim() || (window.UM_DEFAULT_COMPANY_ID || 'company-essentra')
   };
   try{
     const result = await api('/system/companies', { method:'POST', body: JSON.stringify(body) });
-    alert(`Firma angelegt: ${result.companyId}${result.adminUser ? '\nFirmen-Admin: ' + result.adminUser.email : ''}`);
+    const starter = result.starterData ? `\nStartpaket: ${result.starterData.instructionTypeCount} Unterweisungen, ${result.starterData.templateCount} Vorlagen, ${result.starterData.questionCount} Fragen` : '';
+    alert(`Firma angelegt: ${result.companyId}${result.adminUser ? '\nFirmen-Admin: ' + result.adminUser.email : ''}${starter}`);
     $('sysCompanyName').value=''; $('sysCompanyId').value=''; $('sysCompanyAddress').value=''; $('sysAdminEmail').value=''; $('sysAdminName').value='';
     await refreshSystemCompanies();
   }catch(err){
     alert('Firma konnte nicht angelegt werden: ' + String(err.message || err));
+  }
+}
+
+async function copyStarterData(companyId){
+  if(!confirm(`Starterdaten für ${companyId} übernehmen?\n\nEs werden Unterweisungstypen, Vorlagen-Verweise und Testfragen kopiert. Mitarbeiter werden nicht kopiert.`)) return;
+  try{
+    const sourceCompanyId = prompt('Vorlagefirma:', window.UM_DEFAULT_COMPANY_ID || 'company-essentra') || (window.UM_DEFAULT_COMPANY_ID || 'company-essentra');
+    const result = await api('/system/companies/' + encodeURIComponent(companyId), {
+      method:'PATCH',
+      body: JSON.stringify({ action:'copyStarterData', sourceCompanyId })
+    });
+    alert(`Startpaket übernommen:\n${result.instructionTypeCount} Unterweisungen\n${result.templateCount} Vorlagen\n${result.questionCount} Fragen`);
+    await refreshSystemCompanies();
+  }catch(err){
+    alert('Starterdaten konnten nicht übernommen werden: ' + String(err.message || err));
   }
 }
 
