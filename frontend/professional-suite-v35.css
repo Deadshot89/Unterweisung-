@@ -1,0 +1,277 @@
+/* v0.35 Major Design Refresh: App-Shell, Navigation, Arbeitsflaechen */
+:root{
+  --suite-bg:#f3f7fb;
+  --suite-surface:#ffffff;
+  --suite-surface-soft:#f8fbfd;
+  --suite-line:#dbe7ef;
+  --suite-line-soft:#edf3f7;
+  --suite-text:#101828;
+  --suite-muted:#667085;
+  --suite-brand:#0f6f8f;
+  --suite-brand-dark:#0a5269;
+  --suite-brand-soft:#e8f6fa;
+  --suite-shadow:0 18px 45px rgba(15,23,42,.08);
+  --suite-shadow-soft:0 10px 26px rgba(20,41,56,.06);
+}
+
+body.app-shell-v35{
+  background:
+    radial-gradient(circle at 8% 0%,rgba(15,111,143,.09),transparent 28%),
+    radial-gradient(circle at 92% 8%,rgba(68,190,210,.10),transparent 24%),
+    linear-gradient(135deg,#f8fbfd,#eef5f9 55%,#f6f9fc);
+}
+
+body.app-shell-v35 .topbar{
+  min-height:72px;
+  border-bottom:1px solid rgba(219,231,239,.92);
+}
+
+body.app-shell-v35 main.pro-shell-grid{
+  max-width:1760px;
+  display:grid;
+  grid-template-columns:272px minmax(0,1fr);
+  grid-auto-rows:auto;
+  gap:18px 20px;
+  align-items:start;
+}
+
+body.app-shell-v35 .system-strip{
+  grid-column:1 / -1;
+  margin-bottom:0;
+  min-height:44px;
+  border-radius:999px;
+  background:rgba(255,255,255,.86);
+}
+
+body.app-shell-v35 .primary-tabs.pro-navigation{
+  grid-column:1;
+  grid-row:2 / span 30;
+  position:sticky;
+  top:94px;
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+  max-height:calc(100vh - 118px);
+  overflow:auto;
+  margin:0;
+  padding:14px;
+  border-radius:24px;
+  background:rgba(255,255,255,.88);
+  box-shadow:var(--suite-shadow-soft);
+  backdrop-filter:blur(14px);
+}
+
+body.app-shell-v35 .primary-tabs.pro-navigation::before{
+  content:'Arbeitsbereiche';
+  color:var(--suite-muted);
+  font-size:11px;
+  font-weight:900;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+  padding:2px 8px 8px;
+}
+
+body.app-shell-v35 .primary-tabs.pro-navigation .nav-group-title{
+  color:#98a2b3;
+  font-size:10px;
+  font-weight:900;
+  letter-spacing:.09em;
+  text-transform:uppercase;
+  padding:12px 8px 4px;
+}
+
+body.app-shell-v35 .primary-tabs.pro-navigation button{
+  width:100%;
+  display:flex;
+  align-items:center;
+  justify-content:flex-start;
+  gap:10px;
+  text-align:left;
+  border-radius:14px;
+  padding:11px 12px;
+  min-height:42px;
+  background:transparent;
+  color:#344054;
+  box-shadow:none;
+}
+
+body.app-shell-v35 .primary-tabs.pro-navigation button::before{
+  content:attr(data-nav-icon);
+  width:28px;
+  height:28px;
+  display:inline-grid;
+  place-items:center;
+  border-radius:10px;
+  background:#f2f7fa;
+  color:var(--suite-brand-dark);
+  font-weight:900;
+  font-size:12px;
+  flex:0 0 auto;
+}
+
+body.app-shell-v35 .primary-tabs.pro-navigation button:hover{
+  background:#f6fbfd;
+  color:var(--suite-brand-dark);
+}
+
+body.app-shell-v35 .primary-tabs.pro-navigation button.active{
+  background:linear-gradient(135deg,var(--suite-brand),#168aaa);
+  color:#fff;
+  box-shadow:0 12px 24px rgba(15,111,143,.22);
+}
+
+body.app-shell-v35 .primary-tabs.pro-navigation button.active::before{
+  background:rgba(255,255,255,.20);
+  color:#fff;
+}
+
+body.app-shell-v35 .view{
+  grid-column:2;
+  min-width:0;
+}
+
+body.app-shell-v35 .view.active{
+  animation:workspaceIn .16s ease both;
+}
+
+@keyframes workspaceIn{from{opacity:.82;transform:translateY(5px)}to{opacity:1;transform:none}}
+
+body.app-shell-v35 .view.active > .view-head:first-child,
+body.app-shell-v35 .dashboard-hero{
+  border-radius:26px;
+  box-shadow:var(--suite-shadow);
+}
+
+body.app-shell-v35 .card{
+  border-color:var(--suite-line);
+  box-shadow:var(--suite-shadow-soft);
+}
+
+body.app-shell-v35 .card,
+body.app-shell-v35 .metric-card,
+body.app-shell-v35 .professional-table-wrap,
+body.app-shell-v35 .professional-toolbar,
+body.app-shell-v35 .professional-form-grid,
+body.app-shell-v35 .view-head{
+  backdrop-filter:blur(10px);
+}
+
+body.app-shell-v35 .toolbar,
+body.app-shell-v35 .professional-toolbar{
+  gap:12px;
+}
+
+body.app-shell-v35 .toolbar > div,
+body.app-shell-v35 .professional-toolbar > div{
+  min-width:0;
+}
+
+body.app-shell-v35 .professional-table-wrap{
+  max-height:calc(100vh - 235px);
+}
+
+body.app-shell-v35 table th{
+  font-size:11px;
+  letter-spacing:.045em;
+}
+
+body.app-shell-v35 table td{
+  font-size:13px;
+}
+
+body.app-shell-v35 .ui-button,
+body.app-shell-v35 .btn,
+body.app-shell-v35 button{
+  letter-spacing:.005em;
+}
+
+body.app-shell-v35 .ui-button.primary,
+body.app-shell-v35 button.primary,
+body.app-shell-v35 .btn.primary{
+  box-shadow:0 10px 22px rgba(15,111,143,.18);
+}
+
+body.app-shell-v35 .app-footer-v35{
+  grid-column:1 / -1;
+  display:flex;
+  justify-content:space-between;
+  gap:12px;
+  flex-wrap:wrap;
+  color:#98a2b3;
+  font-size:12px;
+  padding:8px 4px 0;
+}
+
+body.app-shell-v35 .suite-chip{
+  display:inline-flex;
+  align-items:center;
+  gap:7px;
+  border:1px solid var(--suite-line);
+  border-radius:999px;
+  background:#fff;
+  padding:6px 9px;
+  color:#475467;
+  font-weight:800;
+}
+
+body.app-shell-v35 .suite-chip::before{
+  content:'';
+  width:8px;
+  height:8px;
+  border-radius:50%;
+  background:#17b26a;
+  box-shadow:0 0 0 3px #dcfae6;
+}
+
+@media(max-width:1180px){
+  body.app-shell-v35 main.pro-shell-grid{
+    display:block;
+    max-width:1600px;
+  }
+  body.app-shell-v35 .system-strip{
+    border-radius:18px;
+    margin-bottom:14px;
+  }
+  body.app-shell-v35 .primary-tabs.pro-navigation{
+    position:static;
+    flex-direction:row;
+    overflow:auto;
+    max-height:none;
+    margin-bottom:16px;
+    border-radius:20px;
+  }
+  body.app-shell-v35 .primary-tabs.pro-navigation::before,
+  body.app-shell-v35 .primary-tabs.pro-navigation .nav-group-title{
+    display:none;
+  }
+  body.app-shell-v35 .primary-tabs.pro-navigation button{
+    width:auto;
+    white-space:nowrap;
+    flex:0 0 auto;
+  }
+}
+
+@media(max-width:720px){
+  body.app-shell-v35 .system-strip{
+    border-radius:18px;
+  }
+  body.app-shell-v35 .primary-tabs.pro-navigation{
+    padding:10px;
+    gap:7px;
+  }
+  body.app-shell-v35 .primary-tabs.pro-navigation button{
+    padding:9px 10px;
+    min-height:38px;
+  }
+  body.app-shell-v35 .primary-tabs.pro-navigation button::before{
+    width:24px;
+    height:24px;
+    border-radius:8px;
+  }
+  body.app-shell-v35 .professional-table-wrap{
+    max-height:none;
+  }
+  body.app-shell-v35 .app-footer-v35{
+    display:none;
+  }
+}
