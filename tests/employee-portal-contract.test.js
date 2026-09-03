@@ -42,3 +42,11 @@ test('tenant, team and self scoping is wired into list and download APIs', () =>
   assert.match(read('api/src/functions/employeeTraining.js'), /employee-training/);
   assert.match(read('api/src/functions/learningSteps.js'), /learning-steps/);
 });
+
+test('online completion is rejected server-side until every published learning step was traversed', () => {
+  const trainingApi = read('api/src/functions/employeeTraining.js');
+  assert.match(trainingApi, /attempt\.currentStep\s*<\s*steps\.length/,
+    'Abschluss muss den serverseitig gespeicherten Lernfortschritt gegen die veröffentlichten Schritte prüfen.');
+  assert.match(trainingApi, /Lernschritte.*vollständig/i,
+    'Ein übersprungener Lernablauf muss mit einer verständlichen Fehlermeldung abgewiesen werden.');
+});
