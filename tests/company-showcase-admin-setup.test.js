@@ -18,6 +18,13 @@ function memoryStorage() {
   };
 }
 
+test('admin and main demo modules share one store for the same browser storage', () => {
+  const storage = memoryStorage();
+  const mainStore = createDemoStore(DEMO_DATA, storage);
+  const adminStore = createDemoStore(DEMO_DATA, storage);
+  assert.equal(adminStore, mainStore);
+});
+
 test('admin setup mutations are rejected for employee role', () => {
   const store = createDemoStore(DEMO_DATA, memoryStorage());
   store.setRole('employee', 'emp-mila-hartmann');
@@ -92,9 +99,8 @@ test('admin setup UI exists as a focused module and is wired as an admin navigat
   const adminPath = path.join(root, 'frontend/demo/demo-admin.js');
   assert.equal(fs.existsSync(adminPath), true, 'demo-admin.js must exist');
   const admin = fs.readFileSync(adminPath, 'utf8');
-  const ui = fs.readFileSync(path.join(root, 'frontend/demo/demo-ui.js'), 'utf8');
   const index = fs.readFileSync(path.join(root, 'frontend/demo/index.html'), 'utf8');
-  for (const marker of ['Unternehmensprofil','Mitarbeitende','Unterweisung','Zuweisung','FileReader','accept=".png,.jpg,.jpeg,.webp"']) assert.match(admin, new RegExp(marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
-  assert.match(ui, /\['setup','Einrichtung'\]/);
+  for (const marker of ['Unternehmensprofil','Mitarbeitende','Unterweisung','Zuweisung','FileReader','accept=".png,.jpg,.jpeg,.webp"',"['setup','Einrichtung']"]) assert.match(admin, new RegExp(marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
   assert.match(index, /demo-admin\.css/);
+  assert.match(index, /demo-admin\.js/);
 });
