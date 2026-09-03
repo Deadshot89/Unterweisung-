@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { getPool, sql } from '../lib/db.js';
 import { json, badRequest, serverError } from '../lib/http.js';
 import { getAuthorizedContext, assertRole, Roles } from '../lib/auth.js';
+import { resolveEmployeeAccess, bindEmployeeScope } from '../lib/employeeAccess.js';
 import { writeAudit } from '../lib/audit.js';
 
 function clean(value, max) {
@@ -31,8 +32,11 @@ app.http('employees', {
       const { companyId, userId } = ctx;
       const pool = await getPool();
       if (request.method === 'GET') {
-        const result = await pool.request().input('companyId', sql.NVarChar(80), companyId)
-          .query('SELECT id, name, chipNr, email, department, active, role, lineManagerId, title, createdAt, updatedAt FROM Employees WHERE companyId=@companyId ORDER BY name');
+        const access = await resolveEmployeeAccess(pool, ctx);
+        const req = pool.request().input('companyId', sql.NVarChar(80), companyId);
+        const scope = bindEmployeeScope(req, access, 'id', 'employeeScope');
+        const result = await req.query(`SELECT id,name,chipNr,email,department,active,role,lineManagerId,title,createdAt,updatedAt
+                                        FROM Employees WHERE companyId=@companyId AND ${scope} ORDER BY name`);
         return json(result.recordset);
       }
 
@@ -79,15 +83,9 @@ app.http('employees', {
           .input('active', sql.Bit, body.active === false ? 0 : 1)
           .input('lineManagerId', sql.NVarChar(80), body.lineManagerId === undefined && body.shiftLeaderId === undefined ? null : clean(body.lineManagerId || body.shiftLeaderId, 80))
           .query(`UPDATE Employees SET
-                    name=COALESCE(@name,name),
-                    chipNr=COALESCE(@chipNr,chipNr),
-                    email=COALESCE(@email,email),
-                    department=COALESCE(@department,department),
-                    role=COALESCE(@role,role),
-                    title=COALESCE(@title,title),
-                    active=@active,
-                    lineManagerId=COALESCE(@lineManagerId,lineManagerId),
-                    updatedAt=SYSUTCDATETIME()
+                    name=COALESCE(@name,name),chipNr=COALESCE(@chipNr,chipNr),email=COALESCE(@email,email),
+                    department=COALESCE(@department,department),role=COALESCE(@role,role),title=COALESCE(@title,title),
+                    active=@active,lineManagerId=COALESCE(@lineManagerId,lineManagerId),updatedAt=SYSUTCDATETIME()
                   WHERE id=@id AND companyId=@companyId`);
         await writeAudit(pool, ctx, 'employee.updated', 'employee', id, body);
         return json({ ok: true });
