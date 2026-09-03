@@ -6,6 +6,7 @@ function canEditInstructionTypes(){
 }
 
 function renderInstructions(){
+  if(typeof syncTestQuestionCompany === 'function') syncTestQuestionCompany();
   const editable = canEditInstructionTypes();
   const old = $('instructionSearch')?.value || '';
   $('instructions').innerHTML = `<div class="grid">
@@ -40,11 +41,18 @@ function renderInstructions(){
     }
   });
   if(!state.testQuestions?.length && (state.apiAvailable || API_BASE_URL)){
-    loadTestQuestions(true).then(()=>{
-      const view = document.getElementById('instructions');
-      if(view?.classList.contains('active')) renderInstructions();
-    });
+    reloadTestQuestionResults(false);
   }
+}
+
+function refreshInstructionQuestionCounts(){
+  document.querySelectorAll('#instructionResults [data-question-count]').forEach(badge=>{
+    const count = (state.testQuestions || []).filter(q=>q.instructionTypeId===badge.dataset.questionCount && q.active!==false).length;
+    const label = `${count} aktiv`;
+    if(badge.textContent !== label) badge.textContent = label;
+    badge.classList.toggle('ok', count > 0);
+    badge.classList.toggle('warn', count === 0);
+  });
 }
 
 function instructionTypeTable(search='', editable=false){
@@ -58,7 +66,7 @@ function instructionTypeTable(search='', editable=false){
       <td data-label="Unterweisung"><b>${esc(t.name)}</b><span class="instruction-preview muted">${esc(String(t.description||'').slice(0,120))}${String(t.description||'').length>120?'…':''}</span><small class="muted">${tpl?'Unterlage vorhanden':'Keine Unterlage'}</small></td>
       <td data-label="Bereich">${esc(t.category||'—')}</td>
       <td data-label="Intervall">${esc(t.intervalMonths||12)} Monate</td>
-      <td data-label="Testfragen"><span class="badge ${qCount?'ok':'warn'}">${qCount} aktiv</span></td>
+      <td data-label="Testfragen"><span class="badge ${qCount?'ok':'warn'}" data-question-count="${esc(t.id)}">${qCount} aktiv</span></td>
       <td data-label="Status">${t.active!==false?'<span class="badge ok">Aktiv</span>':'<span class="badge warn">Inaktiv</span>'}</td>
       <td data-label="Details"><button class="small" type="button" data-instruction-details="${esc(t.id)}" aria-label="Details öffnen: ${esc(t.name)}">Details öffnen</button></td>
     </tr>`;
@@ -152,7 +160,7 @@ async function saveInstructionType(){
     target.innerHTML = '<div class="notice"><b>Unterweisung gespeichert.</b></div>';
     clearInstructionTypeForm();
     await loadData();
-    await loadTestQuestions(true);
+    await loadTestQuestions(true, true);
     setView('instructions');
   }catch(err){
     target.innerHTML = `<div class="notice dangerbox">Speichern fehlgeschlagen: ${esc(err.message || err)}</div>`;
@@ -164,7 +172,7 @@ async function toggleInstructionType(id, active){
   try{
     await api('/instruction-types/' + encodeURIComponent(id), { method:'PATCH', body: JSON.stringify({ active }) });
     await loadData();
-    await loadTestQuestions(true);
+    await loadTestQuestions(true, true);
     setView('instructions');
   }catch(err){
     alert('Unterweisung konnte nicht geändert werden: ' + String(err.message || err));

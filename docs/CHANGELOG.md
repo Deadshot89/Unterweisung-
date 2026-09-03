@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.35.4 – Stabile Aktualisierung von Planung und Unterweisungen
+
+- Nachgeladene Planungen aktualisieren nur die Ergebnisliste; Formulare, Teilnehmerauswahl, Suche und Fokus bleiben bestehen.
+- Testfragen werden ohne Neuaufbau der Unterweisungsansicht aktualisiert. Auch Filterwechsel und manuelles Nachladen erhalten Unterweisungs-, Vorlagen- und Frageentwürfe sowie Dateiauswahl und offene Details.
+- Leere Testfragenantworten lösen keine Ladeschleife aus. Gleichzeitige Leseanfragen werden gebündelt; fehlgeschlagene Anfragen behalten vorhandene Daten und zeigen einen Hinweis zum erneuten Laden.
+- Neue Tabellenaktionen erhalten die vorhandene Formatierung direkt. Keine dauerhafte DOM-Beobachtung und kein neuer Aktualisierungstimer.
+- Synthetische DOM-Regressionstests für asynchrones Nachladen, Fehler, Filter, Rückkehr während laufender Anfragen, Rollen und unveränderte Speicher-Payloads.
+- Keine Änderungen an API, Datenbank, Importen oder Workflows. Veröffentlichung separat freigeben; diese Änderung startet keinen Datenimport.
+
 ## v0.7 – Nachweis-Upload gehärtet
 
 - sichere Upload-API `POST /api/proof-files`

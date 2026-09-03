@@ -1,8 +1,8 @@
-// v0.35.3: Layoutkorrekturen für Navigation, Planung und Unterweisungen.
+// v0.35.4: Stabile Listenaktualisierung ohne Verlust von Formularen und Formatierung.
 // Performance-Hotfix: keine dauerhafte Body-Beobachtung mehr, keine Render-Schleife.
 // Keine API-Aenderung, keine Fachlogik-Aenderung.
 
-const PROFESSIONAL_SUITE_VERSION = 'v0.35.3';
+const PROFESSIONAL_SUITE_VERSION = 'v0.35.4';
 
 const NAV_GROUPS = [
   { key:'overview', label:'Uebersicht', views:['dashboard'] },
