@@ -1,8 +1,8 @@
-// v0.35.2 Major Design Refresh.
+// v0.35.3: Layoutkorrekturen für Navigation, Planung und Unterweisungen.
 // Performance-Hotfix: keine dauerhafte Body-Beobachtung mehr, keine Render-Schleife.
 // Keine API-Aenderung, keine Fachlogik-Aenderung.
 
-const PROFESSIONAL_SUITE_VERSION = 'v0.35.2';
+const PROFESSIONAL_SUITE_VERSION = 'v0.35.3';
 
 const NAV_GROUPS = [
   { key:'overview', label:'Uebersicht', views:['dashboard'] },

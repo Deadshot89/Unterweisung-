@@ -39,7 +39,22 @@ function planningEmployeeCheckboxes(selectedIds=[]){
   const selected = new Set(selectedIds);
   const rows = activeEmployees();
   if(!rows.length) return '<p class="muted">Keine aktiven Mitarbeiter vorhanden.</p>';
-  return `<div class="checkbox-grid">${rows.map(e=>`<label class="checkline"><input type="checkbox" class="planEmployee" value="${esc(e.id)}" ${selected.has(e.id)?'checked':''}> <span><b>${esc(e.name)}</b><br><small>${esc(e.department||'—')} · ${esc(e.email||'')}</small></span></label>`).join('')}</div>`;
+  return `<div class="planning-participants">
+    <div class="participant-toolbar"><label for="planEmployeeSearch">Teilnehmer suchen<input id="planEmployeeSearch" type="search" placeholder="Name, Bereich oder E-Mail"></label><span id="planEmployeeCount" class="muted" role="status" aria-live="polite"></span></div>
+    <div id="planEmployeeList" class="checkbox-grid">${rows.map(e=>`<label class="checkline"><input type="checkbox" class="planEmployee" value="${esc(e.id)}" ${selected.has(e.id)?'checked':''}><span><b>${esc(e.name)}</b><small>${esc(e.department||'—')} · ${esc(e.email||'')}</small></span></label>`).join('')}</div>
+    <p id="planEmployeeEmpty" class="muted" hidden>Keine passenden Teilnehmer. Bereits ausgewählte Personen bleiben ausgewählt.</p>
+  </div>`;
+}
+
+function updatePlanningParticipants(){
+  const query = ($('planEmployeeSearch')?.value || '').trim().toLocaleLowerCase('de');
+  let visible = 0;
+  document.querySelectorAll('#planEmployeeList .checkline').forEach(row=>{
+    row.hidden = !!query && !row.textContent.toLocaleLowerCase('de').includes(query);
+    if(!row.hidden) visible++;
+  });
+  if($('planEmployeeCount')) $('planEmployeeCount').textContent = `${selectedPlanEmployeeIds().length} ausgewählt · ${visible} angezeigt`;
+  if($('planEmployeeEmpty')) $('planEmployeeEmpty').hidden = visible > 0;
 }
 
 function lineManagerSelectOptions(selected=''){
@@ -68,6 +83,9 @@ function renderPlanning(){
     </div>
     <div class="card span-12"><h2>Geplante Unterweisungen</h2>${plannedTrainingTable(rows, editable)}</div>
   </div>`;
+  $('planEmployeeSearch')?.addEventListener('input', updatePlanningParticipants);
+  $('planEmployeeList')?.addEventListener('change', updatePlanningParticipants);
+  updatePlanningParticipants();
   if((state.apiAvailable || API_BASE_URL) && !state.planningLoadedOnce){
     state.planningLoadedOnce = true;
     loadPlannedTrainings(true).then(()=>{
@@ -104,6 +122,8 @@ function clearPlanningForm(){
   if($('planLineManager')) $('planLineManager').value='';
   if($('planStatus')) $('planStatus').value='planned';
   document.querySelectorAll('.planEmployee').forEach(cb=>cb.checked=false);
+  if($('planEmployeeSearch')) $('planEmployeeSearch').value='';
+  updatePlanningParticipants();
   if($('planningResult')) $('planningResult').innerHTML='';
 }
 
@@ -124,6 +144,8 @@ function editPlannedTraining(id){
   $('planStatus').value = row.status || 'planned';
   const selected = new Set(parseParticipantIds(row));
   document.querySelectorAll('.planEmployee').forEach(cb => cb.checked = selected.has(cb.value));
+  if($('planEmployeeSearch')) $('planEmployeeSearch').value='';
+  updatePlanningParticipants();
   document.getElementById('planType')?.scrollIntoView({ behavior:'smooth', block:'center' });
 }
 

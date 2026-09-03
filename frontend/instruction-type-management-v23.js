@@ -9,10 +9,36 @@ function renderInstructions(){
   const editable = canEditInstructionTypes();
   const old = $('instructionSearch')?.value || '';
   $('instructions').innerHTML = `<div class="grid">
-    <div class="card span-12"><div class="toolbar"><div><h2>Unterweisungstypen</h2><p class="muted">Aktuelle Firma: <b>${esc(state.companyId || DEFAULT_COMPANY_ID)}</b>. Hier werden Unterweisung, Gültigkeit, Unterlage und Testfragen verwaltet.</p></div><input id="instructionSearch" placeholder="Suchen" value="${esc(old)}"></div>${instructionTypeTable(old, editable)}</div>
+    <div class="card span-12"><div class="toolbar"><div><h2>Unterweisungstypen</h2><p class="muted">Aktuelle Firma: <b>${esc(state.companyId || DEFAULT_COMPANY_ID)}</b>. Inhalte und Aktionen über „Details öffnen“ anzeigen.</p></div><input id="instructionSearch" type="search" aria-label="Unterweisungen suchen" placeholder="Suchen" value="${esc(old)}"></div><div id="instructionResults">${instructionTypeTable(old, editable)}</div><section id="instructionDetail" class="instruction-detail" aria-label="Unterweisungsdetails" hidden></section></div>
     ${editable ? instructionTypeFormCard() + templateUploadCard() + templateListCard() + testQuestionManagerCard() : '<div class="card span-12"><div class="notice warning">Du hast keine Berechtigung zum Ändern von Unterweisungen, Vorlagen oder Testfragen.</div></div>'}
   </div>`;
-  $('instructionSearch')?.addEventListener('input', renderInstructions);
+  $('instructionSearch')?.addEventListener('input', ()=>{
+    $('instructionResults').innerHTML = instructionTypeTable($('instructionSearch').value, editable);
+    if(typeof scheduleTableFormPolish === 'function') scheduleTableFormPolish();
+  });
+  $('instructionResults').addEventListener('click', event=>{
+    const button = event.target.closest('[data-instruction-details]');
+    if(button) openInstructionDetails(button.dataset.instructionDetails);
+  });
+  $('instructionDetail').addEventListener('click', event=>{
+    const button = event.target.closest('[data-instruction-action]');
+    if(!button) return;
+    const row = types().find(t=>t.id === $('instructionDetail').dataset.instructionId);
+    if(!row) return;
+    const action = button.dataset.instructionAction;
+    if(action === 'close'){
+      $('instructionDetail').hidden = true;
+      const opener = Array.from(document.querySelectorAll('[data-instruction-details]')).find(x=>x.dataset.instructionDetails===row.id);
+      (opener || $('instructionSearch')).focus();
+    }else if(action === 'open'){
+      const tpl = templateForType(row);
+      if(tpl) openTemplate(tpl.id);
+    }else if(canEditInstructionTypes()){
+      if(action === 'edit') prepareInstructionTypeEdit(row.id);
+      if(action === 'upload') prepareTemplateUpload(row.id);
+      if(action === 'toggle') toggleInstructionType(row.id, row.active===false);
+    }
+  });
   if(!state.testQuestions?.length && (state.apiAvailable || API_BASE_URL)){
     loadTestQuestions(true).then(()=>{
       const view = document.getElementById('instructions');
@@ -25,19 +51,37 @@ function instructionTypeTable(search='', editable=false){
   const q = String(search||'').toLowerCase();
   const rows = types().filter(t=>!q || [t.name,t.category,t.description,templateForType(t)?.title,templateForType(t)?.fileName].join(' ').toLowerCase().includes(q)).sort((a,b)=>String(a.category||'').localeCompare(String(b.category||''),'de') || String(a.name||'').localeCompare(String(b.name||''),'de'));
   if(!rows.length) return '<p class="muted">Keine Unterweisungen vorhanden.</p>';
-  return `<div class="table-wrap"><table><thead><tr><th>Unterweisung</th><th>Bereich</th><th>Intervall</th><th>Unterlage/Vorlage</th><th>Testfragen</th><th>Status</th><th>Aktion</th></tr></thead><tbody>${rows.map(t=>{
+  return `<div class="table-wrap instruction-overview"><table><thead><tr><th>Unterweisung</th><th>Bereich</th><th>Intervall</th><th>Testfragen</th><th>Status</th><th>Details</th></tr></thead><tbody>${rows.map(t=>{
     const tpl = templateForType(t);
     const qCount = (state.testQuestions||[]).filter(x=>x.instructionTypeId===t.id && x.active!==false).length;
     return `<tr>
-      <td><b>${esc(t.name)}</b><br><span class="muted">${esc(t.description||'')}</span></td>
-      <td>${esc(t.category||'—')}</td>
-      <td>${esc(t.intervalMonths||12)} Monate</td>
-      <td>${tpl ? `<b>${esc(tpl.title)}</b><br><span class="muted">${esc(tpl.fileName||'')}</span>` : '<span class="badge warn">Keine Unterlage</span>'}</td>
-      <td>${qCount ? `<span class="badge ok">${qCount} aktiv</span>` : '<span class="badge warn">Keine aktiven Fragen</span>'}</td>
-      <td>${t.active!==false?'<span class="badge ok">Aktiv</span>':'<span class="badge warn">Inaktiv</span>'}</td>
-      <td>${tpl?`<button class="small" onclick="openTemplate('${esc(tpl.id)}')">Unterlage öffnen</button>`:''} ${editable?`<button class="small" onclick="prepareInstructionTypeEdit('${esc(t.id)}')">Bearbeiten</button> <button class="small" onclick="prepareTemplateUpload('${esc(t.id)}')">Unterlage hochladen</button> <button class="small" onclick="toggleInstructionType('${esc(t.id)}', ${t.active!==false?'false':'true'})">${t.active!==false?'Deaktivieren':'Aktivieren'}</button>`:'—'}</td>
+      <td data-label="Unterweisung"><b>${esc(t.name)}</b><span class="instruction-preview muted">${esc(String(t.description||'').slice(0,120))}${String(t.description||'').length>120?'…':''}</span><small class="muted">${tpl?'Unterlage vorhanden':'Keine Unterlage'}</small></td>
+      <td data-label="Bereich">${esc(t.category||'—')}</td>
+      <td data-label="Intervall">${esc(t.intervalMonths||12)} Monate</td>
+      <td data-label="Testfragen"><span class="badge ${qCount?'ok':'warn'}">${qCount} aktiv</span></td>
+      <td data-label="Status">${t.active!==false?'<span class="badge ok">Aktiv</span>':'<span class="badge warn">Inaktiv</span>'}</td>
+      <td data-label="Details"><button class="small" type="button" data-instruction-details="${esc(t.id)}" aria-label="Details öffnen: ${esc(t.name)}">Details öffnen</button></td>
     </tr>`;
   }).join('')}</tbody></table></div><p class="muted">${rows.length} Unterweisungstypen angezeigt.</p>`;
+}
+
+function openInstructionDetails(id){
+  const row = types().find(t=>t.id===id);
+  const panel = $('instructionDetail');
+  if(!row || !panel) return;
+  const tpl = templateForType(row);
+  panel.dataset.instructionId = row.id;
+  panel.innerHTML = `<div class="toolbar"><h3 tabindex="-1">${esc(row.name)}</h3><button type="button" data-instruction-action="close">Details schließen</button></div>
+    <p class="muted">${esc(row.category||'—')} · ${esc(row.intervalMonths||12)} Monate · ${row.active===false?'Inaktiv':'Aktiv'}</p>
+    <div class="instruction-full-description">${esc(row.description||'Keine Beschreibung vorhanden.')}</div>
+    <p><b>Unterlage:</b> ${tpl?`${esc(tpl.title)} · ${esc(tpl.fileName||'')}`:'Keine Unterlage zugeordnet'}</p>
+    <div class="instruction-detail-actions">${tpl?'<button type="button" data-instruction-action="open">Unterlage öffnen</button>':''}
+      ${canEditInstructionTypes()?`<button type="button" data-instruction-action="edit">Bearbeiten</button><button type="button" data-instruction-action="upload">Unterlage hochladen</button><button type="button" data-instruction-action="toggle">${row.active===false?'Aktivieren':'Deaktivieren'}</button>`:''}
+    </div>`;
+  panel.hidden = false;
+  if(typeof applyTableFormPolish === 'function') applyTableFormPolish(panel);
+  panel.querySelector('h3').focus({preventScroll:true});
+  panel.scrollIntoView({behavior:'smooth',block:'nearest'});
 }
 
 function instructionTypeFormCard(){
