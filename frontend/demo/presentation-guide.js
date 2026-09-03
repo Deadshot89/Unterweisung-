@@ -7,28 +7,43 @@ const TOUR_STEPS = [
     view: 'dashboard'
   },
   {
-    title: '2 · Status statt Excel-Suche',
+    title: '2 · Firma und Inhalte einrichten',
+    text: 'Im Bereich Einrichtung lassen sich in der Demo Firmenprofil, Mitarbeitende, Unterweisungen, Lernschritte und Zuweisungen direkt nachvollziehen.',
+    role: 'company_admin',
+    person: 'emp-lena-hoffmann',
+    view: 'setup'
+  },
+  {
+    title: '3 · Status statt Excel-Suche',
     text: 'Die Statusansicht bündelt offene, bald fällige und abgeschlossene Unterweisungen. So lässt sich der nächste Handlungsbedarf direkt erkennen.',
     role: 'company_admin',
     person: 'emp-lena-hoffmann',
     view: 'status'
   },
   {
-    title: '3 · Verantwortung bei der Führungskraft',
-    text: 'Führungskräfte sehen nur ihr direktes Team und können praktische Unterweisungen einplanen oder bestätigen.',
+    title: '4 · Planung und Terminmail',
+    text: 'Führungskräfte sehen nur ihr direktes Team. Termine lassen sich einplanen und über „Termin per Mail senden“ als sichere Demo-Mailvorschau präsentieren.',
     role: 'line_manager',
     person: 'emp-jonas-keller',
     view: 'planning'
   },
   {
-    title: '4 · Klare Mitarbeiteransicht',
+    title: '5 · Externe Unterweisung ohne Konto',
+    text: 'Auch Führungskräfte können eine externe Online-Unterweisung an einen Teilnehmer ohne Benutzerkonto vorbereiten. Die Externe Unterweisung wird in der Demo ausschließlich lokal simuliert.',
+    role: 'line_manager',
+    person: 'emp-jonas-keller',
+    view: 'dashboard',
+    action: 'open-external-invite'
+  },
+  {
+    title: '6 · Klare Mitarbeiteransicht',
     text: 'Mitarbeitende sehen nur ihre eigenen Aufgaben: jetzt erledigen, Terminbedarf, geplante Termine, bald fällige und abgeschlossene Unterweisungen.',
     role: 'employee',
     person: 'emp-mila-hartmann',
     view: 'my-training'
   },
   {
-    title: '5 · Bildgestützte Online-Unterweisung',
+    title: '7 · Bildgestützte Online-Unterweisung',
     text: 'Online-Unterweisungen führen Schritt für Schritt durch freigegebene Lerninhalte und können mit einem Abschlusstest enden.',
     role: 'employee',
     person: 'emp-mila-hartmann',
@@ -37,7 +52,7 @@ const TOUR_STEPS = [
     feature: 'Online-Unterweisung'
   },
   {
-    title: '6 · Nachweis direkt verfügbar',
+    title: '8 · Nachweis direkt verfügbar',
     text: 'Abgeschlossene Unterweisungen bleiben nachvollziehbar. In dieser Präsentation werden ausschließlich klar markierte DEMO-/MUSTER-Nachweise erzeugt.',
     role: 'employee',
     person: 'emp-mila-hartmann',
@@ -51,7 +66,7 @@ const byId = id => document.getElementById(id);
 function closeAnyDemoModal() {
   const backdrop = document.querySelector('.modal-backdrop');
   if (!backdrop) return;
-  const close = backdrop.querySelector('[data-close-modal], .modal-head .btn');
+  const close = backdrop.querySelector('[data-close-modal], [data-demo-close], [data-admin-close], .modal-head .btn');
   if (close) close.click();
   else backdrop.remove();
 }
@@ -76,9 +91,15 @@ function selectView(view) {
 }
 
 function performStepAction(step) {
-  if (step.action !== 'open-learning') return;
-  const learn = document.querySelector('[data-learn]');
-  if (learn) learn.click();
+  if (step.action === 'open-learning') {
+    document.querySelector('[data-learn]')?.click();
+    return;
+  }
+  if (step.action === 'open-external-invite') {
+    const openInvite = () => document.querySelector('[data-demo-external-invite]')?.click();
+    if (document.querySelector('[data-demo-external-invite]')) openInvite();
+    else globalThis.setTimeout(openInvite, 0);
+  }
 }
 
 function applyStep(step) {
