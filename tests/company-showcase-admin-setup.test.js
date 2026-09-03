@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { DEMO_DATA } from '../frontend/demo/demo-data.js';
 import { createDemoStore } from '../frontend/demo/demo-store.js';
@@ -103,4 +104,19 @@ test('admin setup UI exists as a focused module and is wired as an admin navigat
   for (const marker of ['Unternehmensprofil','Mitarbeitende','Unterweisung','Zuweisung','FileReader','accept=".png,.jpg,.jpeg,.webp"',"['setup','Einrichtung']"]) assert.match(admin, new RegExp(marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
   assert.match(index, /demo-admin\.css/);
   assert.match(index, /demo-admin\.js/);
+  const syntax = spawnSync(process.execPath, ['--check', adminPath], { encoding:'utf8' });
+  assert.equal(syntax.status, 0, syntax.stderr || syntax.stdout);
+});
+
+test('reset synchronization restores visible company header and leaves setup navigation cleanly', () => {
+  const resetPath = path.join(root, 'frontend/demo/demo-reset-sync.js');
+  assert.equal(fs.existsSync(resetPath), true, 'demo-reset-sync.js must exist');
+  const reset = fs.readFileSync(resetPath, 'utf8');
+  const index = fs.readFileSync(path.join(root, 'frontend/demo/index.html'), 'utf8');
+  assert.match(reset, /demoReset/);
+  assert.match(reset, /admin-setup-header/);
+  assert.match(reset, /demo-company/);
+  assert.match(index, /demo-reset-sync\.js/);
+  const syntax = spawnSync(process.execPath, ['--check', resetPath], { encoding:'utf8' });
+  assert.equal(syntax.status, 0, syntax.stderr || syntax.stdout);
 });
