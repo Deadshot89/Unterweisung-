@@ -1,5 +1,7 @@
 import { createDemoStore } from './demo-store.js';
 
+const STORAGE_KEY = 'um-company-showcase-state-v1';
+
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
 }
@@ -23,10 +25,11 @@ function formatPlanDate(value) {
   return { date: `${day || '--'}.${month || '--'}.${year || '----'}`, time };
 }
 
-export function enhanceDemoStore(store) {
+export function enhanceDemoStore(store, storage = globalThis.localStorage) {
   if (store.__demoMailEnhanced === true) return store;
 
   Object.defineProperty(store, '__demoMailEnhanced', { value: true, enumerable: false });
+  const persist = () => storage?.setItem?.(STORAGE_KEY, JSON.stringify(store.getState()));
 
   store.sendExternalInstruction = function sendExternalInstruction(senderId, input = {}) {
     const state = store.getState();
@@ -72,6 +75,7 @@ export function enhanceDemoStore(store) {
     };
     state.mailOutbox.push(mail);
     invitation.mailId = mail.id;
+    persist();
     return clone(invitation);
   };
 
@@ -111,6 +115,7 @@ export function enhanceDemoStore(store) {
     plan.mailStatus = 'simulated_sent';
     plan.mailSentAt = state.meta.referenceDate;
     plan.lastMailId = mail.id;
+    persist();
     return clone(mail);
   };
 
@@ -124,5 +129,5 @@ export function enhanceDemoStore(store) {
 }
 
 export function createEnhancedDemoStore(baseData, storage = globalThis.localStorage) {
-  return enhanceDemoStore(createDemoStore(baseData, storage));
+  return enhanceDemoStore(createDemoStore(baseData, storage), storage);
 }
