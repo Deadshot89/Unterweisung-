@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <title>Unterweisungsmanager · Unternehmens-Demo</title>
+  <link rel="stylesheet" href="./demo.css">
+</head>
+<body>
+  <div class="demo-banner" role="status">DEMO – ausschließlich Beispieldaten</div>
+  <header class="demo-topbar">
+    <div class="demo-brand">
+      <div class="demo-brand-mark">UM</div>
+      <div><strong>Unterweisungsmanager</strong><span>Unternehmens-Demo</span></div>
+    </div>
+    <div class="demo-company"><span>Musterwerk Solutions GmbH</span><small>Produktion &amp; Logistik · Nordrhein-Westfalen</small></div>
+    <button id="demoReset" type="button" class="btn ghost">Demo zurücksetzen</button>
+  </header>
+
+  <section class="presenter-bar" aria-label="Präsentationssteuerung">
+    <div><strong>Ansicht präsentieren als</strong><span>Rollenwechsel simuliert ausschließlich die Demo.</span></div>
+    <label>Rolle
+      <select id="demoRole">
+        <option value="company_admin">System-/Firmenadmin</option>
+        <option value="line_manager">Führungskraft</option>
+        <option value="employee">Mitarbeiter</option>
+      </select>
+    </label>
+    <label>Demo-Person
+      <select id="demoPerson"></select>
+    </label>
+  </section>
+
+  <main id="demoApp">
+    <nav id="demoNav" class="demo-nav" aria-label="Demo-Navigation"></nav>
+    <section id="demoContent" class="demo-content" aria-live="polite"></section>
+  </main>
+
+  <div id="demoModalRoot"></div>
+  <script type="module" src="./demo-ui.js"></script>
+</body>
+</html>
