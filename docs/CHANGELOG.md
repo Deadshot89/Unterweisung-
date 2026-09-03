@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.36.3 – Mitarbeiterportal, Dual-Login und Bild-Unterweisungen (Preview)
+
+- Interne Anmeldung unterstützt Microsoft sowie E-Mail/Passwort über dieselbe Benutzer-, Firmen- und Rollenlogik. Passwort-Sitzungen sind signiert, HttpOnly und zeitlich begrenzt; Passwörter werden ausschließlich als gesalzene Scrypt-Hashes vorbereitet.
+- Rollen- und Mandantengrenzen werden serverseitig durchgesetzt: System Admin firmenübergreifend, Company Admin/HSE innerhalb der eigenen Firma, Line Manager nur eigenes Konto plus direkt zugewiesenes Team, Mitarbeiter nur eigene Daten.
+- Die Begrenzung gilt auch für Bootstrap-Daten, Status, Unterweisungseinträge, Planungen, Teilnehmer, Einladungen, Manager-Report, Nachweis-Uploads und direkte Datei-Downloads. Kurzlebige SAS-Links werden erst nach erfolgreicher Berechtigungsprüfung ausgegeben.
+- Mitarbeiter erhalten eine eigene Startoberfläche mit „Jetzt erledigen“, „Einplanung erforderlich“, „Geplante Termine“, „Bald fällig“ und „Abgeschlossen“ sowie Aktionen zum Starten/Fortsetzen, Termin anfragen und Nachweis herunterladen.
+- Online-Unterweisungen können als bildgestützte Lernschritte mit kurzer Erklärung, Fortschrittsanzeige und Bildvergrößerung aufgebaut werden. Lernschritte bleiben Entwurf, bis HSE/Firmenadmin/Systemadmin sie ausdrücklich fachlich freigibt; Originalunterlagen bleiben downloadbar.
+- Online-Unterweisungen können nach einem freigegebenen Abschlusstest automatisch als offizieller Unterweisungseintrag abgeschlossen werden. Nicht bestandene Versuche erzeugen keinen Abschluss. Praktische Unterweisungen können Mitarbeiter nicht selbst abschließen; sie bleiben bei der Bestätigung durch einen berechtigten Verantwortlichen.
+- Die additive Migration `011_employee_portal_dual_auth.sql` bereitet Passwortfelder, Online-/Praxis-Konfiguration, Lernschritte und interne Versuche vor. Sie wird mit diesem Preview-Update ausdrücklich **nicht ausgeführt**. Der Passwortbetrieb benötigt zusätzlich einen geheimen `AUTH_SESSION_SECRET`; fehlt Migration oder Secret, schließen die neuen Pfade kontrolliert mit einem Setup-Hinweis statt unsicher weiterzulaufen.
+- Static Web Apps lässt die Login-Oberfläche und API bis zur gemeinsamen eigenen Autorisierungsschicht durch, damit beide Loginwege funktionieren. Externe persönliche Unterweisungslinks bleiben weiterhin ohne internes Benutzerkonto nutzbar.
+- Das Gesamtpaket bleibt ausschließlich im bestehenden Draft-Preview-PR. Keine Migration, kein Datenimport, kein Seed-/Reparaturlauf, keine Produktionsfreigabe und keine Änderung kostenpflichtiger Azure-Tarife werden durch dieses Update ausgelöst.
+
 ## v0.36.2 – Zusammenhängendes Verwaltungs- und Dokumentupdate (Preview)
 
 - Gesamtpaket auf Basis der bestehenden v0.36-Vorschau: kompaktes Menü, Planungs- und Statusarbeitslisten, Unterweisungsdetails, Frageneditor sowie PDF-/Bildanalyse mit Quellenprüfung und fachlicher Freigabe bleiben zusammen erhalten.
