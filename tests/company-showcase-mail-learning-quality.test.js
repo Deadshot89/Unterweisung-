@@ -2,7 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { DEMO_DATA } from '../frontend/demo/demo-data.js';
-import { createDemoStore } from '../frontend/demo/demo-store.js';
+import { prepareDemoQualityData } from '../frontend/demo/demo-quality-data.js';
+import { createEnhancedDemoStore } from '../frontend/demo/demo-mail-store.js';
+
+prepareDemoQualityData(DEMO_DATA);
 
 function memoryStorage() {
   const values = new Map();
@@ -14,7 +17,7 @@ function memoryStorage() {
 }
 
 function freshStore() {
-  return createDemoStore(DEMO_DATA, memoryStorage());
+  return createEnhancedDemoStore(DEMO_DATA, memoryStorage());
 }
 
 test('line manager can simulate an external online instruction invitation without network delivery', () => {
@@ -56,6 +59,7 @@ test('planning mail can be simulated by responsible manager and is recorded in t
   assert.match(mail.body, /18\.09\.2026/);
   assert.match(mail.body, /09:30/);
   assert.equal(mail.status, 'simulated_sent');
+  assert.equal(store.getState().plannedTrainings.find(item => item.id === plan.id)?.mailStatus, 'simulated_sent');
 });
 
 test('line manager cannot send a planning mail for a different team', () => {
@@ -81,9 +85,10 @@ test('core online instructions contain presentation-ready learning goals, summar
   }
 });
 
-test('demo UI exposes external invitation, planning mail and professional learning presentation controls', () => {
-  const ui = readFileSync(new URL('../frontend/demo/demo-ui.js', import.meta.url), 'utf8');
-  const css = readFileSync(new URL('../frontend/demo/demo.css', import.meta.url), 'utf8');
+test('demo extension exposes external invitation, planning mail and professional learning presentation controls', () => {
+  const ui = readFileSync(new URL('../frontend/demo/demo-mail-learning.js', import.meta.url), 'utf8');
+  const css = readFileSync(new URL('../frontend/demo/demo-mail-learning.css', import.meta.url), 'utf8');
+  const index = readFileSync(new URL('../frontend/demo/index.html', import.meta.url), 'utf8');
   assert.match(ui, /Externe Unterweisung senden/);
   assert.match(ui, /Termin per Mail senden/);
   assert.match(ui, /Mailvorschau/);
@@ -94,4 +99,15 @@ test('demo UI exposes external invitation, planning mail and professional learni
   assert.match(css, /\.learning-image-caption/);
   assert.match(css, /\.learning-callout/);
   assert.match(css, /\.mail-preview/);
+  assert.match(index, /demo-quality-data\.js/);
+  assert.match(index, /demo-mail-learning\.js/);
+  assert.match(index, /demo-mail-learning\.css/);
+});
+
+test('mail simulation extension contains no real network or mail-client delivery path', () => {
+  const source = readFileSync(new URL('../frontend/demo/demo-mail-learning.js', import.meta.url), 'utf8') + readFileSync(new URL('../frontend/demo/demo-mail-store.js', import.meta.url), 'utf8');
+  assert.doesNotMatch(source, /fetch\s*\(/);
+  assert.doesNotMatch(source, /XMLHttpRequest/);
+  assert.doesNotMatch(source, /mailto:/i);
+  assert.doesNotMatch(source, /\/api\//i);
 });
