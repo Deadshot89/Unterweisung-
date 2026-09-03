@@ -57,6 +57,15 @@ test('online instruction editor creates three learning steps and practical mode 
   assert.equal(store.getState().learningSteps.filter(step => step.instructionId === practical.id).length, 0);
 });
 
+test('learning-step editor persists title and explanation without replacing its image', () => {
+  const store = createDemoStore(DEMO_DATA, memoryStorage());
+  const before = store.getState().learningSteps.find(item => item.instructionId === 'ins-arbeitsschutz');
+  const saved = store.saveLearningStep('ins-arbeitsschutz', before.id, { title:'Neue Überschrift', text:'Neue Erklärung für die Demo.' });
+  assert.equal(saved.title, 'Neue Überschrift');
+  assert.equal(saved.text, 'Neue Erklärung für die Demo.');
+  assert.equal(saved.image, before.image);
+});
+
 test('instruction assignment is idempotent across repeated employee selection', () => {
   const store = createDemoStore(DEMO_DATA, memoryStorage());
   const before = store.getState().assignments.length;
