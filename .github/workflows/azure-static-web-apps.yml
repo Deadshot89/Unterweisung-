@@ -10,7 +10,8 @@ on:
       - main
 
 concurrency:
-  group: static-web-apps-${{ github.ref }}
+  # A merged PR's close event also uses main; isolate it from production uploads.
+  group: static-web-apps-${{ github.event_name }}-${{ github.event.number || github.ref }}
   cancel-in-progress: true
 
 jobs:

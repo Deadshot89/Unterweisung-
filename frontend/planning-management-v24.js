@@ -1,22 +1,59 @@
 // v0.24: Unterweisungen planen, Teilnehmer zuweisen und Gruppentermine abschließen.
 
+const plannedTrainingsRequests = new Map();
+let planningRenderedCompany = null;
+
 function canEditPlanning(){
   const roles = state.me?.roles || [];
   return roles.includes('system_admin') || roles.includes('company_admin') || roles.includes('hse') || roles.includes('line_manager');
 }
 
-async function loadPlannedTrainings(force=false){
+async function loadPlannedTrainings(force=false, afterWrite=false){
+  const pending = plannedTrainingsRequests.get(state.companyId);
+  // A post-save read must supersede a request started before the write.
+  if(pending && !afterWrite) return pending.promise;
   if(!force && state.data?.plannedTrainings?.length) return state.data.plannedTrainings;
   if(!state.apiAvailable && !API_BASE_URL) return plannedTrainings();
-  try{
-    const rows = await api('/planned-trainings');
-    state.data = state.data || {};
-    state.data.plannedTrainings = rows;
-    return rows;
-  }catch(err){
-    console.warn('Planungen konnten nicht geladen werden', err);
-    return plannedTrainings();
-  }
+  const companyId = state.companyId;
+  const request = {companyId};
+  plannedTrainingsRequests.set(companyId, request);
+  request.promise = (async()=>{
+    try{
+      const rows = await api('/planned-trainings');
+      if(state.companyId !== companyId || plannedTrainingsRequests.get(companyId) !== request) return plannedTrainings();
+      state.data = state.data || {};
+      state.data.plannedTrainings = rows;
+      state.planningLoadError = false;
+      return rows;
+    }catch(err){
+      if(state.companyId === companyId && plannedTrainingsRequests.get(companyId) === request) state.planningLoadError = true;
+      console.warn('Planungen konnten nicht geladen werden', err);
+      return plannedTrainings();
+    }finally{
+      if(plannedTrainingsRequests.get(companyId) === request) plannedTrainingsRequests.delete(companyId);
+    }
+  })();
+  return request.promise;
+}
+
+function planningLoadMessage(){
+  return state.planningLoadError ? 'Planungen konnten nicht geladen werden. Vorhandene Daten bleiben erhalten. Bitte erneut laden.' : '';
+}
+
+function refreshPlannedTrainingResults(){
+  const target = $('plannedTrainingResults');
+  if(!target) return;
+  target.innerHTML = plannedTrainingTable(plannedTrainings(), canEditPlanning());
+  const status = $('planningLoadStatus');
+  if(status) status.textContent = planningLoadMessage();
+  if(typeof applyTableFormPolish === 'function') applyTableFormPolish(target);
+}
+
+async function reloadPlannedTrainingResults(){
+  const target = $('plannedTrainingResults');
+  const companyId = state.companyId;
+  await loadPlannedTrainings(true);
+  if(target && target === $('plannedTrainingResults') && companyId === state.companyId) refreshPlannedTrainingResults();
 }
 
 function fmtDateTime(d){
@@ -78,23 +115,22 @@ function planningStatusBadge(status){
 }
 
 function renderPlanning(){
+  if(planningRenderedCompany !== state.companyId) state.planningLoadError = false;
   const editable = canEditPlanning();
   const rows = plannedTrainings();
   $('planning').innerHTML = `<div class="grid admin-workspace">
     <div class="card span-12"><div class="toolbar admin-toolbar"><div><h2>Unterweisung planen / zuweisen</h2><p class="muted">Termin festlegen und Teilnehmer auswählen. Beim Abschließen werden die Unterweisungen für alle Teilnehmer dokumentiert.</p></div><button class="ghost" data-planning-action="refresh">Planungen neu laden</button></div>
       ${editable ? planningFormCard() : '<div class="notice warning">Du hast keine Berechtigung zum Planen von Unterweisungen.</div>'}
     </div>
-    <div class="card span-12"><h2>Geplante Unterweisungen</h2>${plannedTrainingTable(rows, editable)}</div>
+    <div class="card span-12"><h2>Geplante Unterweisungen</h2><p id="planningLoadStatus" class="muted" role="status">${planningLoadMessage()}</p><div id="plannedTrainingResults">${plannedTrainingTable(rows, editable)}</div></div>
   </div>`;
   $('planning').onclick = handlePlanningWorkspaceClick;
   if($('planEmployeeSearch')) $('planEmployeeSearch').oninput = updatePlanningParticipants;
   if($('planEmployeeList')) $('planEmployeeList').onchange = updatePlanningParticipants;
-  if((state.apiAvailable || API_BASE_URL) && !state.planningLoadedOnce){
+  if((state.apiAvailable || API_BASE_URL) && (!state.planningLoadedOnce || planningRenderedCompany !== state.companyId || plannedTrainingsRequests.has(state.companyId))){
     state.planningLoadedOnce = true;
-    loadPlannedTrainings(true).then(()=>{
-      const view = document.getElementById('planning');
-      if(view?.classList.contains('active')) renderPlanning();
-    });
+    planningRenderedCompany = state.companyId;
+    reloadPlannedTrainingResults();
   }
 }
 
@@ -102,7 +138,7 @@ function handlePlanningWorkspaceClick(event){
   const button = event.target.closest('button[data-planning-action]');
   if(!button) return;
   const {planningAction, id} = button.dataset;
-  if(planningAction === 'refresh') return loadPlannedTrainings(true).then(renderPlanning);
+  if(planningAction === 'refresh') return reloadPlannedTrainingResults();
   if(!canEditPlanning()) return;
   switch(planningAction){
     case 'save': return savePlannedTraining();
@@ -192,7 +228,7 @@ async function savePlannedTraining(){
     target.innerHTML = '<div class="notice"><b>Planung gespeichert.</b></div>';
     clearPlanningForm();
     await loadData();
-    await loadPlannedTrainings(true);
+    await loadPlannedTrainings(true, true);
     setView('planning');
   }catch(err){
     target.innerHTML = `<div class="notice dangerbox">Speichern fehlgeschlagen: ${esc(err.message || err)}</div>`;
@@ -207,7 +243,7 @@ async function completePlannedTraining(id){
     const result = await api('/planned-trainings/' + encodeURIComponent(id), { method:'PATCH', body: JSON.stringify({ complete:true, conductedAt, confirmationText }) });
     alert(`Unterweisung abgeschlossen. Teilnehmer: ${result.participantCount || 0}. Gültig bis: ${fmtDate(result.validUntil)}.`);
     await loadData();
-    await loadPlannedTrainings(true);
+    await loadPlannedTrainings(true, true);
     setView('planning');
   }catch(err){
     alert('Abschluss fehlgeschlagen: ' + String(err.message || err));
@@ -219,7 +255,7 @@ async function cancelPlannedTraining(id){
   try{
     await api('/planned-trainings/' + encodeURIComponent(id), { method:'PATCH', body: JSON.stringify({ status:'cancelled' }) });
     await loadData();
-    await loadPlannedTrainings(true);
+    await loadPlannedTrainings(true, true);
     setView('planning');
   }catch(err){ alert('Storno fehlgeschlagen: ' + String(err.message || err)); }
 }

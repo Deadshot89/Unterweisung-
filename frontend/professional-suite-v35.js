@@ -3,7 +3,7 @@
 // Keine API-Aenderung, keine Fachlogik-Aenderung.
 
 const PROFESSIONAL_SUITE_VERSION = 'v0.35.2';
-const APP_RELEASE_VERSION = 'v0.36.1';
+const APP_RELEASE_VERSION = 'v0.36.2';
 
 const NAV_GROUPS = [
   { key:'overview', label:'Uebersicht', views:['dashboard'] },

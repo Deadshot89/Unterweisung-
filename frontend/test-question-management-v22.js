@@ -19,22 +19,24 @@ function questionRows(){
   questionWorkspace();
   return (state.testQuestions || []).filter(row=>!row.companyId || row.companyId===state.companyId);
 }
-async function loadTestQuestions(force=false){
+async function loadTestQuestions(force=false,afterWrite=false){
   const s=questionWorkspace();
-  if(s.request) return s.request;
+  if(s.request && !afterWrite) return s.request;
   if(questionRows().length && !force) return questionRows();
   if(!state.apiAvailable && !API_BASE_URL) return questionRows();
-  s.loading=true;s.loadError='';renderTestQuestionNotice();
+  s.loading=true;renderTestQuestionNotice();
+  const request={};s.requestOwner=request;
+  const current=()=>s===questionWorkspace() && s.requestOwner===request;
   s.request=(async()=>{
     try{
       const rows=await api('/test-questions');
       if(!Array.isArray(rows)) throw new Error('Ungültige Antwort beim Laden der Testfragen.');
-      if(s===questionWorkspace()) state.testQuestions=rows;
+      if(current()){state.testQuestions=rows;s.loadError='';}
     }catch(error){
-      if(s===questionWorkspace()) s.loadError=String(error.message || error);
+      if(current()) s.loadError=String(error.message || error);
     }finally{
-      s.loading=false;s.request=null;
-      if(s===questionWorkspace()){
+      if(current()){
+        s.loading=false;s.request=null;
         renderTestQuestionResults();renderTestQuestionNotice();
         if(!s.editor || !canEditTestQuestions()) renderTestQuestionDetail();
         if(typeof refreshInstructionQuestionSummary==='function') refreshInstructionQuestionSummary();

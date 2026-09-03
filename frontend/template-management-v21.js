@@ -59,7 +59,7 @@ function templateUploadCard(){
 
 function templateListCard(){
   const rows = templates().filter(t=>t.active!==false).sort((a,b)=>String(a.title||'').localeCompare(String(b.title||''),'de'));
-  return `<div class="card span-12"><h2>Vorlagen dieser Firma</h2>${rows.length ? `<div class="table-wrap"><table><thead><tr><th>Titel</th><th>Datei</th><th>Bereich</th><th>Verwendet bei</th><th>Aktion</th></tr></thead><tbody>${rows.map(t=>{
+  return `<div id="instructionTemplateList" class="card span-12"><h2>Vorlagen dieser Firma</h2>${rows.length ? `<div class="table-wrap"><table><thead><tr><th>Titel</th><th>Datei</th><th>Bereich</th><th>Verwendet bei</th><th>Aktion</th></tr></thead><tbody>${rows.map(t=>{
     const usedBy = types().filter(x=>x.templateId===t.id).map(x=>x.name).join(', ') || '—';
     return `<tr><td><b>${esc(t.title)}</b></td><td>${esc(t.fileName||'')}</td><td>${esc(t.category||'—')}</td><td>${esc(usedBy)}</td><td><button class="small" data-template-action="open" data-template-id="${esc(t.id)}">Öffnen</button> <button class="small" data-template-action="replace" data-template-id="${esc(t.id)}">Ersetzen</button></td></tr>`;
   }).join('')}</tbody></table></div>` : '<p class="muted">Noch keine Vorlagen vorhanden.</p>'}</div>`;
@@ -97,11 +97,13 @@ function prepareTemplateReplace(templateId){
 
 async function openTemplate(templateId){
   if(!state.apiAvailable){ alert('Vorlagen werden erst mit verbundener Azure API geöffnet.'); return; }
+  const companyId=state.companyId;
   try{
     const result = await api('/templates/' + encodeURIComponent(templateId) + '/download');
+    if(state.companyId!==companyId) return;
     window.open(result.url, '_blank', 'noopener');
   }catch(err){
-    alert('Unterlage konnte nicht geöffnet werden: ' + String(err.message || err));
+    if(state.companyId===companyId) alert('Unterlage konnte nicht geöffnet werden: ' + String(err.message || err));
   }
 }
 
@@ -113,34 +115,45 @@ async function uploadTemplateFile(){
   if(!title){ alert('Titel fehlt.'); return; }
   const target = $('tplUploadResult');
   if(state.templateUploadBusy) return;
+  const companyId=state.companyId;
+  const current=()=>state.companyId===companyId && target===$('tplUploadResult');
+  const fieldIds=['tplReplaceId','tplInstructionType','tplAnalysisLanguage','tplTitle','tplCategory','tplDescription'];
+  const draft=Object.fromEntries(fieldIds.map(id=>[id,$(id).value]));
+  const unchanged=()=>current() && $('tplFile')?.files?.[0]===file && fieldIds.every(id=>$(id)?.value===draft[id]);
+  const body = {
+    templateId: draft.tplReplaceId.trim() || undefined,
+    instructionTypeId: ['','__new__'].includes(draft.tplInstructionType) ? undefined : draft.tplInstructionType,
+    createInstruction: draft.tplInstructionType === '__new__',
+    analyse: !!draft.tplInstructionType,
+    language: draft.tplAnalysisLanguage,
+    title,
+    category: draft.tplCategory.trim(),
+    description: draft.tplDescription.trim(),
+    fileName: file.name,
+    contentType: file.type
+  };
   state.templateUploadBusy=true;
   const button=document.querySelector('[data-template-action="upload"]');
   if(button) button.disabled=true;
   target.innerHTML = 'Upload läuft …';
+  let uploaded=false;
   try{
-    const base64 = await fileToBase64(file);
-    const body = {
-      templateId: $('tplReplaceId').value.trim() || undefined,
-      instructionTypeId: ['','__new__'].includes($('tplInstructionType').value) ? undefined : $('tplInstructionType').value,
-      createInstruction: $('tplInstructionType').value === '__new__',
-      analyse: !!$('tplInstructionType').value,
-      language: $('tplAnalysisLanguage').value,
-      title,
-      category: $('tplCategory').value.trim(),
-      description: $('tplDescription').value.trim(),
-      fileName: file.name,
-      contentType: file.type,
-      base64
-    };
+    body.base64 = await fileToBase64(file);
+    if(!current()) return;
     const result = await api('/templates/upload', { method:'POST', body: JSON.stringify(body) });
+    if(!current()) return;
+    uploaded=true;
+    if(unchanged()) clearTemplateUploadForm();
     target.innerHTML = `<div class="notice"><b>Unterlage hochgeladen.</b><br>${esc(result.fileName)} · ${Number(result.sizeBytes||0).toLocaleString('de-DE')} Bytes · Scanstatus: ${esc(result.scanStatus||'pending')}</div>`;
-    await loadData();
-    if(typeof resetInstructionAnalyses === 'function') resetInstructionAnalyses(result.analysis?.id);
-    setView('instructions');
-    if(result.analysisError && $('tplUploadResult')) $('tplUploadResult').textContent=result.analysisError;
-    if(result.analysis && typeof openInstructionAnalysis === 'function') await openInstructionAnalysis(result.analysis.id, true);
+    await refreshInstructionWorkspaceData(companyId);
+    if(!current()) return;
+    if(result.analysisError) target.textContent='Unterlage hochgeladen. '+result.analysisError;
+    if(result.analysis && typeof openInstructionAnalysis === 'function'){
+      if(instructionAnalysesState.companyId!==companyId) resetInstructionAnalyses();
+      await openInstructionAnalysis(result.analysis.id, true);
+    }
   }catch(err){
-    target.innerHTML = `<div class="notice dangerbox">Upload fehlgeschlagen: ${esc(err.message || err)}</div>`;
+    if(current()) target.innerHTML = `<div class="notice dangerbox">${uploaded?'Unterlage hochgeladen, aber Aktualisierung fehlgeschlagen':'Upload fehlgeschlagen'}: ${esc(err.message || err)}</div>`;
   }finally{
     state.templateUploadBusy=false;
     if(button) button.disabled=false;

@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.36.2 – Zusammenhängendes Verwaltungs- und Dokumentupdate (Preview)
+
+- Gesamtpaket auf Basis der bestehenden v0.36-Vorschau: kompaktes Menü, Planungs- und Statusarbeitslisten, Unterweisungsdetails, Frageneditor sowie PDF-/Bildanalyse mit Quellenprüfung und fachlicher Freigabe bleiben zusammen erhalten.
+- Planung lädt nur ihre Ergebnisse nach. Formulare, Fokus, Suche und Teilnehmerauswahl bleiben bestehen; parallele Leseanfragen werden je Firma gebündelt. Veraltete Antworten überschreiben keine gespeicherten Planungen. Hinweise bleiben bis zum erfolgreichen Nachladen sichtbar.
+- Dokumentauswahl und Freigabe sind an denselben angezeigten Auftrag gebunden. Ein Wechsel oder erneutes Laden verwirft die alte Prüfbestätigung; überholte Antworten und fremde Mandantenantworten werden ignoriert. Laufende Freigaben lassen sich nicht durch Mehrfachklicks oder Dokumentwechsel umleiten.
+- Uploads verwenden einen Schnappschuss von Datei, Formular und Firma. Ein Firmenwechsel vor dem Versand bricht den Upload ab; spätere Antworten starten keine Analyse unter einer anderen Firma. Zwischenzeitlich geänderte Upload-Eingaben bleiben erhalten.
+- „Neue Unterweisung“ öffnet nach bestätigtem Verwerfen eine echte Neuanlage statt versehentlich den zuvor bearbeiteten Eintrag zu überschreiben.
+- Freigaben und Uploads aktualisieren Daten, Kennzahlen und Listen ohne Neuaufbau der übrigen Bearbeitungsformulare. Frisch veröffentlichte Fragen können nicht durch ältere laufende Leseanfragen ersetzt werden.
+- Hauptseiten- und Vorschau-Bereitstellungen verwenden getrennte Ausführungsgruppen; Schließereignisse einer Vorschau können die Hauptseite nicht abbrechen. Der explizite Importschutz bleibt unverändert.
+- Zusätzliche isolierte DOM- und Deployment-Regressionen verwenden ausschließlich synthetische Daten und kontrollierte API-Antworten. Keine Änderungen am API-Code, an Authentifizierung, Datenbank, Quelldokumenten oder Importfreigaben; keine Wartungs- oder Health-Aufrufe.
+- Diese Version wird als ein Paket nur im bestehenden Vorschau-PR veröffentlicht. Eine visuelle Prüfung im angemeldeten Browser und ein echter KI-Dokumentlauf sind weiterhin nicht bestätigt; die produktive Hauptseite bleibt unverändert.
+
 ## 2026-09-03 – Vorschau-Sicherheit und Erhalt der Hauptseitenkorrekturen
 
 - v0.36-Deployments führen keine Administratorreparatur, Schemaeinrichtung oder Neuverteilung bestehender Antworten mehr aus. Auch speicherverändernde Health-Aufrufe entfallen; Paketierung, Tests und Stylesheetprüfung bleiben erhalten.

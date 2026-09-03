@@ -11,8 +11,8 @@ const swaConfigPath = 'frontend/staticwebapp.config.json';
 assert.equal(existsSync(swaConfigPath), true, 'Static Web Apps config muss im deployten frontend-Verzeichnis liegen.');
 assert.match(frontendConfig, /window\.UM_API_BASE_URL\s*=\s*'';/, 'Frontend muss die integrierte same-origin /api verwenden.');
 assert.match(workflow, /api_location:\s*["']?api["']?/, 'Static Web Apps Workflow muss api_location: api deployen.');
-assert.match(index, /v0\.36\.1/, 'Sichtbare Version v0.36.1 fehlt.');
-assert.equal(pkg.version, '0.36.1', 'Package-Version muss 0.36.1 sein.');
+assert.match(index, /v0\.36\.2/, 'Sichtbare Version v0.36.2 fehlt.');
+assert.equal(pkg.version, '0.36.2', 'Package-Version muss 0.36.2 sein.');
 
 const swa = JSON.parse(readFileSync(swaConfigPath, 'utf8'));
 const routes = swa.routes || [];

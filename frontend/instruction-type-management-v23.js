@@ -214,6 +214,36 @@ function refreshInstructionQuestionSummary(){
   }
 }
 
+// Reload only affected data/results. Upload controls (including FileList) and editors stay mounted.
+const instructionWorkspaceDataRequests=new Map();
+async function refreshInstructionWorkspaceData(companyId){
+  if(state.companyId!==companyId) return false;
+  const request={};instructionWorkspaceDataRequests.set(companyId,request);
+  const current=()=>state.companyId===companyId && instructionWorkspaceDataRequests.get(companyId)===request;
+  try{
+    const data=await api('/bootstrap');
+    if(!current()) return false;
+    state.data=data;
+    await loadTestQuestions(true, true);
+    if(!current()) return false;
+    refreshInstructionQuestionSummary();
+    const list=$('instructionTemplateList');
+    if(list){list.outerHTML=templateListCard();bindTemplateWorkspaceControls();}
+    const replaceOptions=(id,html)=>{
+      const select=$(id);if(!select) return;
+      const value=select.value;select.innerHTML=html;
+      if(Array.from(select.options).some(option=>option.value===value)) select.value=value;
+    };
+    replaceOptions('itTemplate',templateOptions($('itTemplate')?.value));
+    replaceOptions('tplInstructionType',`<option value="__new__">Neue Unterweisung mit Test erstellen</option><option value="">Nur als Vorlage speichern</option>${types().map(t=>`<option value="${esc(t.id)}">${esc(t.name)}</option>`).join('')}`);
+    replaceOptions('tqTypeFilter',`<option value="">Alle Unterweisungen</option>${questionTypeOptions($('tqTypeFilter')?.value,true)}`);
+    replaceOptions('tqType',`<option value="">Bitte wählen</option>${questionTypeOptions($('tqType')?.value)}`);
+    if(typeof applyTableFormPolish==='function' && $('instructionTemplateList')) applyTableFormPolish($('instructionTemplateList'));
+    return true;
+  }catch(error){if(current()) throw error;return false;}
+  finally{if(instructionWorkspaceDataRequests.get(companyId)===request) instructionWorkspaceDataRequests.delete(companyId);}
+}
+
 function instructionTypeTable(search='', editable=false, preparedRows=null){
   const rows = preparedRows || filteredInstructionWorkspaceRows(search);
   if(!rows.length) return '<div class="instruction-empty-state"><b>Keine passenden Unterweisungen.</b><span>Suche oder Filter anpassen.</span></div>';
@@ -261,6 +291,18 @@ function clearInstructionTypeForm(){
   if($('itResult')) $('itResult').innerHTML='';
 }
 
+function prepareNewInstructionType(){
+  if(!canEditInstructionTypes()) return;
+  const form=readInstructionTypeForm();
+  const occupied=form.id || form.name || form.category || form.description || form.templateId || form.intervalMonths!==12 || !form.active;
+  if(occupied && !confirm('Aktuelle Eingaben verwerfen und eine neue Unterweisung anlegen?')) return;
+  clearInstructionTypeForm();
+  instructionWorkspaceState.selectedId='';
+  refreshInstructionQuestionSummary();
+  $('itName')?.focus();
+  $('itName')?.scrollIntoView({behavior:'smooth',block:'center'});
+}
+
 function prepareInstructionTypeEdit(id){
   const row = type(id);
   if(!row || !row.id) return;
@@ -305,7 +347,7 @@ async function saveInstructionType(){
     target.innerHTML = '<div class="notice"><b>Unterweisung gespeichert.</b></div>';
     clearInstructionTypeForm();
     await loadData();
-    await loadTestQuestions(true);
+    await loadTestQuestions(true, true);
     setView('instructions');
   }catch(err){
     target.innerHTML = `<div class="notice dangerbox">Speichern fehlgeschlagen: ${esc(err.message || err)}</div>`;
@@ -317,7 +359,7 @@ async function toggleInstructionType(id, active){
   try{
     await api('/instruction-types/' + encodeURIComponent(id), { method:'PATCH', body: JSON.stringify({ active }) });
     await loadData();
-    await loadTestQuestions(true);
+    await loadTestQuestions(true, true);
     setView('instructions');
   }catch(err){
     alert('Unterweisung konnte nicht geändert werden: ' + String(err.message || err));
