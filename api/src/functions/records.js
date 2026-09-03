@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { getPool, sql } from '../lib/db.js';
 import { json, badRequest, serverError } from '../lib/http.js';
 import { getAuthorizedContext, assertRole, Roles } from '../lib/auth.js';
+import { resolveEmployeeAccess, bindEmployeeScope, requireEmployeeTarget } from '../lib/employeeAccess.js';
 import { writeAudit } from '../lib/audit.js';
 
 function addMonths(date, months) {
@@ -27,13 +28,15 @@ app.http('records', {
     try {
       const ctx = await getAuthorizedContext(request);
       const pool = await getPool();
+      const access = await resolveEmployeeAccess(pool, ctx);
 
       if (request.method === 'GET') {
         const url = new URL(request.url);
         const employeeId = url.searchParams.get('employeeId');
         const typeId = url.searchParams.get('typeId');
+        if (employeeId) requireEmployeeTarget(access, employeeId);
         const req = pool.request().input('companyId', sql.NVarChar(80), ctx.companyId);
-        let where = 'WHERE r.companyId=@companyId';
+        let where = `WHERE r.companyId=@companyId AND ${bindEmployeeScope(req, access, 'r.employeeId', 'recordEmployee')}`;
         if (employeeId) { req.input('employeeId', sql.NVarChar(80), employeeId); where += ' AND r.employeeId=@employeeId'; }
         if (typeId) { req.input('typeId', sql.NVarChar(80), typeId); where += ' AND r.typeId=@typeId'; }
         const result = await req.query(`SELECT r.id,r.employeeId,r.typeId,r.conductedAt,r.validUntil,r.status,r.source,
@@ -54,6 +57,7 @@ app.http('records', {
       const typeId = body.typeId || body.instructionTypeId;
       const employeeIds = Array.isArray(body.employeeIds) ? body.employeeIds : [body.employeeId].filter(Boolean);
       if (!employeeIds.length) return badRequest('employeeId or employeeIds is required');
+      employeeIds.forEach(employeeId => requireEmployeeTarget(access, employeeId));
       const conductedAt = body.conductedAt ? new Date(body.conductedAt) : new Date();
       const intervalMonths = await getInterval(pool, ctx.companyId, typeId);
       const validUntil = body.validUntil ? new Date(body.validUntil) : addMonths(conductedAt, intervalMonths);
@@ -71,7 +75,7 @@ app.http('records', {
           .input('validUntil', sql.DateTime2, validUntil)
           .input('status', sql.NVarChar(40), body.status || 'completed')
           .input('source', sql.NVarChar(40), body.source || (groupId ? 'group' : 'manual'))
-          .input('instructorId', sql.NVarChar(80), body.instructorId || null)
+          .input('instructorId', sql.NVarChar(80), body.instructorId || access.selfEmployeeId || null)
           .input('durationMinutes', sql.Int, body.durationMinutes == null ? null : Number(body.durationMinutes))
           .input('groupId', sql.NVarChar(80), groupId)
           .input('confirmationText', sql.NVarChar(sql.MAX), body.confirmationText || null)

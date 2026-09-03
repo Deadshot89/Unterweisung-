@@ -14,40 +14,56 @@ function managerOptions(selected=''){
 function renderEmployees(){
   const old = $('empSearch')?.value || '';
   const editable = canEditEmployees();
-  $('employees').innerHTML=`<div class="grid">
-    <div class="card span-12"><div class="toolbar"><div><h2>Mitarbeiter-Stammdaten</h2><p class="muted">Aktuelle Firma: <b>${esc(state.companyId || DEFAULT_COMPANY_ID)}</b>. Jede Firma hat ihre eigenen Mitarbeiter.</p></div><input id="empSearch" placeholder="Suchen" value="${esc(old)}"></div>${employeeTable(old, editable)}</div>
+  const companyName = companies().find(c => c.id === state.companyId)?.name || 'Aktuelle Firma';
+  $('employees').innerHTML=`<div class="grid admin-workspace">
+    <div class="card span-12"><div class="toolbar admin-toolbar"><div><h2>Mitarbeiter-Stammdaten</h2><p class="muted">${esc(companyName)} · Stammdaten und Zuständigkeiten</p></div><div class="admin-search"><label for="empSearch">Mitarbeiter suchen</label><input id="empSearch" type="search" placeholder="Name, E-Mail oder Bereich" value="${esc(old)}" aria-controls="employeeResults"></div></div><div id="employeeResults">${employeeTable(old, editable)}</div></div>
     ${editable ? employeeCreateCard() + employeeImportCard() : '<div class="card span-12"><div class="notice warning">Du hast keine Berechtigung zum Bearbeiten der Mitarbeiter.</div></div>'}
   </div>`;
-  $('empSearch')?.addEventListener('input', renderEmployees);
+  $('employees').onclick = handleEmployeeWorkspaceClick;
+  $('empSearch')?.addEventListener('input', event => {
+    $('employeeResults').innerHTML = employeeTable(event.target.value, editable);
+  });
+}
+
+function handleEmployeeWorkspaceClick(event){
+  const button = event.target.closest('button[data-employee-action]');
+  if(!button || !canEditEmployees()) return;
+  const {employeeAction, id, active} = button.dataset;
+  switch(employeeAction){
+    case 'edit': return editEmployee(id);
+    case 'toggle': return toggleEmployee(id, active === 'true');
+    case 'save': return saveEmployee();
+    case 'clear': return clearEmployeeForm();
+    case 'import': return importEmployeesFromText();
+    case 'clear-import': $('employeeImportText').value=''; break;
+  }
 }
 
 function employeeTable(q='', editable=false){
   q=String(q||'').toLowerCase();
   const rows=employees().filter(e=>!q || [e.name,e.email,e.department,e.role,e.title,emp(e.shiftLeaderId||e.lineManagerId).name].join(' ').toLowerCase().includes(q)).sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'de'));
-  if(!rows.length) return '<p class="muted">Keine Mitarbeiter vorhanden. Lege Mitarbeiter einzeln an oder nutze den Import aus Excel.</p>';
-  return `<div class="table-wrap"><table><thead><tr><th>Name</th><th>E-Mail</th><th>Abteilung</th><th>Rolle</th><th>Line Manager</th><th>Status</th><th>Aktion</th></tr></thead><tbody>${rows.map(e=>`<tr>
-    <td><b>${esc(e.name)}</b><br><span class="muted">${esc(e.title||'')}</span></td>
-    <td>${esc(e.email||'—')}</td>
-    <td>${esc(e.department||'—')}</td>
-    <td>${esc(e.role||'Mitarbeiter')}</td>
-    <td>${esc(emp(e.shiftLeaderId||e.lineManagerId).name)}</td>
-    <td>${e.active!==false?'<span class="badge ok">Aktiv</span>':'<span class="badge warn">Inaktiv</span>'}</td>
-    <td>${editable?`<button class="small" onclick="editEmployee('${esc(e.id)}')">Bearbeiten</button> <button class="small" onclick="toggleEmployee('${esc(e.id)}',${e.active!==false?'false':'true'})">${e.active!==false?'Deaktivieren':'Aktivieren'}</button>`:'—'}</td>
-  </tr>`).join('')}</tbody></table></div><p class="muted">${rows.length} Mitarbeiter angezeigt.</p>`;
+  if(!rows.length) return `<p class="admin-empty" role="status">${q ? 'Keine Mitarbeiter für diese Suche gefunden.' : 'Keine Mitarbeiter vorhanden. Lege Mitarbeiter einzeln an oder nutze den Import aus Excel.'}</p>`;
+  return `<div class="table-wrap admin-table-wrap"><table class="admin-table employee-table"><thead><tr><th scope="col">Mitarbeiter</th><th scope="col">Bereich / Funktion</th><th scope="col">Line Manager</th><th scope="col">Status</th><th scope="col">Aktionen</th></tr></thead><tbody>${rows.map(e=>`<tr>
+    <td data-label="Mitarbeiter"><div class="admin-cell"><b>${esc(e.name)}</b><span class="muted">${esc(e.email||'—')}</span>${e.title?`<small class="muted">${esc(e.title)}</small>`:''}</div></td>
+    <td data-label="Bereich / Funktion"><div class="admin-cell"><span>${esc(e.department||'—')}</span><span class="muted">${esc(e.role||'Mitarbeiter')}</span></div></td>
+    <td data-label="Line Manager">${esc(emp(e.shiftLeaderId||e.lineManagerId).name)}</td>
+    <td data-label="Status">${e.active!==false?'<span class="badge ok">Aktiv</span>':'<span class="badge warn">Inaktiv</span>'}</td>
+    <td data-label="Aktionen"><div class="admin-actions">${editable?`<button class="small" data-employee-action="edit" data-id="${esc(e.id)}">Bearbeiten</button><button class="small ghost" data-employee-action="toggle" data-id="${esc(e.id)}" data-active="${e.active===false}">${e.active!==false?'Deaktivieren':'Aktivieren'}</button>`:'—'}</div></td>
+  </tr>`).join('')}</tbody></table></div><p class="muted admin-count" role="status">${rows.length} Mitarbeiter angezeigt.</p>`;
 }
 
 function employeeCreateCard(){
   return `<div class="card span-12"><h2>Mitarbeiter anlegen / bearbeiten</h2>
     <div class="form-grid">
       <input id="empEditId" type="hidden">
-      <div class="field"><label>Name *</label><input id="empName" placeholder="Vorname Nachname"></div>
-      <div class="field"><label>E-Mail</label><input id="empEmail" placeholder="name@firma.de"></div>
-      <div class="field"><label>Abteilung/Bereich</label><input id="empDepartment" placeholder="z. B. Lager, Produktion, Büro"></div>
-      <div class="field"><label>Rolle/Funktion</label><input id="empRole" placeholder="Mitarbeiter" value="Mitarbeiter"></div>
-      <div class="field"><label>Position/Titel</label><input id="empTitle" placeholder="z. B. Teamleiter"></div>
-      <div class="field"><label>Chip/Personalnummer</label><input id="empChip" placeholder="optional"></div>
-      <div class="field full"><label>Line Manager</label><select id="empLineManager">${managerOptions()}</select></div>
-      <div class="field full"><button class="primary" onclick="saveEmployee()">Mitarbeiter speichern</button> <button class="ghost" onclick="clearEmployeeForm()">Formular leeren</button></div>
+      <div class="field"><label for="empName">Name *</label><input id="empName" placeholder="Vorname Nachname"></div>
+      <div class="field"><label for="empEmail">E-Mail</label><input id="empEmail" placeholder="name@firma.de"></div>
+      <div class="field"><label for="empDepartment">Abteilung/Bereich</label><input id="empDepartment" placeholder="z. B. Lager, Produktion, Büro"></div>
+      <div class="field"><label for="empRole">Rolle/Funktion</label><input id="empRole" placeholder="Mitarbeiter" value="Mitarbeiter"></div>
+      <div class="field"><label for="empTitle">Position/Titel</label><input id="empTitle" placeholder="z. B. Teamleiter"></div>
+      <div class="field"><label for="empChip">Chip/Personalnummer</label><input id="empChip" placeholder="optional"></div>
+      <div class="field full"><label for="empLineManager">Line Manager</label><select id="empLineManager">${managerOptions()}</select></div>
+      <div class="field full"><button class="primary" data-employee-action="save">Mitarbeiter speichern</button> <button class="ghost" data-employee-action="clear">Formular leeren</button></div>
     </div>
   </div>`;
 }
@@ -56,8 +72,8 @@ function employeeImportCard(){
   return `<div class="card span-12"><h2>Mitarbeiter aus Excel importieren</h2>
     <p class="muted">In Excel Zeilen markieren, kopieren und hier einfügen. Erste Zeile darf Überschrift sein. Unterstützte Spalten: Name, E-Mail, Abteilung, Rolle, Chip, Line Manager.</p>
     <div class="notice"><b>Beispiel:</b><br><code>Name;E-Mail;Abteilung;Rolle;Chip;Line Manager</code><br><code>Max Mustermann;max@firma.de;Lager;Mitarbeiter;12345;Chef Name</code></div>
-    <div class="field"><label>Excel-/CSV-Zeilen</label><textarea id="employeeImportText" placeholder="Name;E-Mail;Abteilung;Rolle;Chip;Line Manager\nMax Mustermann;max@firma.de;Lager;Mitarbeiter;12345;Chef Name"></textarea></div>
-    <div class="toolbar"><button class="primary" onclick="importEmployeesFromText()">Mitarbeiter importieren</button><button class="ghost" onclick="$('employeeImportText').value=''">Leeren</button></div>
+    <div class="field"><label for="employeeImportText">Excel-/CSV-Zeilen</label><textarea id="employeeImportText" placeholder="Name;E-Mail;Abteilung;Rolle;Chip;Line Manager\nMax Mustermann;max@firma.de;Lager;Mitarbeiter;12345;Chef Name"></textarea></div>
+    <div class="toolbar"><button class="primary" data-employee-action="import">Mitarbeiter importieren</button><button class="ghost" data-employee-action="clear-import">Leeren</button></div>
     <div id="employeeImportResult" class="muted"></div>
   </div>`;
 }

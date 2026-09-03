@@ -4,6 +4,7 @@ import { getPool, sql } from '../lib/db.js';
 import { json, badRequest, notFound, serverError } from '../lib/http.js';
 import { getAuthorizedContext, assertRole, Roles } from '../lib/auth.js';
 import { createReadSasUrl, uploadBufferToBlob } from '../lib/blob.js';
+import { createAnalysisJob, publicAnalysis } from '../lib/instruction-analysis/store.js';
 import { writeAudit } from '../lib/audit.js';
 import { decodeBase64Upload, validateUploadedFile, sanitizeFileName, initialScanStatus } from '../lib/uploadSecurity.js';
 
@@ -16,7 +17,7 @@ function templateBlobPath({ companyId, templateId, safeName }) {
   const date = new Date();
   const yyyy = date.getUTCFullYear();
   const mm = String(date.getUTCMonth() + 1).padStart(2, '0');
-  return `templates/${companyId}/${yyyy}/${mm}/${templateId}_${sanitizeFileName(safeName)}`;
+  return `templates/${companyId}/${yyyy}/${mm}/${templateId}_${uuidv4()}_${sanitizeFileName(safeName)}`;
 }
 
 async function instructionTypeExists(pool, companyId, instructionTypeId) {
@@ -112,12 +113,17 @@ app.http('templateUpload', {
       if (!title) return badRequest('Titel ist erforderlich');
       const category = clean(body.category, 120) || 'Allgemein';
       const description = clean(body.description, 4000);
-      const instructionTypeId = clean(body.instructionTypeId, 80);
+      let instructionTypeId = clean(body.instructionTypeId, 80);
+      const createInstruction = body.createInstruction === true;
+      const analyse = body.analyse === true || createInstruction;
+      const language = String(body.language || 'de').toLowerCase();
+      if (analyse && !['de','en','pl'].includes(language)) return badRequest('Analysesprache ungültig.');
+      if (analyse && !createInstruction && !instructionTypeId) return badRequest('Unterweisung für die Analyse fehlt.');
       if (!(await instructionTypeExists(pool, ctx.companyId, instructionTypeId))) return notFound('Unterweisungstyp nicht gefunden');
 
       const buffer = decodeBase64Upload(body);
       const validation = validateUploadedFile({ fileName: body.fileName, contentType: body.contentType, buffer });
-      const templateId = clean(body.templateId, 80) || `tpl-${uuidv4()}`;
+      const templateId = (analyse ? null : clean(body.templateId, 80)) || `tpl-${uuidv4()}`;
       const blobPath = templateBlobPath({ companyId: ctx.companyId, templateId, safeName: validation.safeName });
       const scanStatus = initialScanStatus();
 
@@ -169,7 +175,14 @@ app.http('templateUpload', {
         metadataJson: { instructionTypeId, detectedExtension: validation.detectedExtension }
       });
 
-      if (instructionTypeId) {
+      if (createInstruction) {
+        instructionTypeId = `type-${uuidv4()}`;
+        await pool.request().input('id', sql.NVarChar(80), instructionTypeId).input('companyId', sql.NVarChar(80), ctx.companyId)
+          .input('name', sql.NVarChar(200), title.slice(0,200)).input('category', sql.NVarChar(120), category)
+          .query('INSERT INTO InstructionTypes(id,companyId,name,category,intervalMonths,active) VALUES(@id,@companyId,@name,@category,12,0)');
+      }
+      // Analysed uploads get a new private source version; publication links it atomically.
+      if (instructionTypeId && !analyse) {
         await pool.request()
           .input('companyId', sql.NVarChar(80), ctx.companyId)
           .input('instructionTypeId', sql.NVarChar(80), instructionTypeId)
@@ -187,8 +200,14 @@ app.http('templateUpload', {
         scanStatus
       });
 
+      let analysis = null;
+      let analysisError = null;
+      if (analyse) {
+        try { analysis = publicAnalysis(await createAnalysisJob(pool, ctx, { templateId, instructionTypeId, sha256: validation.sha256, blobPath, fileName: validation.safeName, contentType: validation.contentType, title, language }, buffer)); }
+        catch { analysisError = 'Die Unterlage wurde gespeichert, der Analyseauftrag konnte jedoch nicht angelegt werden. Bitte erneut zu dieser Unterweisung hochladen.'; }
+      }
       return json({
-        ok: true,
+        ok: true, analysis, analysisError,
         id: templateId,
         templateId,
         title,
