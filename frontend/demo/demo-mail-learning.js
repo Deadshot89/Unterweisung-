@@ -118,7 +118,7 @@ function decorateLearningModal() {
   if (!visual.querySelector('.learning-stage-label')) {
     const label = document.createElement('div');
     label.className = 'learning-stage-label';
-    label.textContent = 'Praxisbeispiel · Lernschritt';
+    label.textContent = 'Lernsituation · Praxisbezug';
     visual.prepend(label);
   }
   const img = visual.querySelector('img');
@@ -126,7 +126,7 @@ function decorateLearningModal() {
   if (step.imageCaption && !visual.querySelector('.learning-image-caption')) {
     const caption = document.createElement('div');
     caption.className = 'learning-image-caption';
-    caption.innerHTML = `<span>Bildhinweis</span><p>${esc(step.imageCaption)}</p>`;
+    caption.innerHTML = `<span>Praxisbezug</span><p>${esc(step.imageCaption)}</p>`;
     visual.appendChild(caption);
   }
 
@@ -142,7 +142,7 @@ function decorateLearningModal() {
   if (Array.isArray(instruction.keyPoints) && instruction.keyPoints.length && !copy.querySelector('.learning-keypoints')) {
     const keypoints = document.createElement('div');
     keypoints.className = 'learning-keypoints';
-    keypoints.innerHTML = `<strong>Das solltest du mitnehmen</strong><ul>${instruction.keyPoints.map(point => `<li>${esc(point)}</li>`).join('')}</ul>`;
+    keypoints.innerHTML = `<strong>Wichtige Merkpunkte</strong><ul>${instruction.keyPoints.map(point => `<li>${esc(point)}</li>`).join('')}</ul>`;
     copy.appendChild(keypoints);
   }
 }
@@ -200,7 +200,7 @@ function renderExternalStep() {
   const step = steps[index];
   if (!step) return;
   const root = modalRoot();
-  root.innerHTML = `<div class="modal-backdrop"><section class="modal external-learning-modal"><div class="modal-head"><div><span class="eyebrow">Externer Demo-Zugang · Kein Konto erforderlich</span><h2>${esc(instruction.name)}</h2></div><button class="btn ghost small" type="button" data-demo-close>Schließen</button></div><div class="modal-body"><div class="external-recipient"><span>Teilnehmer</span><strong>${esc(invitation.recipientName)}</strong><small>${esc(invitation.recipientEmail)}</small></div><section class="learning-goal"><div class="learning-goal-label">Lernziel</div><strong>${esc(instruction.learningGoal || instruction.description)}</strong><p>${esc(instruction.intro || '')}</p></section><div class="external-progress"><span style="width:${Math.round(((index + 1) / steps.length) * 100)}%"></span></div><div class="professional-learning-layout"><div class="learning-stage"><div class="learning-stage-label">Schritt ${index + 1} von ${steps.length}</div><div class="external-learning-image"><img src="${esc(step.image)}" alt="${esc(step.imageCaption || step.title)}"></div><div class="learning-image-caption"><span>Bildhinweis</span><p>${esc(step.imageCaption || step.title)}</p></div></div><div class="learning-copy"><div class="eyebrow">Lerninhalt</div><h3>${esc(step.title)}</h3><p class="learning-lead">${esc(step.text)}</p>${step.calloutText ? `<aside class="learning-callout"><span>${esc(step.calloutTitle || 'Wichtig')}</span><p>${esc(step.calloutText)}</p></aside>` : ''}<div class="learning-keypoints"><strong>Das solltest du mitnehmen</strong><ul>${(instruction.keyPoints || []).map(point => `<li>${esc(point)}</li>`).join('')}</ul></div></div></div></div><div class="modal-actions"><button class="btn ghost" type="button" data-demo-external-prev ${index === 0 ? 'disabled' : ''}>Zurück</button><button class="btn primary" type="button" data-demo-external-next>${index === steps.length - 1 ? 'Demo-Unterweisung abschließen' : 'Weiter'}</button></div></section></div>`;
+  root.innerHTML = `<div class="modal-backdrop"><section class="modal external-learning-modal"><div class="modal-head"><div><span class="eyebrow">Externer Demo-Zugang · Kein Konto erforderlich</span><h2>${esc(instruction.name)}</h2></div><button class="btn ghost small" type="button" data-demo-close>Schließen</button></div><div class="modal-body"><div class="external-recipient"><span>Teilnehmer</span><strong>${esc(invitation.recipientName)}</strong><small>${esc(invitation.recipientEmail)}</small></div><section class="learning-goal"><div class="learning-goal-label">Lernziel</div><strong>${esc(instruction.learningGoal || instruction.description)}</strong><p>${esc(instruction.intro || '')}</p></section><div class="external-progress"><span style="width:${Math.round(((index + 1) / steps.length) * 100)}%"></span></div><div class="professional-learning-layout"><div class="learning-stage"><div class="learning-stage-label">Schritt ${index + 1} von ${steps.length} · Lernsituation</div><div class="external-learning-image"><img src="${esc(step.image)}" alt="${esc(step.imageCaption || step.title)}"></div><div class="learning-image-caption"><span>Praxisbezug</span><p>${esc(step.imageCaption || step.title)}</p></div></div><div class="learning-copy"><div class="eyebrow">Lerninhalt</div><h3>${esc(step.title)}</h3><p class="learning-lead">${esc(step.text)}</p>${step.calloutText ? `<aside class="learning-callout"><span>${esc(step.calloutTitle || 'Wichtig')}</span><p>${esc(step.calloutText)}</p></aside>` : ''}<div class="learning-keypoints"><strong>Wichtige Merkpunkte</strong><ul>${(instruction.keyPoints || []).map(point => `<li>${esc(point)}</li>`).join('')}</ul></div></div></div></div><div class="modal-actions"><button class="btn ghost" type="button" data-demo-external-prev ${index === 0 ? 'disabled' : ''}>Zurück</button><button class="btn primary" type="button" data-demo-external-next>${index === steps.length - 1 ? 'Demo-Unterweisung abschließen' : 'Weiter'}</button></div></section></div>`;
 }
 
 function completeExternalPreview() {
