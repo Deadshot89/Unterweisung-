@@ -53,7 +53,7 @@ export async function getAuthorizedContext(request){
     const roles=[Roles.COMPANY_ADMIN,Roles.HSE,Roles.LINE_MANAGER,Roles.AUTHENTICATED];
     if(shouldGrantDevSystemAdmin(devEmail))roles.unshift(Roles.SYSTEM_ADMIN);
     const isDevSystemAdmin=roles.includes(Roles.SYSTEM_ADMIN);
-    const selectedCompanyId=isDevSystemAdmin?(base.requestedCompanyId||defaultCompanyId()):defaultCompanyId();
+    const selectedCompanyId=isDevSystemAdmin?(base.requestedCompanyId || defaultCompanyId()):defaultCompanyId();
     return {...base,companyId:selectedCompanyId,userId:process.env.DEV_USER_ID||'dev-admin',userDetails:process.env.DEV_USER_NAME||'Pilot Admin',email:devEmail,roles:normalizeRoles(roles),allowedCompanies:[{companyId:selectedCompanyId,role:isDevSystemAdmin?Roles.SYSTEM_ADMIN:Roles.COMPANY_ADMIN,userId:process.env.DEV_USER_ID||'dev-admin',email:devEmail,displayName:process.env.DEV_USER_NAME||'Pilot Admin'}],isAuthenticated:true,isLocalDev:true,authMode:'dev-bypass'};
   }
   if(!base.isAuthenticated){ const err=new Error('Nicht angemeldet');err.status=401;throw err; }
@@ -78,7 +78,7 @@ export async function getAuthorizedContext(request){
   const isSystemAdmin=isSystemAdminByPrincipal||isSystemAdminByDb;
   if(!dbUsers.length&&!requireDbUser&&base.isLocalDev){
     const roles=normalizeRoles([...base.roles,Roles.COMPANY_ADMIN,Roles.HSE,Roles.LINE_MANAGER,Roles.AUTHENTICATED,...(isSystemAdminByPrincipal?[Roles.SYSTEM_ADMIN]:[])]);
-    const selectedCompanyId=roles.includes(Roles.SYSTEM_ADMIN)?(base.requestedCompanyId||defaultCompanyId()):(base.companyId||defaultCompanyId());
+    const selectedCompanyId=roles.includes(Roles.SYSTEM_ADMIN)?(base.requestedCompanyId || defaultCompanyId()):(base.companyId||defaultCompanyId());
     return {...base,companyId:selectedCompanyId,roles,allowedCompanies:[{companyId:selectedCompanyId,role:roles.includes(Roles.SYSTEM_ADMIN)?Roles.SYSTEM_ADMIN:Roles.COMPANY_ADMIN,userId:base.userId,email:base.email,displayName:base.userDetails||'Lokaler Testbenutzer'}],isAuthenticated:true};
   }
   if(!dbUsers.length&&requireDbUser&&!isSystemAdminByPrincipal){const err=new Error('Benutzer ist nicht im Unterweisungsmanager freigeschaltet');err.status=403;throw err;}
