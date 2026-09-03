@@ -1,7 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { DEMO_DATA } from '../frontend/demo/demo-data.js';
 import { createDemoStore } from '../frontend/demo/demo-store.js';
+import { buildDemoProofHtml } from '../frontend/demo/demo-proof.js';
+
+const here = path.dirname(fileURLToPath(import.meta.url));
+const root = path.resolve(here, '..');
 
 function memoryStorage() {
   const bag = new Map();
@@ -19,6 +26,12 @@ test('showcase data is entirely fictional and presentation-complete', () => {
   assert.equal(DEMO_DATA.instructionTypes.length, 10);
   assert.ok(DEMO_DATA.instructionTypes.filter(x => x.deliveryMode === 'online').length >= 3);
   assert.ok(DEMO_DATA.instructionTypes.filter(x => x.deliveryMode === 'practical').length >= 2);
+});
+
+test('at least three online trainings have multiple illustrated learning steps', () => {
+  const online = DEMO_DATA.instructionTypes.filter(x => x.deliveryMode === 'online');
+  const illustrated = online.filter(t => DEMO_DATA.learningSteps.filter(s => s.instructionId === t.id && s.image).length >= 3);
+  assert.ok(illustrated.length >= 3);
 });
 
 test('employee only sees self and line manager only direct reports', () => {
@@ -66,4 +79,26 @@ test('line manager cannot schedule or confirm training outside direct team', () 
   store.setRole('line_manager', 'emp-jonas-keller');
   assert.throws(() => store.schedulePractical('emp-jonas-keller', 'emp-nora-weiss', 'ins-stapler', '2026-09-10T09:00:00'), /Team/);
   assert.throws(() => store.confirmPractical('emp-jonas-keller', 'emp-nora-weiss', 'ins-stapler'), /Team/);
+});
+
+test('demo shell visibly identifies itself and exposes presentation roles', () => {
+  const html = fs.readFileSync(path.join(root, 'frontend/demo/index.html'), 'utf8');
+  assert.match(html, /DEMO – ausschließlich Beispieldaten/);
+  assert.match(html, /id="demoRole"/);
+  assert.match(html, /System-\/Firmenadmin/);
+  assert.match(html, /Führungskraft/);
+  assert.match(html, /Mitarbeiter/);
+  assert.match(html, /type="module"/);
+});
+
+test('demo proof is unmistakably marked as sample', () => {
+  const html = buildDemoProofHtml({
+    company: DEMO_DATA.company,
+    employee: DEMO_DATA.employees[0],
+    instruction: DEMO_DATA.instructionTypes[0],
+    completedAt: '2026-09-03'
+  });
+  assert.match(html, /DEMO \/ MUSTER/);
+  assert.match(html, /Musterwerk Solutions GmbH/);
+  assert.match(html, /keine rechtliche Gültigkeit/);
 });
