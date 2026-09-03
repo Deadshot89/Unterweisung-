@@ -26,6 +26,13 @@ test('guided tour stays inside the local demo and covers the key presentation ro
   assert.doesNotMatch(guide, /fetch\s*\(|XMLHttpRequest|\/api\/|\.auth\//);
 });
 
+test('guided tour presents setup, planning mail and external instruction flows', () => {
+  const guide = fs.readFileSync(demo('presentation-guide.js'), 'utf8');
+  for (const marker of ['setup','Termin per Mail senden','Externe Unterweisung','open-external-invite']) {
+    assert.match(guide, new RegExp(marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  }
+});
+
 test('business value copy avoids fabricated savings claims', () => {
   const html = fs.readFileSync(demo('index.html'), 'utf8');
   assert.doesNotMatch(html, /\b\d+\s*%\s*(?:Ersparnis|weniger Aufwand|Zeitersparnis)/i);
