@@ -1,6 +1,7 @@
 const STORAGE_KEY = 'um-company-showcase-state-v1';
 const ALLOWED_ROLES = new Set(['company_admin', 'line_manager', 'employee']);
 const MAX_IMAGE_BYTES = 1572864;
+const STORE_CACHE = new WeakMap();
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
@@ -30,6 +31,9 @@ function nextDemoId(rows, prefix) {
 }
 
 export function createDemoStore(baseData, storage = globalThis.localStorage) {
+  const cacheableStorage = storage && (typeof storage === 'object' || typeof storage === 'function');
+  if (cacheableStorage && STORE_CACHE.has(storage)) return STORE_CACHE.get(storage);
+
   let state = loadState(baseData, storage);
   let session = { role: 'company_admin', employeeId: 'emp-lena-hoffmann' };
 
@@ -189,6 +193,21 @@ export function createDemoStore(baseData, storage = globalThis.localStorage) {
     }
     persist();
     return clone(instruction);
+  }
+
+  function saveLearningStep(instructionId, stepId, patch = {}) {
+    assertAdmin();
+    const instruction = instructionById(instructionId);
+    if (!instruction || instruction.deliveryMode !== 'online') throw new Error('Online-Unterweisung wurde nicht gefunden.');
+    const step = state.learningSteps.find(item => item.id === stepId && item.instructionId === instructionId);
+    if (!step) throw new Error('Lernschritt wurde nicht gefunden.');
+    const title = cleanText(patch.title ?? step.title);
+    const text = cleanText(patch.text ?? step.text);
+    if (!title || !text) throw new Error('Titel und Erklärung des Lernschritts sind erforderlich.');
+    step.title = title;
+    step.text = text;
+    persist();
+    return clone(step);
   }
 
   function setLearningStepImage(instructionId, stepId, dataUrl, byteSize) {
@@ -369,7 +388,7 @@ export function createDemoStore(baseData, storage = globalThis.localStorage) {
     return clone(state);
   }
 
-  return {
+  const api = {
     getState: () => state,
     getSession,
     setRole,
@@ -378,6 +397,7 @@ export function createDemoStore(baseData, storage = globalThis.localStorage) {
     updateCompanyProfile,
     saveEmployee,
     saveInstruction,
+    saveLearningStep,
     setLearningStepImage,
     assignInstruction,
     advanceLearning,
@@ -387,4 +407,7 @@ export function createDemoStore(baseData, storage = globalThis.localStorage) {
     confirmPractical,
     reset
   };
+
+  if (cacheableStorage) STORE_CACHE.set(storage, api);
+  return api;
 }
