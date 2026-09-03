@@ -10,6 +10,11 @@ import { writeAudit } from '../lib/audit.js';
 function clean(value,max){const text=String(value??'').trim();return text?text.slice(0,max):null;}
 function addMonths(date,months){const d=new Date(date);d.setMonth(d.getMonth()+Number(months||12));return d;}
 function setupError(err){const text=String(err.message||err);if(/Invalid object name 'InternalTrainingAttempts'|Invalid object name 'InstructionLearningSteps'|Invalid column name 'deliveryMode'|Invalid column name 'testRequired'|Invalid column name 'passPercent'/i.test(text)){const e=new Error('Interne Online-Unterweisungen benötigen noch die freizugebende Datenbankmigration 011.');e.status=503;return e;}return err;}
+function nextLearningProgress(currentStep,requestedStep,stepCount){
+  const current=Math.max(0,Math.min(Number(stepCount||0),Number(currentStep||0)));
+  const requested=Math.max(0,Math.min(Number(stepCount||0),Number(requestedStep||0)));
+  return Math.max(current,Math.min(requested,current+1));
+}
 
 async function loadType(pool,companyId,employeeId,instructionTypeId){
   const result=await pool.request().input('companyId',sql.NVarChar(80),companyId).input('employeeId',sql.NVarChar(80),employeeId).input('instructionTypeId',sql.NVarChar(80),instructionTypeId)
@@ -77,10 +82,13 @@ app.http('employeeTraining', {
         .query("SELECT TOP 1 id,status,currentStep,questionSnapshotJson FROM InternalTrainingAttempts WHERE companyId=@companyId AND employeeId=@employeeId AND instructionTypeId=@instructionTypeId AND id=@id");
       const attempt=attemptResult.recordset[0];if(!attempt)return notFound('Lernfortschritt nicht gefunden.');if(attempt.status==='completed')return json({ok:true,passed:true,alreadyCompleted:true});
       if(body.confirmed!==true){
-        const currentStep=Math.max(0,Number(body.currentStep||0));
+        const currentStep=nextLearningProgress(attempt.currentStep,body.currentStep,steps.length);
         await pool.request().input('companyId',sql.NVarChar(80),ctx.companyId).input('id',sql.NVarChar(80),attemptId).input('currentStep',sql.Int,currentStep)
           .query("UPDATE InternalTrainingAttempts SET currentStep=@currentStep,updatedAt=SYSUTCDATETIME() WHERE companyId=@companyId AND id=@id AND status='started'");
         return json({ok:true,currentStep});
+      }
+      if(attempt.currentStep < steps.length){
+        return json({error:'Bitte alle Lernschritte vollständig durchlaufen, bevor du die Unterweisung abschließt.'},409);
       }
       const snapshot=JSON.parse(attempt.questionSnapshotJson||'[]');let test={details:[],scorePercent:100};
       if(type.testRequired){test=answerResult(snapshot,body.answers);if(test.error)return badRequest(test.error);}
