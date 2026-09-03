@@ -40,7 +40,7 @@ function renderInstructions(){
       if(action === 'toggle') toggleInstructionType(row.id, row.active===false);
     }
   });
-  if(!state.testQuestions?.length && (state.apiAvailable || API_BASE_URL)){
+  if(shouldRefreshTestQuestions()){
     reloadTestQuestionResults(false);
   }
 }

@@ -26,7 +26,6 @@ async function loadTestQuestions(force=false, afterWrite=false){
   if(!force && (testQuestionsLoadedCompany === state.companyId || (testQuestionsLoadedCompany === null && state.testQuestions?.length))) return state.testQuestions;
   if(!state.apiAvailable && !API_BASE_URL){ state.testQuestions = []; return []; }
   const companyId = state.companyId;
-  state.testQuestionsLoadError = false;
   const request = {companyId};
   testQuestionsRequests.set(companyId, request);
   request.promise = (async()=>{
@@ -35,6 +34,7 @@ async function loadTestQuestions(force=false, afterWrite=false){
       if(state.companyId === companyId && testQuestionsRequests.get(companyId) === request){
         state.testQuestions = rows;
         testQuestionsLoadedCompany = companyId;
+        state.testQuestionsLoadError = false;
       }
     }catch(err){
       if(state.companyId === companyId && testQuestionsRequests.get(companyId) === request) state.testQuestionsLoadError = true;
@@ -47,6 +47,14 @@ async function loadTestQuestions(force=false, afterWrite=false){
   return request.promise;
 }
 
+function testQuestionLoadMessage(){
+  return state.testQuestionsLoadError ? 'Testfragen konnten nicht geladen werden. Vorhandene Daten bleiben erhalten. Bitte erneut laden.' : '';
+}
+
+function shouldRefreshTestQuestions(){
+  return (!state.testQuestions?.length || testQuestionsRequests.has(state.companyId)) && (state.apiAvailable || API_BASE_URL);
+}
+
 function refreshTestQuestionResults(){
   const target = $('tqResults');
   if(target){
@@ -57,7 +65,7 @@ function refreshTestQuestionResults(){
     if(typeof applyTableFormPolish === 'function') applyTableFormPolish(target);
   }
   const status = $('tqLoadStatus');
-  if(status) status.textContent = state.testQuestionsLoadError ? 'Testfragen konnten nicht geladen werden. Vorhandene Daten bleiben erhalten. Bitte erneut laden.' : '';
+  if(status) status.textContent = testQuestionLoadMessage();
   if(typeof refreshInstructionQuestionCounts === 'function') refreshInstructionQuestionCounts();
 }
 
@@ -83,7 +91,7 @@ function renderInstructions(){
     ${editable ? templateUploadCard() + templateListCard() + testQuestionManagerCard() : '<div class="card span-12"><div class="notice warning">Du hast keine Berechtigung zum Hochladen, Ändern von Vorlagen oder Bearbeiten von Testfragen.</div></div>'}
   </div>`;
   $('instructionSearch')?.addEventListener('input', renderInstructions);
-  if(!state.testQuestions?.length && (state.apiAvailable || API_BASE_URL)){
+  if(shouldRefreshTestQuestions()){
     reloadTestQuestionResults(false);
   }
 }
@@ -99,7 +107,7 @@ function testQuestionManagerCard(){
       <select id="tqLangFilter" onchange="refreshTestQuestionResults()"><option value="">Alle Sprachen</option>${['de','en','pl'].map(l=>`<option value="${l}" ${fLang===l?'selected':''}>${langLabel(l)}</option>`).join('')}</select>
     </div>
     ${testQuestionForm(fType, fLang)}
-    <p id="tqLoadStatus" class="muted" role="status"></p><div id="tqResults">${testQuestionTable(filtered)}</div>
+    <p id="tqLoadStatus" class="muted" role="status">${testQuestionLoadMessage()}</p><div id="tqResults">${testQuestionTable(filtered)}</div>
   </div>`;
 }
 

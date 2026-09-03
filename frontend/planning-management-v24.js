@@ -15,7 +15,6 @@ async function loadPlannedTrainings(force=false, afterWrite=false){
   if(!force && state.data?.plannedTrainings?.length) return state.data.plannedTrainings;
   if(!state.apiAvailable && !API_BASE_URL) return plannedTrainings();
   const companyId = state.companyId;
-  state.planningLoadError = false;
   const request = {companyId};
   plannedTrainingsRequests.set(companyId, request);
   request.promise = (async()=>{
@@ -24,6 +23,7 @@ async function loadPlannedTrainings(force=false, afterWrite=false){
       if(state.companyId !== companyId || plannedTrainingsRequests.get(companyId) !== request) return plannedTrainings();
       state.data = state.data || {};
       state.data.plannedTrainings = rows;
+      state.planningLoadError = false;
       return rows;
     }catch(err){
       if(state.companyId === companyId && plannedTrainingsRequests.get(companyId) === request) state.planningLoadError = true;
@@ -36,12 +36,16 @@ async function loadPlannedTrainings(force=false, afterWrite=false){
   return request.promise;
 }
 
+function planningLoadMessage(){
+  return state.planningLoadError ? 'Planungen konnten nicht geladen werden. Vorhandene Daten bleiben erhalten. Bitte erneut laden.' : '';
+}
+
 function refreshPlannedTrainingResults(){
   const target = $('plannedTrainingResults');
   if(!target) return;
   target.innerHTML = plannedTrainingTable(plannedTrainings(), canEditPlanning());
   const status = $('planningLoadStatus');
-  if(status) status.textContent = state.planningLoadError ? 'Planungen konnten nicht geladen werden. Vorhandene Daten bleiben erhalten. Bitte erneut laden.' : '';
+  if(status) status.textContent = planningLoadMessage();
   if(typeof applyTableFormPolish === 'function') applyTableFormPolish(target);
 }
 
@@ -108,13 +112,14 @@ function planningStatusBadge(status){
 }
 
 function renderPlanning(){
+  if(planningRenderedCompany !== state.companyId) state.planningLoadError = false;
   const editable = canEditPlanning();
   const rows = plannedTrainings();
   $('planning').innerHTML = `<div class="grid">
     <div class="card span-12"><div class="toolbar"><div><h2>Unterweisung planen / zuweisen</h2><p class="muted">Eine geplante Unterweisung enthält Termin, Unterweisung, Teilnehmer, Line Manager und Ort. Beim Abschließen werden für alle Teilnehmer echte Unterweisungseinträge erzeugt.</p></div><button class="ghost" onclick="reloadPlannedTrainingResults()">Planungen neu laden</button></div>
       ${editable ? planningFormCard() : '<div class="notice warning">Du hast keine Berechtigung zum Planen von Unterweisungen.</div>'}
     </div>
-    <div class="card span-12"><h2>Geplante Unterweisungen</h2><p id="planningLoadStatus" class="muted" role="status"></p><div id="plannedTrainingResults">${plannedTrainingTable(rows, editable)}</div></div>
+    <div class="card span-12"><h2>Geplante Unterweisungen</h2><p id="planningLoadStatus" class="muted" role="status">${planningLoadMessage()}</p><div id="plannedTrainingResults">${plannedTrainingTable(rows, editable)}</div></div>
   </div>`;
   $('planEmployeeSearch')?.addEventListener('input', updatePlanningParticipants);
   $('planEmployeeList')?.addEventListener('change', updatePlanningParticipants);
