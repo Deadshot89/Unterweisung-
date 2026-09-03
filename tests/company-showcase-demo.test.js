@@ -102,3 +102,36 @@ test('demo proof is unmistakably marked as sample', () => {
   assert.match(html, /Musterwerk Solutions GmbH/);
   assert.match(html, /keine rechtliche Gültigkeit/);
 });
+
+test('presentation UI contains admin, manager, employee, learning, planning and reset flows', () => {
+  const ui = fs.readFileSync(path.join(root, 'frontend/demo/demo-ui.js'), 'utf8');
+  for (const marker of ['renderAdminDashboard','renderManagerDashboard','renderEmployeeDashboard','openLearning','renderTrainingTest','openScheduleDialog','openPracticalConfirmation','openDemoProof','Demo zurücksetzen']) {
+    assert.match(ui, new RegExp(marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  }
+});
+
+test('demo styles provide responsive presentation cards and modal treatment', () => {
+  const css = fs.readFileSync(path.join(root, 'frontend/demo/demo.css'), 'utf8');
+  assert.match(css, /\.kpi-grid/);
+  assert.match(css, /\.learning-modal/);
+  assert.match(css, /@media/);
+  assert.match(css, /\.employee-bucket/);
+});
+
+test('all learning images are local demo assets', () => {
+  const assets = new Set(DEMO_DATA.learningSteps.map(s => s.image));
+  assert.ok(assets.size >= 4);
+  for (const rel of assets) {
+    assert.ok(rel.startsWith('./assets/'));
+    const file = path.join(root, 'frontend/demo', rel.replace('./',''));
+    assert.ok(fs.existsSync(file), `missing ${file}`);
+  }
+});
+
+test('demo runtime has no network, auth or real-company integration', () => {
+  const files = ['index.html','demo-data.js','demo-store.js','demo-proof.js','demo-ui.js','demo.css'];
+  const combined = files.map(name => fs.readFileSync(path.join(root, 'frontend/demo', name), 'utf8')).join('\n');
+  for (const forbidden of [/fetch\s*\(/, /XMLHttpRequest/, /\/api\//, /\.auth\//, /blob\.core\.windows\.net/i, /company-essentra/i, /essentra/i, /@(gmail|outlook|hotmail)\./i]) {
+    assert.doesNotMatch(combined, forbidden);
+  }
+});
