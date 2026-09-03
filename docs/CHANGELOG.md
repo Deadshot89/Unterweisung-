@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-09-03 – Öffentliche Unternehmens-Demo / Showcase
+
+- Separate Präsentationsumgebung unter `/demo/` mit der vollständig fiktiven **Musterwerk Solutions GmbH**, 15 Fake-Mitarbeitenden und 10 Fake-Unterweisungen.
+- Rollenumschalter für System-/Firmenadmin, Führungskraft und Mitarbeiter; Führungskräfte sehen nur direkte Demo-Teammitglieder, Mitarbeiter ausschließlich die eigene Demo-Person.
+- Präsentations-Dashboard mit Statusmix aus gültig, bald fällig, kritisch, überfällig, fehlend, geplant, in Bearbeitung, nicht erforderlich und praktischer Bestätigung ausstehend.
+- Mehrere bildgestützte Online-Unterweisungen mit lokalen Illustrationen, Lernfortschritt, Bildvergrößerung, Abschlusstest und lokal erzeugtem DEMO-Nachweis.
+- Praktische Unterweisungen lassen sich in der Demo lokal einplanen und ausschließlich durch Admin/Führungskraft bestätigen; Mitarbeiter können diese nicht selbst abschließen.
+- Demo-Nachweise werden rein im Browser erzeugt und tragen sichtbar `DEMO / MUSTER` sowie den Hinweis, dass sie keine rechtliche Gültigkeit besitzen.
+- Sämtliche Änderungen während einer Präsentation verbleiben ausschließlich im Browser-`localStorage` und können über **„Demo zurücksetzen“** vollständig verworfen werden.
+- Automatische Sicherheitsprüfung blockiert Netzwerkaufrufe, Auth-Routen, API-Routen, Azure-Blob-Endpunkte, produktive Firmenreferenzen und reale Mailprovider innerhalb des Demo-Verzeichnisses.
+- Keine produktive Migration, kein Datenimport, keine Secrets, kein SQL-/Blob-Zugriff, kein Mailversand und kein Merge nach `main` werden durch diese Showcase-Branch ausgelöst.
+
 ## v0.36.3 – Mitarbeiterportal, Dual-Login und Bild-Unterweisungen (Preview)
 
 - Interne Anmeldung unterstützt Microsoft sowie E-Mail/Passwort über dieselbe Benutzer-, Firmen- und Rollenlogik. Passwort-Sitzungen sind signiert, HttpOnly und zeitlich begrenzt; Passwörter werden ausschließlich als gesalzene Scrypt-Hashes vorbereitet.
