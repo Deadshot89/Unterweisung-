@@ -42,7 +42,7 @@ jobs:
 
       - name: Company showcase demo checks
         run: |
-          node --test tests/company-showcase-demo.test.js
+          node --test tests/company-showcase-*.test.js
           node scripts/check-company-showcase-demo.js
 
       - name: Diagnose Azure configuration bridge
