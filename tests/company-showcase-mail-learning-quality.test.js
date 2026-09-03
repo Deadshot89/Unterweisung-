@@ -85,6 +85,36 @@ test('core online instructions contain presentation-ready learning goals, summar
   }
 });
 
+test('PSA training is a fully written presentation-quality learning path', () => {
+  const instruction = DEMO_DATA.instructionTypes.find(item => item.id === 'ins-psa');
+  assert.ok(instruction?.learningGoal?.length >= 60);
+  assert.ok(instruction?.intro?.length >= 90);
+  assert.ok(Array.isArray(instruction?.keyPoints) && instruction.keyPoints.length >= 3);
+  const steps = DEMO_DATA.learningSteps.filter(step => step.instructionId === 'ins-psa');
+  assert.equal(steps.length, 3);
+  for (const step of steps) {
+    assert.ok(step.text.length >= 120, `${step.id} explanation too short`);
+    assert.ok(step.imageCaption?.length >= 35, `${step.id} image caption too short`);
+    assert.ok(step.calloutTitle?.length >= 3 && step.calloutText?.length >= 45, `${step.id} callout missing`);
+  }
+});
+
+test('learning copy uses professional section wording instead of the rejected phrase', () => {
+  const ui = readFileSync(new URL('../frontend/demo/demo-mail-learning.js', import.meta.url), 'utf8');
+  assert.doesNotMatch(ui, /Das solltest du mitnehmen/i);
+  assert.match(ui, /Wichtige Merkpunkte/);
+});
+
+test('core learning illustrations are detailed presentation assets rather than minimal placeholders', () => {
+  for (const name of ['work-safety.svg', 'fire-safety.svg', 'phishing.svg', 'warehouse.svg']) {
+    const svg = readFileSync(new URL(`../frontend/demo/assets/${name}`, import.meta.url), 'utf8');
+    assert.ok(svg.length >= 3500, `${name} is still too simple`);
+    assert.match(svg, /linearGradient|radialGradient/);
+    assert.match(svg, /filter|feDropShadow|feGaussianBlur/);
+    assert.match(svg, /aria-label=/);
+  }
+});
+
 test('demo extension exposes external invitation, planning mail and professional learning presentation controls', () => {
   const ui = readFileSync(new URL('../frontend/demo/demo-mail-learning.js', import.meta.url), 'utf8');
   const css = readFileSync(new URL('../frontend/demo/demo-mail-learning.css', import.meta.url), 'utf8');
