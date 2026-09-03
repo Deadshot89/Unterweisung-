@@ -21,10 +21,14 @@ test('deployment exposes data credentials only to server-only settings packaging
 });
 
 test('deployment does not invoke repository maintenance scripts or mutating health probes', () => {
-  // A new direct maintenance invocation must be reviewed rather than silently shipped.
+  // Direct Node scripts are deliberately allow-listed. Read-only validation is safe;
+  // seed/migration/repair/maintenance scripts must still fail this regression.
   const commands = steps.map(step => step.run || '').join('\n');
   const entrypoints = [...commands.matchAll(/\bnode\s+(?:\.\/)?((?:scripts|api)\/[^\s;]+)/g)].map(match => match[1]);
-  assert.deepEqual(entrypoints, ['scripts/prepare-managed-api-settings.js']);
+  assert.deepEqual(entrypoints, [
+    'scripts/check-company-showcase-demo.js',
+    'scripts/prepare-managed-api-settings.js'
+  ]);
   const npmCommands = [...commands.matchAll(/\bnpm\s+run\s+([\w:-]+)/g)].map(match => match[1]);
   assert.deepEqual(npmCommands, []);
   // /api/health currently calls ensureConfiguredContainers: it is not read-only.
