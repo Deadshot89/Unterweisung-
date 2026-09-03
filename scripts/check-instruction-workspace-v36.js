@@ -9,6 +9,7 @@ const css = readFileSync(cssPath, 'utf8');
 const index = readFileSync('frontend/index.html', 'utf8');
 const suite = readFileSync('frontend/professional-suite-v35.js', 'utf8');
 const pkg = JSON.parse(readFileSync('package.json', 'utf8'));
+const expectedRelease = `v${pkg.version}`;
 
 assert.match(ui, /instructionWorkspaceFilters/, 'Unterweisungsfilter fehlen.');
 assert.match(ui, /instructionWorkspaceMetrics/, 'Unterweisungskennzahlen fehlen.');
@@ -27,9 +28,9 @@ assert.match(css, /\.instruction-description-preview/, 'Description-Clamp-CSS fe
 assert.match(css, /overflow-x:\s*auto/, 'Responsive Tabellen-Scroll fehlt.');
 
 assert.match(index, /professional-suite-v36\.css/, 'v0.36 Stylesheet muss geladen werden.');
-assert.match(index, /v0\.36\.2/, 'Sichtbare Version v0.36.2 fehlt.');
-assert.match(suite, /const APP_RELEASE_VERSION = 'v0\.36\.2'/, 'Professional Suite muss v0.36.2 als sichtbare Release-Version führen.');
+assert.match(pkg.version, /^0\.36\.\d+$/, 'Package muss eine v0.36.x-Version führen.');
+assert.ok(index.includes(expectedRelease), `Sichtbare Version ${expectedRelease} fehlt.`);
+assert.ok(suite.includes(`const APP_RELEASE_VERSION = '${expectedRelease}'`), `Professional Suite muss ${expectedRelease} als sichtbare Release-Version führen.`);
 assert.match(suite, /version\.textContent = APP_RELEASE_VERSION/, 'Professional Suite darf die sichtbare Version nicht auf v0.35.x zurücksetzen.');
-assert.equal(pkg.version, '0.36.2');
 
 console.log('Instruction workspace v0.36 checks passed');
