@@ -1,28 +1,56 @@
 name: Seed Unterweisungsmanager Database
 
 on:
-  workflow_dispatch:
   push:
     branches:
       - main
     paths:
-      - "database/**"
-      - "scripts/**"
-      - "templates/**"
-      - ".github/workflows/seed-database.yml"
+      - "operations/data-import-request.json"
+
+permissions:
+  contents: read
 
 concurrency:
   group: seed-database-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
-  seed:
+  authorize:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
+    name: Validate explicit import request (no database access)
+    outputs:
+      approved: ${{ steps.request.outputs.approved }}
+    steps:
+      - name: Checkout exact requested revision
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 2
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Validate request before exposing database credentials
+        id: request
+        run: node .github/scripts/authorize-data-import.cjs
+
+  seed:
+    needs: authorize
+    if: needs.authorize.outputs.approved == 'true' && github.run_attempt == 1
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
     name: Import start data
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
