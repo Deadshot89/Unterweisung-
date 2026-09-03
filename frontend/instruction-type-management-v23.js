@@ -103,12 +103,7 @@ function bindInstructionWorkspaceFilters(){
   bindings.forEach(([id,eventName,key]) => {
     $(id)?.addEventListener(eventName, event => {
       instructionWorkspaceState[key] = event.target.value;
-      renderInstructions();
-      if(key === 'search'){
-        const search = $('instructionSearch');
-        search?.focus();
-        if(search) search.setSelectionRange(search.value.length, search.value.length);
-      }
+      refreshInstructionQuestionSummary();
     });
   });
 }
@@ -119,12 +114,15 @@ function clearInstructionWorkspaceFilters(){
   instructionWorkspaceState.status = '';
   instructionWorkspaceState.template = '';
   instructionWorkspaceState.questions = '';
-  renderInstructions();
+  ['instructionSearch','instructionCategoryFilter','instructionStatusFilter','instructionTemplateFilter','instructionQuestionFilter'].forEach(id=>{
+    if($(id)) $(id).value='';
+  });
+  refreshInstructionQuestionSummary();
 }
 
 function selectInstructionWorkspaceItem(id){
   instructionWorkspaceState.selectedId = id || '';
-  renderInstructions();
+  refreshInstructionQuestionSummary();
   document.querySelector('.instruction-detail-panel')?.scrollIntoView({ behavior:'smooth', block:'nearest' });
 }
 
@@ -210,6 +208,10 @@ function refreshInstructionQuestionSummary(){
   detail.innerHTML=instructionDetailPanel(editable);
   if(typeof bindInstructionManagementActions==='function') bindInstructionManagementActions();
   if(typeof bindTemplateWorkspaceControls==='function') bindTemplateWorkspaceControls();
+  if(typeof applyTableFormPolish==='function'){
+    applyTableFormPolish(overview);
+    applyTableFormPolish(detail);
+  }
 }
 
 function instructionTypeTable(search='', editable=false, preparedRows=null){

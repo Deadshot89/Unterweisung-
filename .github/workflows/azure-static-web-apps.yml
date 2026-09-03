@@ -39,31 +39,6 @@ jobs:
       - name: Run frontend/API syntax checks
         run: npm test
 
-      - name: Repair confirmed Essentra administrator access once
-        if: github.event_name == 'pull_request' && github.head_ref == 'feature/v0.36-instruction-ui' && github.event.pull_request.head.repo.full_name == github.repository
-        env:
-          SQL_CONNECTION_STRING: ${{ secrets.SQL_CONNECTION_STRING }}
-          ACCESS_REPAIR_EMAIL: UnterweisungManagment@outlook.de
-          ACCESS_REPAIR_COMPANY_ID: company-essentra
-          ACCESS_REPAIR_DISPLAY_NAME: Tobias Limberg
-        run: |
-          node scripts/repair-confirmed-admin-access.js --dry-run
-          node scripts/repair-confirmed-admin-access.js --apply
-
-      - name: Diagnose current preview before deployment
-        if: github.event_name == 'pull_request' && github.event.number == 1
-        run: |
-          status="$(curl --connect-timeout 10 --max-time 30 --silent --show-error --output /tmp/preview-health.json --write-out '%{http_code}' https://delightful-sky-05dbf7603-1.westeurope.7.azurestaticapps.net/api/health || true)"
-          echo "Previous preview health HTTP: $status"
-          node --input-type=module <<'NODE'
-          import { readFileSync } from 'node:fs';
-          try {
-            const d = JSON.parse(readFileSync('/tmp/preview-health.json', 'utf8'));
-            const state = v => /^ok(?::|$)/.test(v || '') ? 'ok' : v === 'not_configured' ? v : 'unavailable';
-            console.log(JSON.stringify({ ok: d.ok, database: state(d.database), blobStorage: state(d.blobStorage) }));
-          } catch { console.log('Previous preview did not return JSON health data.'); }
-          NODE
-
       - name: Diagnose Azure configuration bridge
         env:
           SQL_SECRET_PRESENT: ${{ secrets.SQL_CONNECTION_STRING != '' }}
@@ -89,30 +64,6 @@ jobs:
           echo "AZURE_CLIENT_ID repository variable present: $AZURE_CLIENT_ID_VAR_PRESENT"
           echo "AZURE_TENANT_ID repository variable present: $AZURE_TENANT_ID_VAR_PRESENT"
           echo "AZURE_SUBSCRIPTION_ID repository variable present: $AZURE_SUBSCRIPTION_ID_VAR_PRESENT"
-
-      - name: Diagnose existing Function App
-        env:
-          FUNCTION_APP_URL: https://func-unterweisungsmanager-dev-hkf6czbjd5h0hthq.germanywestcentral-01.azurewebsites.net
-        run: |
-          echo "Checking standalone Function App health..."
-          health_status="$(curl --connect-timeout 10 --max-time 20 --silent --show-error --output /tmp/function-health.txt --write-out '%{http_code}' "$FUNCTION_APP_URL/api/health" || true)"
-          echo "Standalone /api/health returned HTTP ${health_status:-curl_error}"
-          if [ "$health_status" = "200" ] && [ -s /tmp/function-health.txt ]; then
-            HEALTH_JSON="$(cat /tmp/function-health.txt)" node -e "const d=JSON.parse(process.env.HEALTH_JSON); console.log(JSON.stringify({ok:d.ok,service:d.service,database:d.database,blobStorage:d.blobStorage}));"
-          elif [ -s /tmp/function-health.txt ]; then
-            echo "Standalone health body received but not HTTP 200"
-          fi
-
-          me_status="$(curl --connect-timeout 10 --max-time 20 --silent --show-error --output /tmp/function-me.txt --write-out '%{http_code}' "$FUNCTION_APP_URL/api/me" || true)"
-          echo "Standalone /api/me without SWA identity returned HTTP ${me_status:-curl_error}"
-          if [ -s /tmp/function-me.txt ]; then
-            node -e "const fs=require('fs'); const t=fs.readFileSync('/tmp/function-me.txt','utf8'); try { const d=JSON.parse(t); console.log(JSON.stringify({error:d.error||d.message||null, authenticated:d.authenticated??null})); } catch { console.log('Standalone /api/me returned non-JSON body'); }"
-          fi
-
-      - name: Add document analysis schema
-        env:
-          SQL_CONNECTION_STRING: ${{ secrets.SQL_CONNECTION_STRING }}
-        run: node scripts/ensure-instruction-analysis-schema.js
 
       - name: Prepare managed API runtime settings
         env:
@@ -144,24 +95,6 @@ jobs:
             if [ -r api/runtime-settings.deploy.json ]; then echo 'Runner can read packaged settings'; else echo 'Runner cannot read packaged settings'; fi
           fi
           sudo rm -f -- api/runtime-settings.deploy.json
-
-      - name: Balance confirmed default test answers
-        if: github.event_name == 'pull_request' && github.head_ref == 'feature/v0.36-instruction-ui' && github.event.pull_request.head.repo.full_name == github.repository
-        env:
-          SQL_CONNECTION_STRING: ${{ secrets.SQL_CONNECTION_STRING }}
-          QUESTION_BALANCE_COMPANY_ID: company-essentra
-        run: |
-          node scripts/rebalance-default-test-questions.js --dry-run
-          node scripts/rebalance-default-test-questions.js --apply
-
-      - name: Diagnose deployed API health
-        if: steps.builddeploy.outputs.static_web_app_url != ''
-        env:
-          STATIC_WEB_APP_URL: ${{ steps.builddeploy.outputs.static_web_app_url }}
-        run: |
-          echo "Checking integrated API health at deployed preview..."
-          health="$(curl --connect-timeout 10 --max-time 30 --fail --silent --show-error "$STATIC_WEB_APP_URL/api/health")"
-          HEALTH_JSON="$health" node -e "const d=JSON.parse(process.env.HEALTH_JSON); const database=d.database==='ok'; const blobStorage=/^ok(?::|$)/.test(d.blobStorage||''); console.log(JSON.stringify({ok:d.ok,database:database?'ok':'unavailable',blobStorage:blobStorage?'ok':'unavailable',documentAnalysis:d.documentAnalysis})); if(!d.ok||!database||!blobStorage) process.exit(1);"
 
       - name: Verify deployed stylesheets
         if: steps.builddeploy.outputs.static_web_app_url != ''

@@ -18,7 +18,7 @@ Diese Einstellungen serverseitig als SWA-Anwendungseinstellungen hinterlegen. F�
 | `AZURE_OPENAI_API_KEY` | Schlüssel der Azure-OpenAI-Ressource | Secret |
 | `AZURE_OPENAI_DEPLOYMENT` | Name der passenden Modellbereitstellung | Secret oder Repository-Variable |
 
-Der Workflow übernimmt die Werte ausschließlich in das ignorierte serverseitige API-Paket. Keine Schlüssel in Frontend, Repository, Chat oder Logs eintragen. SQL-/Blob-Konfiguration bleibt erforderlich. Der neue Schema-Schritt führt nur die additive Migration `010_instruction_analysis.sql` aus; bestehende Inhalte werden nicht migriert oder neu generiert.
+Der Workflow übernimmt die Werte ausschließlich in das ignorierte serverseitige API-Paket. Keine Schlüssel in Frontend, Repository, Chat oder Logs eintragen. SQL-/Blob-Konfiguration bleibt erforderlich. Die bereits eingerichtete Migration `010_instruction_analysis.sql` ist Voraussetzung für die Analyse. Website-Deployments führen sie nicht mehr aus. Bei einer neuen Datenbank muss die Schemaeinrichtung separat geprüft und ausdrücklich freigegeben werden; ein erneutes Website-Deployment ersetzt diese Freigabe nicht. Siehe [Datenimport und Wartung](data-import-control.md).
 
 `/api/health` meldet für `documentAnalysis` lediglich `configured` oder `not_configured`. `configured` bestätigt die vollständige Konfiguration, **keine erfolgreiche Modellanfrage**. Bei fehlender Konfiguration bleibt die Datei mit dem Status „Analysedienst einrichten“ gespeichert. Nach Einrichtung erneut deployen und den gespeicherten Auftrag starten.
 

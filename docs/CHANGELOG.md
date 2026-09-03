@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-09-03 – Vorschau-Sicherheit und Erhalt der Hauptseitenkorrekturen
+
+- v0.36-Deployments führen keine Administratorreparatur, Schemaeinrichtung oder Neuverteilung bestehender Antworten mehr aus. Auch speicherverändernde Health-Aufrufe entfallen; Paketierung, Tests und Stylesheetprüfung bleiben erhalten.
+- Der explizite Importschutz der Hauptseite ist im Vorschau-Branch übernommen. Keine Startdatei wird angelegt; alte Workflow-Läufe nicht erneut starten.
+- Das Desktop-Menü bleibt einspaltig und vertikal scrollbar. Die vorhandene v0.36-Planungsansicht behält Suche und ausgeblendete Teilnehmerauswahl.
+- Unterweisungsfilter, Detailauswahl und Filterrücksetzung lassen Bearbeitungsfelder und Uploadauswahl bestehen. Aktualisierte Tabellen und Detailaktionen erhalten weiterhin ihre Formatierung.
+- Beim Abgleich mit main bleiben die erweiterten v0.36-Oberflächen und die Release-Anzeige erhalten; die Hauptseiten-Regressionsprüfungen werden an diese DOM-Struktur angepasst und weiter ausgeführt. Kein Merge der Vorschau auf main und keine Datenwartung.
+
 ## v0.36.1 – Ausgewogene Testantworten (Preview)
 
 - Standardfragen verteilen die richtige Antwort gleichmäßig auf A, B, C und D: fünf je Position bei 20 Fragen pro Sprache.
