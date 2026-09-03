@@ -4,9 +4,9 @@
 
 **Goal:** Eine öffentlich präsentierbare, vollständig fiktive Demo des Unterweisungsmanagers mit Admin-, Führungskraft- und Mitarbeiteransicht, interaktiven Online-Unterweisungen, praktischer Einplanung, Demo-Nachweisen und Reset-Funktion erstellen, ohne echte API-, Auth-, SQL-, Blob- oder Mail-Verbindungen.
 
-**Architecture:** Die Demo lebt vollständig unter `frontend/demo/` und lädt ausschließlich statische Demodaten. Reine Zustands- und Rollenlogik wird in testbaren, CommonJS-kompatiblen Browsermodulen gekapselt; die UI verwendet diese Module ohne `/api/*` oder `/.auth/*` aufzurufen. Änderungen während einer Präsentation werden nur im Browser-`localStorage` gespeichert und können jederzeit auf den definierten Ausgangszustand zurückgesetzt werden.
+**Architecture:** Die Demo lebt vollständig unter `frontend/demo/` und lädt ausschließlich statische Demodaten. Rollen-, Status-, Lernfortschritts- und Planungslogik liegen in einem testbaren Browsermodul; `demo-ui.js` rendert nur aus diesem Store. Änderungen während einer Präsentation werden ausschließlich in `localStorage` gespeichert und können auf den unveränderlichen Ausgangsdatensatz zurückgesetzt werden.
 
-**Tech Stack:** HTML5, CSS3, Vanilla JavaScript, Node.js-Test-Runner (`node --test`), jsdom/VM für DOM- und statische Sicherheitschecks, bestehende GitHub Actions/Azure Static Web Apps Preview-Infrastruktur.
+**Tech Stack:** HTML5, CSS3, Vanilla JavaScript, Node.js `node --test`, bestehende GitHub Actions/Azure Static Web Apps Preview-Infrastruktur.
 
 **Spec:** `docs/superpowers/specs/2026-09-03-company-showcase-demo-design.md`
 
@@ -28,28 +28,26 @@
 - Demo-Nachweise tragen eindeutig `DEMO / MUSTER`.
 - Bestehende v0.36.3-Regressionstests müssen grün bleiben.
 
----
-
 ## File Structure
 
-- Create: `frontend/demo/index.html` — eigenständiger Demo-Einstieg und Seiten-Shell.
-- Create: `frontend/demo/demo.css` — vollständiges Showcase-Layout, Responsive Design und Lernmodal.
-- Create: `frontend/demo/demo-data.js` — unveränderlicher Ausgangsdatensatz für Musterwerk Solutions GmbH.
-- Create: `frontend/demo/demo-store.js` — reine Rollen-, Status-, Lernfortschritts-, Planungs- und Reset-Logik.
-- Create: `frontend/demo/demo-proof.js` — rein lokaler HTML-/Blob-Nachweis mit DEMO-Wasserzeichen.
-- Create: `frontend/demo/demo-ui.js` — Rendering und Browser-Interaktionen; keine Datenzugriffe außerhalb des Demo-Stores.
-- Create: `frontend/demo/assets/work-safety.svg` — neutrale Illustration Arbeitsschutz.
-- Create: `frontend/demo/assets/fire-safety.svg` — neutrale Illustration Brandschutz.
-- Create: `frontend/demo/assets/phishing.svg` — neutrale Illustration Informationssicherheit.
-- Create: `frontend/demo/assets/warehouse.svg` — neutrale Illustration Lager/Stapler.
-- Create: `tests/company-showcase-demo.test.js` — reine Logik-, Scope-, Lern- und Nachweisregressionen.
-- Create: `scripts/check-company-showcase-demo.js` — statische Sicherheitsprüfung gegen API/Auth/echte Datenreferenzen.
-- Modify: `.github/workflows/azure-static-web-apps.yml` — Demo-Checks vor Deployment aufnehmen und `/demo/` nach Deployment prüfen.
-- Modify: `docs/CHANGELOG.md` — Showcase-Demo dokumentieren.
+- Create: `frontend/demo/index.html` — eigenständiger öffentlicher Demo-Einstieg.
+- Create: `frontend/demo/demo.css` — Showcase-Layout, responsive Ansichten, Modals und Druckdarstellung.
+- Create: `frontend/demo/demo-data.js` — unveränderlicher Ausgangsdatensatz.
+- Create: `frontend/demo/demo-store.js` — Rollen-/Status-/Lern-/Planungs-/Reset-Logik.
+- Create: `frontend/demo/demo-proof.js` — lokale Muster-Nachweise.
+- Create: `frontend/demo/demo-ui.js` — Rendering und Interaktionen.
+- Create: `frontend/demo/assets/work-safety.svg` — Arbeitsschutz-Illustration.
+- Create: `frontend/demo/assets/fire-safety.svg` — Brandschutz-Illustration.
+- Create: `frontend/demo/assets/phishing.svg` — Informationssicherheits-Illustration.
+- Create: `frontend/demo/assets/warehouse.svg` — Lager-/Stapler-Illustration.
+- Create: `tests/company-showcase-demo.test.js` — Daten-, Scope-, Lern-, Praxis-, Reset- und Nachweistests.
+- Create: `scripts/check-company-showcase-demo.js` — statische Sicherheitsprüfung.
+- Modify: `.github/workflows/azure-static-web-apps.yml` — Demo-Pretest und Preview-Verifikation.
+- Modify: `docs/CHANGELOG.md` — Showcase-Dokumentation.
 
 ---
 
-### Task 1: Fiktiven Ausgangsdatensatz und Sicherheitsvertrag festlegen
+### Task 1: Fiktiven Datensatz und Sicherheitsvertrag erstellen
 
 **Files:**
 - Create: `frontend/demo/demo-data.js`
@@ -57,40 +55,41 @@
 - Create: `scripts/check-company-showcase-demo.js`
 
 **Interfaces:**
-- Produces: `DEMO_DATA` mit `{ company, employees, instructionTypes, assignments, plannedTrainings, records, learningSteps, tests }`.
-- Produces: Node-exportfähiges Objekt via `module.exports = DEMO_DATA` und Browser-Export via `window.UM_DEMO_DATA = DEMO_DATA`.
-- Produces: Sicherheitscheck, der alle Dateien unter `frontend/demo/` scannt.
+- Produces: `DEMO_DATA` mit `company`, `employees`, `instructionTypes`, `assignments`, `plannedTrainings`, `records`, `learningSteps`, `tests`.
+- Browser exportiert `window.UM_DEMO_DATA`; Node exportiert `module.exports`.
 
-- [ ] **Step 1: RED-Test für Firma, Personen, E-Mail-Domain und Lern-/Praxismix schreiben**
+- [ ] **Step 1: RED-Test schreiben**
 
 ```js
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const data = require('../frontend/demo/demo-data.js');
 
-test('showcase data is entirely fictional and presentation-complete', () => {
+test('showcase data is fictional and complete', () => {
   assert.equal(data.company.name, 'Musterwerk Solutions GmbH');
   assert.equal(data.employees.length, 15);
+  assert.equal(data.instructionTypes.length, 10);
   assert.ok(data.employees.every(e => e.email.endsWith('@musterwerk.example')));
   assert.ok(data.instructionTypes.filter(x => x.deliveryMode === 'online').length >= 3);
   assert.ok(data.instructionTypes.filter(x => x.deliveryMode === 'practical').length >= 2);
 });
 ```
 
-- [ ] **Step 2: Test ausführen und erwartetes RED bestätigen**
+- [ ] **Step 2: RED ausführen**
 
 Run: `node --test tests/company-showcase-demo.test.js`
-Expected: FAIL, weil `frontend/demo/demo-data.js` noch fehlt.
+Expected: FAIL mit fehlendem `frontend/demo/demo-data.js`.
 
-- [ ] **Step 3: Demodaten als vollständig fiktiven Baseline-Datensatz implementieren**
-
-Der Datensatz enthält exakt die 15 in der Spec benannten Personen. IDs sind rein intern, z. B. `emp-lena-hoffmann`. Rollenwerte: `company_admin`, `line_manager`, `employee`. Direkte Reports werden über `lineManagerId` modelliert. Unterweisungen verwenden `deliveryMode: 'online' | 'practical'`, `testRequired`, `passPercent`, `intervalMonths`.
-
-Beispielstruktur:
+- [ ] **Step 3: Vollständigen Baseline-Datensatz implementieren**
 
 ```js
 const DEMO_DATA = {
-  company: { id: 'company-musterwerk', name: 'Musterwerk Solutions GmbH', industry: 'Produktion & Logistik', location: 'Nordrhein-Westfalen' },
+  company: {
+    id:'company-musterwerk',
+    name:'Musterwerk Solutions GmbH',
+    industry:'Produktion & Logistik',
+    location:'Nordrhein-Westfalen'
+  },
   employees: [
     { id:'emp-lena-hoffmann', name:'Lena Hoffmann', email:'lena.hoffmann@musterwerk.example', department:'Produktion', role:'company_admin', active:true },
     { id:'emp-jonas-keller', name:'Jonas Keller', email:'jonas.keller@musterwerk.example', department:'Produktion', role:'line_manager', lineManagerId:'emp-lena-hoffmann', active:true },
@@ -99,18 +98,21 @@ const DEMO_DATA = {
   instructionTypes: [
     { id:'ins-arbeitsschutz', name:'Allgemeine Arbeitsschutzunterweisung', category:'Arbeitsschutz', deliveryMode:'online', testRequired:true, passPercent:80, intervalMonths:12, active:true },
     { id:'ins-stapler', name:'Flurförderzeuge / Stapler', category:'Lager & Logistik', deliveryMode:'practical', testRequired:false, passPercent:0, intervalMonths:12, active:true }
-  ]
+  ],
+  assignments: [],
+  plannedTrainings: [],
+  records: [],
+  learningSteps: [],
+  tests: []
 };
 
 if (typeof module === 'object' && module.exports) module.exports = DEMO_DATA;
 if (typeof window !== 'undefined') window.UM_DEMO_DATA = DEMO_DATA;
 ```
 
-Die weiteren Personen, Unterweisungen und Zustände werden vollständig analog, aber mit bewusst gemischten Statusfällen angelegt.
+Die Arrays werden im selben Schritt auf die in der Spec festgelegten 15 Personen, 10 Unterweisungen und einen Statusmix aus gültig, bald fällig, kritisch, überfällig, fehlend, geplant, in Bearbeitung, abgeschlossen, nicht erforderlich und Praxisbestätigung ausstehend vervollständigt.
 
-- [ ] **Step 4: Statischen Sicherheitscheck implementieren**
-
-`check-company-showcase-demo.js` liest rekursiv `frontend/demo/` und schlägt fehl bei:
+- [ ] **Step 4: Sicherheitscheck implementieren**
 
 ```js
 const forbidden = [
@@ -125,14 +127,12 @@ const forbidden = [
 ];
 ```
 
-Ausnahme: Der sichtbare Satz `keine API-Verbindung` darf nicht durch die `/api/`-Regel verletzt werden; deshalb keine verbotenen URL-Fragmente in Copy verwenden.
+Das Script liest rekursiv ausschließlich `frontend/demo/`, prüft jede Textdatei und beendet sich bei einem Treffer mit Exit-Code 1.
 
-- [ ] **Step 5: Tests ausführen**
+- [ ] **Step 5: GREEN verifizieren und committen**
 
 Run: `node --test tests/company-showcase-demo.test.js && node scripts/check-company-showcase-demo.js`
 Expected: PASS.
-
-- [ ] **Step 6: Commit**
 
 ```bash
 git add frontend/demo/demo-data.js tests/company-showcase-demo.test.js scripts/check-company-showcase-demo.js
@@ -141,7 +141,7 @@ git commit -m "feat(demo): add isolated fictional showcase dataset"
 
 ---
 
-### Task 2: Testbaren Demo-Store mit Rollen-Scopes und lokalem Zustand bauen
+### Task 2: Demo-Store mit Rollen-Scopes und lokalem Zustand bauen
 
 **Files:**
 - Create: `frontend/demo/demo-store.js`
@@ -150,12 +150,12 @@ git commit -m "feat(demo): add isolated fictional showcase dataset"
 **Interfaces:**
 - Consumes: `DEMO_DATA`.
 - Produces: `createDemoStore(baseData, storage)`.
-- Store methods: `getState()`, `setRole(role, employeeId)`, `getVisibleEmployees()`, `getEmployeeBuckets(employeeId)`, `advanceLearning(employeeId, instructionId)`, `submitTest(employeeId, instructionId, answers)`, `completeOnline(employeeId, instructionId)`, `schedulePractical(managerId, employeeId, instructionId, date)`, `confirmPractical(managerId, employeeId, instructionId)`, `reset()`.
+- Store-API: `getState()`, `getSession()`, `setRole(role, employeeId)`, `getVisibleEmployees()`, `getEmployeeBuckets(employeeId)`, `advanceLearning(employeeId, instructionId)`, `submitTest(employeeId, instructionId, answers)`, `completeOnline(employeeId, instructionId)`, `schedulePractical(managerId, employeeId, instructionId, date)`, `confirmPractical(managerId, employeeId, instructionId)`, `reset()`.
 
 - [ ] **Step 1: RED-Tests für Rollenabgrenzung schreiben**
 
 ```js
-test('employee only sees self and line manager only direct reports', () => {
+test('employee sees self; line manager sees only direct reports', () => {
   const store = createDemoStore(data, memoryStorage());
   store.setRole('employee', 'emp-mila-hartmann');
   assert.deepEqual(store.getVisibleEmployees().map(x => x.id), ['emp-mila-hartmann']);
@@ -167,7 +167,7 @@ test('employee only sees self and line manager only direct reports', () => {
 - [ ] **Step 2: RED ausführen**
 
 Run: `node --test tests/company-showcase-demo.test.js`
-Expected: FAIL, `createDemoStore` fehlt.
+Expected: FAIL mit fehlendem `createDemoStore`.
 
 - [ ] **Step 3: Store-Grundstruktur implementieren**
 
@@ -183,51 +183,51 @@ function createDemoStore(baseData, storage) {
     return state.employees.filter(x => x.id === session.employeeId && x.active !== false);
   }
 
-  return { getState:()=>state, setRole, getVisibleEmployees, reset, /* weitere Methoden */ };
+  return {
+    getState: () => state,
+    getSession: () => ({...session}),
+    setRole,
+    getVisibleEmployees,
+    getEmployeeBuckets,
+    advanceLearning,
+    submitTest,
+    completeOnline,
+    schedulePractical,
+    confirmPractical,
+    reset
+  };
 }
 ```
 
-`loadOrClone` verwendet JSON-Deep-Clone und akzeptiert eine Storage-Abstraktion, damit Tests ohne Browser laufen.
+`loadOrClone`, `persist` und alle oben benannten Methoden werden in diesem Schritt vollständig definiert; Storage bleibt injizierbar, damit Tests ohne Browser laufen.
 
-- [ ] **Step 4: RED-Tests für sequenziellen Lernfortschritt schreiben**
+- [ ] **Step 4: RED-Tests für Lern- und Praxisregeln ergänzen**
 
 ```js
-test('online training cannot skip learning steps or finish before passing test', () => {
+test('online completion requires every step and a passed test', () => {
   const store = createDemoStore(data, memoryStorage());
   const id = 'ins-arbeitsschutz';
   assert.throws(() => store.completeOnline('emp-mila-hartmann', id), /Lernschritte/);
-  const stepCount = data.learningSteps.filter(x => x.instructionId === id).length;
-  for (let i = 0; i < stepCount; i++) store.advanceLearning('emp-mila-hartmann', id);
+  const n = data.learningSteps.filter(x => x.instructionId === id).length;
+  for (let i=0; i<n; i++) store.advanceLearning('emp-mila-hartmann', id);
   assert.throws(() => store.completeOnline('emp-mila-hartmann', id), /Test/);
 });
-```
 
-- [ ] **Step 5: Lernfortschritt/Test/Abschluss minimal implementieren**
-
-`advanceLearning` erhöht immer exakt um einen Schritt bis `stepCount`. `submitTest` wertet die hinterlegten Fragen anhand `correctOption` aus und speichert `score`, `passed`, `completedAt`. `completeOnline` prüft `progress >= stepCount` und bei `testRequired === true` zusätzlich `passed === true`.
-
-- [ ] **Step 6: RED-Tests für praktische Rollenregel und Reset schreiben**
-
-```js
-test('employee cannot confirm practical training and reset restores baseline', () => {
+test('employee cannot confirm a practical training', () => {
   const store = createDemoStore(data, memoryStorage());
-  store.setRole('employee', 'emp-mila-hartmann');
+  store.setRole('employee','emp-mila-hartmann');
   assert.throws(() => store.confirmPractical('emp-mila-hartmann','emp-mila-hartmann','ins-stapler'), /Führungskraft/);
-  store.reset();
-  assert.equal(store.getState().company.name, 'Musterwerk Solutions GmbH');
 });
 ```
 
-- [ ] **Step 7: Planung, praktische Bestätigung, Persistenz und Reset implementieren**
+- [ ] **Step 5: Lern-/Praxislogik und Reset implementieren**
 
-Nur `line_manager` oder `company_admin` dürfen `schedulePractical` und `confirmPractical` ausführen. Line Manager dürfen nur direkte Reports verändern. Jede mutierende Methode ruft `persist()` auf; `reset()` löscht den Storage-Key und lädt `baseData` neu.
+`advanceLearning` erhöht den gespeicherten Fortschritt immer exakt um einen Schritt bis zur Schrittanzahl. `submitTest` berechnet Prozentwert und `passed` aus `correctOption`. `completeOnline` prüft Schrittanzahl und Teststatus. `schedulePractical`/`confirmPractical` erlauben Admin alle Demo-Mitarbeiter, Line Managern ausschließlich direkte Reports und Mitarbeitern keine Bestätigung. Jede Mutation ruft `persist()` auf; `reset()` löscht den Storage-Key und lädt den Baseline-Datensatz neu.
 
-- [ ] **Step 8: Gesamttest ausführen**
+- [ ] **Step 6: GREEN verifizieren und committen**
 
 Run: `node --test tests/company-showcase-demo.test.js`
 Expected: PASS.
-
-- [ ] **Step 9: Commit**
 
 ```bash
 git add frontend/demo/demo-store.js tests/company-showcase-demo.test.js
@@ -246,13 +246,13 @@ git commit -m "feat(demo): add role-scoped local showcase state"
 
 **Interfaces:**
 - Consumes: `window.UM_DEMO_DATA`, `window.UMDemoStore.createDemoStore`.
-- Produces: DOM-Container `#demoApp`, `#demoRole`, `#demoPerson`, `#demoReset`, `#demoNav`, `#demoContent`.
-- Produces: `renderApp()`, `renderAdminDashboard()`, `renderManagerDashboard()`, `renderEmployeeDashboard()`.
+- Produces DOM-IDs: `demoRole`, `demoPerson`, `demoReset`, `demoNav`, `demoContent`.
+- Produces UI-Funktionen: `renderApp`, `renderAdminDashboard`, `renderManagerDashboard`, `renderEmployeeDashboard`.
 
-- [ ] **Step 1: RED-DOM-Test für Demo-Hinweis und Rollensteuerung schreiben**
+- [ ] **Step 1: RED-Shell-Test schreiben**
 
 ```js
-test('demo shell visibly identifies itself and exposes presentation roles', () => {
+test('demo shell is clearly marked and offers all presentation roles', () => {
   const html = fs.readFileSync('frontend/demo/index.html','utf8');
   assert.match(html, /DEMO – ausschließlich Beispieldaten/);
   assert.match(html, /id="demoRole"/);
@@ -265,11 +265,11 @@ test('demo shell visibly identifies itself and exposes presentation roles', () =
 - [ ] **Step 2: RED ausführen**
 
 Run: `node --test tests/company-showcase-demo.test.js`
-Expected: FAIL, weil `index.html` fehlt.
+Expected: FAIL, weil `frontend/demo/index.html` fehlt.
 
-- [ ] **Step 3: HTML-Shell implementieren**
+- [ ] **Step 3: Eigenständige HTML-Shell und Design implementieren**
 
-`index.html` enthält ausschließlich relative Demo-Skripte:
+`index.html` lädt nur:
 
 ```html
 <script src="./demo-data.js"></script>
@@ -278,26 +278,20 @@ Expected: FAIL, weil `index.html` fehlt.
 <script src="./demo-ui.js"></script>
 ```
 
-Kein `config.js`, kein `app.js`, kein Auth-Link und kein produktives Script wird geladen.
+Es lädt weder `/config.js` noch `/app.js`, Auth-Skripte oder produktive Funktionsmodule. `demo.css` enthält responsives Desktop-/Mobil-Layout, KPI-Karten, Status-Badges, Tabellen/Karten, Sticky-Demo-Banner, Rollensteuerung und Modal-Grundlayout ohne externe Fonts/CDNs.
 
-- [ ] **Step 4: Präsentationsdesign implementieren**
+- [ ] **Step 4: Rollenwechsel und drei Dashboards implementieren**
 
-CSS enthält Desktop- und Mobile-Layout, KPI-Karten, Status-Badges, Tabellen/Karten, Sticky Demo-Banner, Rollenumschalter, Lernmodal und klare Aktionsbuttons. Keine externen Fonts oder CDN-Abhängigkeiten.
+Admin: Mitarbeiter, Unterweisungen, gültig, bald fällig, überfällig, fehlend, geplant, Abschlussquote, Abteilungen, Handlungsbedarf.
 
-- [ ] **Step 5: Rollenwechsel und Admin-Dashboard implementieren**
+Führungskraft: nur direkte Reports, Teamstatus, offene Aufgaben, Planung und Praxisbestätigung.
 
-Admin-Ansicht zeigt mindestens Mitarbeiter gesamt, aktive Unterweisungen, gültig, bald fällig, überfällig, fehlend, geplant, Abschlussquote, Abteilungsübersicht und Handlungsbedarf.
+Mitarbeiter: `Jetzt erledigen`, `Einplanung erforderlich`, `Geplante Termine`, `Bald fällig`, `Abgeschlossen`.
 
-- [ ] **Step 6: Führungskraft- und Mitarbeiterdashboard implementieren**
-
-Führungskraft zeigt nur direkte Reports. Mitarbeiteransicht gruppiert in `Jetzt erledigen`, `Einplanung erforderlich`, `Geplante Termine`, `Bald fällig`, `Abgeschlossen`.
-
-- [ ] **Step 7: Tests und Sicherheitscheck ausführen**
+- [ ] **Step 5: GREEN/Sicherheitscheck verifizieren und committen**
 
 Run: `node --test tests/company-showcase-demo.test.js && node scripts/check-company-showcase-demo.js`
 Expected: PASS.
-
-- [ ] **Step 8: Commit**
 
 ```bash
 git add frontend/demo/index.html frontend/demo/demo.css frontend/demo/demo-ui.js tests/company-showcase-demo.test.js
@@ -306,7 +300,7 @@ git commit -m "feat(demo): add presentation shell and role dashboards"
 
 ---
 
-### Task 4: Bildgestützte Online-Unterweisung mit Test und Zoom umsetzen
+### Task 4: Bildgestützte Online-Unterweisungen mit Test und Zoom umsetzen
 
 **Files:**
 - Create: `frontend/demo/assets/work-safety.svg`
@@ -319,13 +313,13 @@ git commit -m "feat(demo): add presentation shell and role dashboards"
 - Modify: `tests/company-showcase-demo.test.js`
 
 **Interfaces:**
-- Consumes: `store.advanceLearning`, `store.submitTest`, `store.completeOnline`.
+- Consumes: `advanceLearning`, `submitTest`, `completeOnline`.
 - Produces: `openLearning(instructionId)`, `renderLearningStep()`, `renderTrainingTest()`, `renderTrainingResult()`.
 
-- [ ] **Step 1: RED-Test für mindestens drei vollständige Lernstrecken schreiben**
+- [ ] **Step 1: RED-Test für illustrierte Lernstrecken schreiben**
 
 ```js
-test('at least three online trainings have multiple illustrated learning steps', () => {
+test('three online trainings contain at least three illustrated steps each', () => {
   const online = data.instructionTypes.filter(x => x.deliveryMode === 'online');
   const illustrated = online.filter(t => data.learningSteps.filter(s => s.instructionId === t.id && s.image).length >= 3);
   assert.ok(illustrated.length >= 3);
@@ -335,30 +329,20 @@ test('at least three online trainings have multiple illustrated learning steps',
 - [ ] **Step 2: RED ausführen**
 
 Run: `node --test tests/company-showcase-demo.test.js`
-Expected: FAIL, bis die Lernschritte vollständig hinterlegt sind.
+Expected: FAIL, bis drei vollständige Lernstrecken hinterlegt sind.
 
-- [ ] **Step 3: Neutrale lokale SVG-Illustrationen erstellen und Demodaten vervollständigen**
+- [ ] **Step 3: Lokale SVGs und Lerninhalte implementieren**
 
-SVGs zeigen abstrakte, nicht markenbezogene Arbeitssituationen mit Formen/Icons; keine realen Personen, Logos oder Firmenfotos. Lernschritte erhalten relative Bildpfade wie `./assets/work-safety.svg`.
+Alle SVGs sind neutrale, selbst erstellte Vektorillustrationen ohne reale Personen, Logos oder Firmenbilder. Mindestens Arbeitsschutz, Brandschutz und Informationssicherheit erhalten je drei Lernschritte mit Bild, Überschrift und Kurztext; Tests enthalten je mindestens drei Single-Choice-Fragen.
 
-- [ ] **Step 4: Lernmodal implementieren**
+- [ ] **Step 4: Lernmodal, Zoom und Testfluss implementieren**
 
-Modal zeigt Titel, Schritt `x / n`, Fortschrittsbalken, Bild, Kurztext, `Zurück`, `Weiter`, `Bild vergrößern`. `Weiter` ruft genau einmal `advanceLearning` auf. Abschlussbutton erscheint erst nach letztem Schritt.
+Das Modal zeigt Schritt `x / n`, Fortschrittsbalken, lokales Bild, Kurztext, Vor/Zurück und Bildzoom. `Weiter` ruft genau einmal `advanceLearning` auf. Nach dem letzten Schritt folgt der Test. Nicht bestanden zeigt `Test erneut versuchen`; bestanden erlaubt `completeOnline` und aktualisiert anschließend die Mitarbeiter-Buckets.
 
-- [ ] **Step 5: Testansicht implementieren**
-
-Fragen sind Single-Choice. `Test auswerten` übergibt Antwort-Indizes an `submitTest`. Bei Nichtbestehen bleibt die Unterweisung offen und bietet `Test erneut versuchen`; bei Bestehen wird `completeOnline` angeboten.
-
-- [ ] **Step 6: Bildzoom implementieren**
-
-Zoom nutzt dasselbe lokale Asset in einem zweiten Modal/Overlay, Escape und Klick auf Schließen beenden den Zoom.
-
-- [ ] **Step 7: Tests/Sicherheitscheck ausführen**
+- [ ] **Step 5: GREEN/Sicherheitscheck verifizieren und committen**
 
 Run: `node --test tests/company-showcase-demo.test.js && node scripts/check-company-showcase-demo.js`
 Expected: PASS.
-
-- [ ] **Step 8: Commit**
 
 ```bash
 git add frontend/demo/assets frontend/demo/demo-data.js frontend/demo/demo-ui.js frontend/demo/demo.css tests/company-showcase-demo.test.js
@@ -367,46 +351,41 @@ git commit -m "feat(demo): add illustrated online training experience"
 
 ---
 
-### Task 5: Praktische Unterweisung, Planung und Führungskräfte-Bestätigung demonstrierbar machen
+### Task 5: Praktische Unterweisung und Terminplanung in der UI demonstrieren
 
 **Files:**
 - Modify: `frontend/demo/demo-ui.js`
-- Modify: `frontend/demo/demo-css`
+- Modify: `frontend/demo/demo.css`
 - Modify: `tests/company-showcase-demo.test.js`
 
 **Interfaces:**
-- Consumes: `store.schedulePractical`, `store.confirmPractical`.
+- Consumes: `schedulePractical`, `confirmPractical`.
 - Produces: `openScheduleDialog(employeeId, instructionId)`, `openPracticalConfirmation(employeeId, instructionId)`.
 
-- [ ] **Step 1: RED-Test für Direct-Report-Grenze schreiben**
+- [ ] **Step 1: RED-Test für die UI-Vertragsfunktionen schreiben**
 
 ```js
-test('line manager cannot schedule or confirm training outside direct team', () => {
-  const store = createDemoStore(data, memoryStorage());
-  store.setRole('line_manager','emp-jonas-keller');
-  assert.throws(() => store.schedulePractical('emp-jonas-keller','emp-nora-weiss','ins-stapler','2026-09-10'), /Team/);
+test('demo manager UI exposes local scheduling and practical confirmation flows', () => {
+  const source = fs.readFileSync('frontend/demo/demo-ui.js','utf8');
+  assert.match(source, /function openScheduleDialog\s*\(/);
+  assert.match(source, /function openPracticalConfirmation\s*\(/);
+  assert.match(source, /Wird nur lokal in dieser Demo gespeichert/);
 });
 ```
 
-- [ ] **Step 2: RED ausführen und Grenzfall bestätigen**
+- [ ] **Step 2: RED ausführen**
 
 Run: `node --test tests/company-showcase-demo.test.js`
-Expected: FAIL, falls Scope noch nicht vollständig erzwungen wird.
+Expected: FAIL, bis beide UI-Funktionen existieren.
 
-- [ ] **Step 3: Manager-UI für Terminplanung implementieren**
+- [ ] **Step 3: Terminplanung und Praxisbestätigung implementieren**
 
-Dialog enthält Demo-Mitarbeiter, Unterweisung, Datum und Hinweis `Wird nur lokal in dieser Demo gespeichert`. Nach Speichern erscheint der Termin sofort in Manager- und Mitarbeiteransicht.
+Terminplanung zeigt Mitarbeiter, Unterweisung, Datum und den lokalen Demo-Hinweis. Nach Speichern erscheint der Termin sofort in Führungskraft- und Mitarbeiteransicht. Praxisbestätigung erzeugt über den Store einen Abschlussrecord mit `confirmedBy`, `completedAt` und `source:'demo-practical'`. Die Mitarbeiteransicht enthält keinen Selbstbestätigungsbutton.
 
-- [ ] **Step 4: Praktische Bestätigung implementieren**
-
-Bestätigung erzeugt lokal einen Abschlussrecord mit `confirmedBy`, `completedAt`, `source:'demo-practical'`. Mitarbeiteransicht enthält keinen Bestätigungsbutton.
-
-- [ ] **Step 5: Tests ausführen**
+- [ ] **Step 4: GREEN verifizieren und committen**
 
 Run: `node --test tests/company-showcase-demo.test.js`
 Expected: PASS.
-
-- [ ] **Step 6: Commit**
 
 ```bash
 git add frontend/demo/demo-ui.js frontend/demo/demo.css tests/company-showcase-demo.test.js
@@ -415,7 +394,7 @@ git commit -m "feat(demo): add practical training planning and confirmation"
 
 ---
 
-### Task 6: Demo-Nachweis und vollständigen Reset implementieren
+### Task 6: Demo-Nachweise und vollständigen Reset implementieren
 
 **Files:**
 - Create: `frontend/demo/demo-proof.js`
@@ -425,41 +404,41 @@ git commit -m "feat(demo): add practical training planning and confirmation"
 
 **Interfaces:**
 - Produces: `buildDemoProofHtml({ company, employee, instruction, completedAt, confirmedBy })`.
-- Produces: `openDemoProof(recordId)` und `downloadDemoProof(recordId)`.
+- Produces: `openDemoProof(recordId)`, `downloadDemoProof(recordId)`.
 
-- [ ] **Step 1: RED-Test für Nachweiskennzeichnung schreiben**
+- [ ] **Step 1: RED-Test für Musterkennzeichnung schreiben**
 
 ```js
 test('demo proof is unmistakably marked as sample', () => {
-  const html = buildDemoProofHtml({ company:data.company, employee:data.employees[0], instruction:data.instructionTypes[0], completedAt:'2026-09-03' });
+  const html = buildDemoProofHtml({
+    company:data.company,
+    employee:data.employees[0],
+    instruction:data.instructionTypes[0],
+    completedAt:'2026-09-03'
+  });
   assert.match(html, /DEMO \/ MUSTER/);
   assert.match(html, /Musterwerk Solutions GmbH/);
+  assert.match(html, /keine rechtliche Gültigkeit/);
 });
 ```
 
 - [ ] **Step 2: RED ausführen**
 
 Run: `node --test tests/company-showcase-demo.test.js`
-Expected: FAIL, `buildDemoProofHtml` fehlt.
+Expected: FAIL mit fehlendem `buildDemoProofHtml`.
 
-- [ ] **Step 3: Nachweisgenerator implementieren**
+- [ ] **Step 3: Lokalen Nachweisgenerator implementieren**
 
-Generator liefert ein vollständiges druckbares HTML-Dokument mit großem Wasserzeichen `DEMO / MUSTER`, Demo-Firma, Mitarbeiter, Unterweisung, Abschlussdatum, optional bestätigender Führungskraft und Hinweis `Dieser Nachweis ist ein fiktives Präsentationsmuster und besitzt keine rechtliche Gültigkeit.`
+Das HTML enthält großes Wasserzeichen `DEMO / MUSTER`, Demo-Firma, Mitarbeiter, Unterweisung, Abschlussdatum, optional bestätigende Führungskraft und exakt den Hinweis `Dieser Nachweis ist ein fiktives Präsentationsmuster und besitzt keine rechtliche Gültigkeit.`. Öffnen und Herunterladen erfolgen ausschließlich über Browser-Blob-URLs; Dateiname: `DEMO_Nachweis_<Name>_<Unterweisung>.html`.
 
-- [ ] **Step 4: Öffnen und Download lokal implementieren**
+- [ ] **Step 4: Reset-UI implementieren**
 
-`openDemoProof` öffnet einen Blob-URL in neuem Fenster. `downloadDemoProof` erzeugt eine `.html`-Datei mit Dateiname `DEMO_Nachweis_<Name>_<Unterweisung>.html`. Kein Serverzugriff.
+`Demo zurücksetzen` fragt einmal nach Bestätigung, ruft `store.reset()` auf, setzt die Präsentationsrolle auf `company_admin` / `emp-lena-hoffmann` und rendert das Admin-Dashboard neu.
 
-- [ ] **Step 5: Reset-Bestätigung und Präsentations-Reset implementieren**
-
-`Demo zurücksetzen` fragt einmal nach Bestätigung, ruft `store.reset()` auf, setzt Rolle auf Admin/Lena Hoffmann und rendert Dashboard neu.
-
-- [ ] **Step 6: Tests und Sicherheitscheck ausführen**
+- [ ] **Step 5: GREEN/Sicherheitscheck verifizieren und committen**
 
 Run: `node --test tests/company-showcase-demo.test.js && node scripts/check-company-showcase-demo.js`
 Expected: PASS.
-
-- [ ] **Step 7: Commit**
 
 ```bash
 git add frontend/demo/demo-proof.js frontend/demo/demo-ui.js frontend/demo/demo.css tests/company-showcase-demo.test.js
@@ -468,7 +447,7 @@ git commit -m "feat(demo): add sample proofs and deterministic reset"
 
 ---
 
-### Task 7: Deployment-Vertrag, Regression und öffentliche Preview absichern
+### Task 7: CI, Preview und Vertriebsfreigabe absichern
 
 **Files:**
 - Modify: `.github/workflows/azure-static-web-apps.yml`
@@ -477,11 +456,9 @@ git commit -m "feat(demo): add sample proofs and deterministic reset"
 
 **Interfaces:**
 - Consumes: bestehende Azure Static Web Apps PR-Preview.
-- Produces: CI-Schritt `Company showcase demo checks` und Post-Deploy-Prüfung auf `/demo/`.
+- Produces: CI-Schritt `Company showcase demo checks` und eine verifizierte öffentliche `/demo/`-Preview.
 
-- [ ] **Step 1: Workflow um Demo-Pretest erweitern**
-
-Vor `Build And Deploy` ausführen:
+- [ ] **Step 1: Demo-Checks in den Workflow aufnehmen**
 
 ```yaml
 - name: Company showcase demo checks
@@ -490,17 +467,17 @@ Vor `Build And Deploy` ausführen:
     node scripts/check-company-showcase-demo.js
 ```
 
-- [ ] **Step 2: Post-Deploy-Prüfung ergänzen**
+Der Schritt läuft vor `Build And Deploy`.
 
-Die bereits vom Azure-Schritt bereitgestellte Preview-URL wird um `/demo/` ergänzt. Prüfung verlangt HTTP 200 und im Body sowohl `Musterwerk Solutions GmbH` als auch `DEMO – ausschließlich Beispieldaten`.
+- [ ] **Step 2: Post-Deploy-Verifikation ergänzen**
 
-- [ ] **Step 3: Changelog aktualisieren**
+Die vom Azure-Deploy bereitgestellte Preview-Basis wird mit `/demo/` geprüft. Erwartet werden HTTP 200 sowie die Textmarker `Musterwerk Solutions GmbH` und `DEMO – ausschließlich Beispieldaten`.
 
-Eintrag beschreibt separate öffentliche Showcase-Demo, Fake-Daten, Rollenumschalter, Online-/Praxis-Unterweisungen, Demo-Nachweise und vollständige Datenisolation. Kein Produktivrelease behaupten.
+- [ ] **Step 3: Changelog ergänzen**
 
-- [ ] **Step 4: Lokale Vollprüfung ausführen**
+Dokumentieren: separate Showcase-Demo, ausschließlich Fake-Daten, Rollenumschalter, Online-/Praxis-Unterweisungen, lokale Demo-Nachweise, Reset, keine Produktivverbindung. Kein Produktivrelease behaupten.
 
-Run:
+- [ ] **Step 4: Vollständige Regression ausführen**
 
 ```bash
 node --test tests/*.test.js
@@ -511,18 +488,20 @@ node scripts/check-professional-suite.js
 
 Expected: alle Tests/Checks PASS.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 5: CI-/Docs-Commit erstellen**
 
 ```bash
 git add .github/workflows/azure-static-web-apps.yml scripts/check-company-showcase-demo.js docs/CHANGELOG.md
 git commit -m "ci(demo): verify isolated showcase preview"
 ```
 
-- [ ] **Step 6: Draft-PR von `demo/company-showcase` gegen `feature/v0.36-instruction-ui` öffnen**
+- [ ] **Step 6: Draft-PR öffnen**
 
-PR-Titel: `Demo: öffentliche Firmen-Showcase-Vorschau mit Beispieldaten`
+Head: `demo/company-showcase`
+Base: `feature/v0.36-instruction-ui`
+Titel: `Demo: öffentliche Firmen-Showcase-Vorschau mit Beispieldaten`
 
-PR-Body dokumentiert ausdrücklich:
+PR-Body enthält ausdrücklich:
 
 ```text
 - ausschließlich fiktive Daten
@@ -532,19 +511,13 @@ PR-Body dokumentiert ausdrücklich:
 - Preview-Link erst nach grünem Workflow freigeben
 ```
 
-- [ ] **Step 7: GitHub Actions abwarten und jeden fehlgeschlagenen Schritt prüfen**
+- [ ] **Step 7: Workflow und Preview verifizieren**
 
-Erwartet: Build/Deploy `success`; Demo-Pretest und alle bestehenden Regressionen grün.
-
-- [ ] **Step 8: Preview-Verifikation dokumentieren**
-
-Öffentlichen Azure-Preview-Link mit `/demo/` als Präsentationslink festhalten. Zusätzlich PR-Status, Commit-SHA und Workflow-Run-ID dokumentieren.
-
----
+Erwartet: Build/Deploy `success`, Demo-Pretest und bestehende Regressionen grün. Anschließend Preview-URL mit `/demo/`, finalen Commit-SHA und Workflow-Run-ID im PR dokumentieren.
 
 ## Self-Review
 
-- Spec coverage: Sicherheitsisolation, Fake-Firma, 15 Fake-Mitarbeiter, Rollen, 10 Unterweisungen, Online-/Praxis-Modus, Statusmix, Admin-/Manager-/Mitarbeiteransichten, Lernstrecke, Test, Zoom, lokale Interaktionen, Reset, Demo-Nachweis, Präsentationsablauf, Tests und Preview-Deployment sind jeweils konkreten Tasks zugeordnet.
-- Placeholder scan: Keine `TBD`, `TODO`, `implement later` oder unbestimmten Fehlerbehandlungsanweisungen enthalten.
-- Type consistency: `DEMO_DATA`, `createDemoStore`, Rollenwerte, Mitarbeiter-/Unterweisungs-IDs und Store-Methoden werden einmal definiert und in Folgetasks identisch verwendet.
-- Scope: Keine echte Kundenregistrierung, Lizenzierung, CRM-, Login-, Mail-, SQL- oder Blob-Funktion wird in diesen Showcase-Plan aufgenommen.
+- Spec coverage: Sicherheitsisolation, Fake-Firma, 15 Fake-Mitarbeiter, zehn Unterweisungen, Rollen, Statusmix, Admin-/Manager-/Mitarbeiteransichten, Online-Lernstrecken, Test, Zoom, Praxisplanung, Bestätigung, Nachweis, Reset und Preview-Deployment sind konkreten Tasks zugeordnet.
+- Placeholder scan: Keine `TBD`, `TODO`, `implement later`, Platzhalter-Kommentare oder unbestimmten Methodenlisten enthalten.
+- Type consistency: `DEMO_DATA`, `createDemoStore`, Rollenwerte und Store-Methoden werden in allen Tasks identisch benannt.
+- Scope: Keine echte Kundenregistrierung, Lizenzierung, CRM-, Login-, Mail-, SQL- oder Blob-Funktion ist Bestandteil dieses Plans.
