@@ -1,5 +1,6 @@
 const STORAGE_KEY = 'um-company-showcase-state-v1';
 const ALLOWED_ROLES = new Set(['company_admin', 'line_manager', 'employee']);
+const MAX_IMAGE_BYTES = 1572864;
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
@@ -16,6 +17,18 @@ function loadState(baseData, storage) {
   }
 }
 
+function cleanText(value) {
+  return String(value ?? '').trim();
+}
+
+function nextDemoId(rows, prefix) {
+  const numbers = rows
+    .map(row => String(row.id || '').match(new RegExp(`^${prefix}(\\d+)$`)))
+    .filter(Boolean)
+    .map(match => Number(match[1]));
+  return `${prefix}${Math.max(0, ...numbers) + 1}`;
+}
+
 export function createDemoStore(baseData, storage = globalThis.localStorage) {
   let state = loadState(baseData, storage);
   let session = { role: 'company_admin', employeeId: 'emp-lena-hoffmann' };
@@ -28,6 +41,10 @@ export function createDemoStore(baseData, storage = globalThis.localStorage) {
 
   function persist() {
     storage?.setItem?.(STORAGE_KEY, JSON.stringify(state));
+  }
+
+  function assertAdmin() {
+    if (session.role !== 'company_admin') throw new Error('Diese Demo-Aktion ist nur für Admins verfügbar.');
   }
 
   function setRole(role, employeeId) {
@@ -61,6 +78,153 @@ export function createDemoStore(baseData, storage = globalThis.localStorage) {
     if (session.role !== 'employee' || session.employeeId !== employeeId) {
       throw new Error('Diese Demo-Aktion ist nur in der eigenen Mitarbeiteransicht möglich.');
     }
+  }
+
+  function updateCompanyProfile(patch = {}) {
+    assertAdmin();
+    const name = cleanText(patch.name ?? state.company.name);
+    const industry = cleanText(patch.industry ?? state.company.industry);
+    const location = cleanText(patch.location ?? state.company.location);
+    if (!name || !industry || !location) throw new Error('Firmenname, Branche und Standort sind erforderlich.');
+    state.company = { ...state.company, name, industry, location };
+    persist();
+    return clone(state.company);
+  }
+
+  function saveEmployee(input = {}) {
+    assertAdmin();
+    const name = cleanText(input.name);
+    const email = cleanText(input.email).toLowerCase();
+    const department = cleanText(input.department);
+    const jobTitle = cleanText(input.jobTitle);
+    const role = cleanText(input.role || 'employee');
+    if (!name || !email || !department || !jobTitle) throw new Error('Name, Demo-E-Mail, Abteilung und Funktion sind erforderlich.');
+    if (!/^[^@\s]+@[^@\s]+\.example$/i.test(email)) throw new Error('Demo-E-Mail muss auf .example enden.');
+    if (!ALLOWED_ROLES.has(role)) throw new Error('Unbekannte Demo-Rolle.');
+    const lineManagerId = cleanText(input.lineManagerId) || undefined;
+    if (lineManagerId && !employeeById(lineManagerId)) throw new Error('Ausgewählte Demo-Führungskraft wurde nicht gefunden.');
+
+    if (input.id) {
+      const existing = employeeById(input.id);
+      if (!existing) throw new Error('Demo-Mitarbeiter nicht gefunden.');
+      Object.assign(existing, { name, email, department, jobTitle, role, active: input.active !== false });
+      if (lineManagerId) existing.lineManagerId = lineManagerId;
+      else delete existing.lineManagerId;
+      persist();
+      return clone(existing);
+    }
+
+    const employee = {
+      id: nextDemoId(state.employees, 'emp-demo-'),
+      name,
+      email,
+      department,
+      jobTitle,
+      role,
+      active: input.active !== false
+    };
+    if (lineManagerId) employee.lineManagerId = lineManagerId;
+    state.employees.push(employee);
+    persist();
+    return clone(employee);
+  }
+
+  function ensureDefaultLearningSteps(instructionId) {
+    if (stepsFor(instructionId).length) return;
+    const defaults = [
+      ['./assets/work-safety.svg', 'Lernschritt 1'],
+      ['./assets/warehouse.svg', 'Lernschritt 2'],
+      ['./assets/fire-safety.svg', 'Lernschritt 3']
+    ];
+    defaults.forEach(([image, title], index) => {
+      state.learningSteps.push({
+        id: `step-${instructionId}-${index + 1}`,
+        instructionId,
+        order: index + 1,
+        title,
+        text: 'Inhalt für die Präsentation ergänzen.',
+        image
+      });
+    });
+  }
+
+  function saveInstruction(input = {}) {
+    assertAdmin();
+    const name = cleanText(input.name);
+    const category = cleanText(input.category);
+    const description = cleanText(input.description);
+    const deliveryMode = cleanText(input.deliveryMode || 'online');
+    const intervalMonths = Number(input.intervalMonths || 12);
+    if (!name || !category) throw new Error('Titel und Kategorie sind erforderlich.');
+    if (!['online','practical'].includes(deliveryMode)) throw new Error('Unterweisungsart muss Online oder Praktisch sein.');
+    if (!Number.isFinite(intervalMonths) || intervalMonths <= 0) throw new Error('Intervall muss größer als 0 sein.');
+    const testRequired = deliveryMode === 'online' ? Boolean(input.testRequired) : false;
+    const passPercent = testRequired ? Number(input.passPercent ?? 80) : 0;
+    if (testRequired && (!Number.isFinite(passPercent) || passPercent < 0 || passPercent > 100)) throw new Error('Bestehensgrenze muss zwischen 0 und 100 liegen.');
+
+    let instruction;
+    if (input.id) {
+      instruction = instructionById(input.id);
+      if (!instruction) throw new Error('Demo-Unterweisung nicht gefunden.');
+      Object.assign(instruction, { name, category, description, deliveryMode, testRequired, passPercent, intervalMonths, active: input.active !== false });
+    } else {
+      instruction = {
+        id: nextDemoId(state.instructionTypes, 'ins-demo-'),
+        name,
+        category,
+        description,
+        deliveryMode,
+        testRequired,
+        passPercent,
+        intervalMonths,
+        active: input.active !== false
+      };
+      state.instructionTypes.push(instruction);
+    }
+
+    if (deliveryMode === 'online') ensureDefaultLearningSteps(instruction.id);
+    else {
+      state.learningSteps = state.learningSteps.filter(step => step.instructionId !== instruction.id);
+      state.tests = state.tests.filter(test => test.instructionId !== instruction.id);
+    }
+    persist();
+    return clone(instruction);
+  }
+
+  function setLearningStepImage(instructionId, stepId, dataUrl, byteSize) {
+    assertAdmin();
+    const instruction = instructionById(instructionId);
+    if (!instruction || instruction.deliveryMode !== 'online') throw new Error('Online-Unterweisung wurde nicht gefunden.');
+    const step = state.learningSteps.find(item => item.id === stepId && item.instructionId === instructionId);
+    if (!step) throw new Error('Lernschritt wurde nicht gefunden.');
+    if (!/^data:image\/(?:png|jpeg|webp);base64,/i.test(String(dataUrl || ''))) throw new Error('Bildformat nicht erlaubt. Bitte PNG, JPEG oder WEBP verwenden.');
+    if (!Number.isFinite(Number(byteSize)) || Number(byteSize) < 0 || Number(byteSize) > MAX_IMAGE_BYTES) throw new Error('Bild darf maximal 1,5 MB groß sein.');
+    step.image = String(dataUrl);
+    persist();
+    return clone(step);
+  }
+
+  function assignInstruction(instructionId, employeeIds = [], dueDate = state.meta.referenceDate) {
+    assertAdmin();
+    if (!instructionById(instructionId)) throw new Error('Demo-Unterweisung nicht gefunden.');
+    const selectedIds = [...new Set(Array.isArray(employeeIds) ? employeeIds : [])];
+    const created = [];
+    for (const employeeId of selectedIds) {
+      if (!employeeById(employeeId)) throw new Error('Demo-Mitarbeiter nicht gefunden.');
+      if (assignmentFor(employeeId, instructionId)) continue;
+      const assignment = {
+        id: `asg-demo-${state.assignments.length + 1}`,
+        employeeId,
+        instructionId,
+        status: 'missing',
+        dueDate: cleanText(dueDate) || state.meta.referenceDate,
+        progress: 0
+      };
+      state.assignments.push(assignment);
+      created.push(clone(assignment));
+    }
+    if (created.length) persist();
+    return created;
   }
 
   function getEmployeeBuckets(employeeId) {
@@ -211,6 +375,11 @@ export function createDemoStore(baseData, storage = globalThis.localStorage) {
     setRole,
     getVisibleEmployees,
     getEmployeeBuckets,
+    updateCompanyProfile,
+    saveEmployee,
+    saveInstruction,
+    setLearningStepImage,
+    assignInstruction,
     advanceLearning,
     submitTest,
     completeOnline,
