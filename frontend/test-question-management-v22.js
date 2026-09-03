@@ -1,22 +1,71 @@
 // v0.22: Testfragen je Unterweisung verwalten.
 
 state.testQuestions = state.testQuestions || [];
+const testQuestionsRequests = new Map();
+let testQuestionsCompany = state.companyId;
+let testQuestionsLoadedCompany = null;
+
+function syncTestQuestionCompany(){
+  if(testQuestionsCompany === state.companyId) return;
+  testQuestionsCompany = state.companyId;
+  testQuestionsLoadedCompany = null;
+  state.testQuestions = [];
+  state.testQuestionsLoadError = false;
+}
 
 function canEditTestQuestions(){
   const roles = state.me?.roles || [];
   return roles.includes('system_admin') || roles.includes('company_admin') || roles.includes('hse');
 }
 
-async function loadTestQuestions(force=false){
-  if(state.testQuestions?.length && !force) return state.testQuestions;
+async function loadTestQuestions(force=false, afterWrite=false){
+  syncTestQuestionCompany();
+  const pending = testQuestionsRequests.get(state.companyId);
+  // A successful write requires a newer read; ordinary repeated reload clicks can share one.
+  if(pending && !afterWrite) return pending.promise;
+  if(!force && (testQuestionsLoadedCompany === state.companyId || (testQuestionsLoadedCompany === null && state.testQuestions?.length))) return state.testQuestions;
   if(!state.apiAvailable && !API_BASE_URL){ state.testQuestions = []; return []; }
-  try{
-    state.testQuestions = await api('/test-questions');
-  }catch(err){
-    state.testQuestions = [];
-    console.warn('Testfragen konnten nicht geladen werden', err);
+  const companyId = state.companyId;
+  state.testQuestionsLoadError = false;
+  const request = {companyId};
+  testQuestionsRequests.set(companyId, request);
+  request.promise = (async()=>{
+    try{
+      const rows = await api('/test-questions');
+      if(state.companyId === companyId && testQuestionsRequests.get(companyId) === request){
+        state.testQuestions = rows;
+        testQuestionsLoadedCompany = companyId;
+      }
+    }catch(err){
+      if(state.companyId === companyId && testQuestionsRequests.get(companyId) === request) state.testQuestionsLoadError = true;
+      console.warn('Testfragen konnten nicht geladen werden', err);
+    }finally{
+      if(testQuestionsRequests.get(companyId) === request) testQuestionsRequests.delete(companyId);
+    }
+    return state.testQuestions;
+  })();
+  return request.promise;
+}
+
+function refreshTestQuestionResults(){
+  const target = $('tqResults');
+  if(target){
+    const fType = $('tqTypeFilter')?.value || '';
+    const fLang = $('tqLangFilter')?.value || '';
+    const filtered = (state.testQuestions || []).filter(x=>(!fType || x.instructionTypeId===fType) && (!fLang || x.language===fLang));
+    target.innerHTML = testQuestionTable(filtered);
+    if(typeof applyTableFormPolish === 'function') applyTableFormPolish(target);
   }
-  return state.testQuestions;
+  const status = $('tqLoadStatus');
+  if(status) status.textContent = state.testQuestionsLoadError ? 'Testfragen konnten nicht geladen werden. Vorhandene Daten bleiben erhalten. Bitte erneut laden.' : '';
+  if(typeof refreshInstructionQuestionCounts === 'function') refreshInstructionQuestionCounts();
+}
+
+async function reloadTestQuestionResults(force=true){
+  const viewContent = $('instructionResults') || $('tqResults');
+  const companyId = state.companyId;
+  await loadTestQuestions(force);
+  if(viewContent && viewContent === ($('instructionResults') || $('tqResults')) && companyId === state.companyId) refreshTestQuestionResults();
 }
 
 function langLabel(lang){
@@ -26,6 +75,7 @@ function langLabel(lang){
 const previousRenderInstructionsForQuestions = typeof renderInstructions === 'function' ? renderInstructions : null;
 
 function renderInstructions(){
+  syncTestQuestionCompany();
   const editable = canEditTemplates ? canEditTemplates() : canEditTestQuestions();
   const old = $('instructionSearch')?.value || '';
   $('instructions').innerHTML = `<div class="grid">
@@ -34,10 +84,7 @@ function renderInstructions(){
   </div>`;
   $('instructionSearch')?.addEventListener('input', renderInstructions);
   if(!state.testQuestions?.length && (state.apiAvailable || API_BASE_URL)){
-    loadTestQuestions(true).then(()=>{
-      const view = document.getElementById('instructions');
-      if(view?.classList.contains('active')) renderInstructions();
-    });
+    reloadTestQuestionResults(false);
   }
 }
 
@@ -46,13 +93,13 @@ function testQuestionManagerCard(){
   const fLang = $('tqLangFilter')?.value || '';
   const q = state.testQuestions || [];
   const filtered = q.filter(x => (!fType || x.instructionTypeId===fType) && (!fLang || x.language===fLang));
-  return `<div class="card span-12"><div class="toolbar"><div><h2>Testfragen</h2><p class="muted">Fragen werden beim externen Test gemischt. Die richtige Antwort bleibt intern über den Antwortindex gespeichert.</p></div><button class="ghost" onclick="loadTestQuestions(true).then(renderInstructions)">Fragen neu laden</button></div>
+  return `<div class="card span-12"><div class="toolbar"><div><h2>Testfragen</h2><p class="muted">Fragen werden beim externen Test gemischt. Die richtige Antwort bleibt intern über den Antwortindex gespeichert.</p></div><button class="ghost" onclick="reloadTestQuestionResults()">Fragen neu laden</button></div>
     <div class="filters">
-      <select id="tqTypeFilter" onchange="renderInstructions()"><option value="">Alle Unterweisungen</option>${types().filter(t=>t.active!==false).map(t=>`<option value="${esc(t.id)}" ${fType===t.id?'selected':''}>${esc(t.name)}</option>`).join('')}</select>
-      <select id="tqLangFilter" onchange="renderInstructions()"><option value="">Alle Sprachen</option>${['de','en','pl'].map(l=>`<option value="${l}" ${fLang===l?'selected':''}>${langLabel(l)}</option>`).join('')}</select>
+      <select id="tqTypeFilter" onchange="refreshTestQuestionResults()"><option value="">Alle Unterweisungen</option>${types().filter(t=>t.active!==false).map(t=>`<option value="${esc(t.id)}" ${fType===t.id?'selected':''}>${esc(t.name)}</option>`).join('')}</select>
+      <select id="tqLangFilter" onchange="refreshTestQuestionResults()"><option value="">Alle Sprachen</option>${['de','en','pl'].map(l=>`<option value="${l}" ${fLang===l?'selected':''}>${langLabel(l)}</option>`).join('')}</select>
     </div>
     ${testQuestionForm(fType, fLang)}
-    ${testQuestionTable(filtered)}
+    <p id="tqLoadStatus" class="muted" role="status"></p><div id="tqResults">${testQuestionTable(filtered)}</div>
   </div>`;
 }
 
@@ -122,8 +169,8 @@ async function saveNewTestQuestion(){
     await api('/test-questions', { method:'POST', body: JSON.stringify(body) });
     target.innerHTML = '<div class="notice"><b>Testfrage gespeichert.</b></div>';
     clearTestQuestionForm();
-    await loadTestQuestions(true);
-    renderInstructions();
+    await loadTestQuestions(true, true);
+    refreshTestQuestionResults();
   }catch(err){
     target.innerHTML = `<div class="notice dangerbox">Speichern fehlgeschlagen: ${esc(err.message || err)}</div>`;
   }
@@ -147,8 +194,8 @@ function editTestQuestion(id){
 async function updateTestQuestion(id, body){
   try{
     await api('/test-questions/' + encodeURIComponent(id), { method:'PATCH', body: JSON.stringify(body) });
-    await loadTestQuestions(true);
-    renderInstructions();
+    await loadTestQuestions(true, true);
+    refreshTestQuestionResults();
   }catch(err){
     alert('Testfrage konnte nicht gespeichert werden: ' + String(err.message || err));
   }
