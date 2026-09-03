@@ -40,6 +40,11 @@ jobs:
       - name: Run frontend/API syntax checks
         run: npm test
 
+      - name: Company showcase demo checks
+        run: |
+          node --test tests/company-showcase-demo.test.js
+          node scripts/check-company-showcase-demo.js
+
       - name: Diagnose Azure configuration bridge
         env:
           SQL_SECRET_PRESENT: ${{ secrets.SQL_CONNECTION_STRING != '' }}
@@ -115,6 +120,22 @@ jobs:
             assert.equal((await response.text()).replace(/\r\n/g, '\n'), readFileSync(`frontend${path}`, 'utf8').replace(/\r\n/g, '\n'), `Unexpected stylesheet content: ${path}`);
             console.log(`Stylesheet verified: ${path}`);
           }
+          NODE
+
+      - name: Verify company showcase demo
+        if: steps.builddeploy.outputs.static_web_app_url != ''
+        env:
+          STATIC_WEB_APP_URL: ${{ steps.builddeploy.outputs.static_web_app_url }}
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          const url = new URL('/demo/', process.env.STATIC_WEB_APP_URL);
+          const response = await fetch(url, { redirect: 'follow', signal: AbortSignal.timeout(30000) });
+          assert.equal(response.status, 200, `Demo unavailable: ${url}`);
+          const body = await response.text();
+          assert.match(body, /Musterwerk Solutions GmbH/, 'Demo company marker missing');
+          assert.match(body, /DEMO – ausschließlich Beispieldaten/, 'Demo safety marker missing');
+          console.log(`Company showcase verified: ${url}`);
           NODE
 
   close_pull_request_job:
