@@ -1,8 +1,8 @@
-// v0.35.4: Stabile Listenaktualisierung ohne Verlust von Formularen und Formatierung.
+// v0.35.5: Ladehinweise bleiben bis zur erfolgreichen Aktualisierung sichtbar.
 // Performance-Hotfix: keine dauerhafte Body-Beobachtung mehr, keine Render-Schleife.
 // Keine API-Aenderung, keine Fachlogik-Aenderung.
 
-const PROFESSIONAL_SUITE_VERSION = 'v0.35.4';
+const PROFESSIONAL_SUITE_VERSION = 'v0.35.5';
 
 const NAV_GROUPS = [
   { key:'overview', label:'Uebersicht', views:['dashboard'] },

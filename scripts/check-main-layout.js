@@ -24,7 +24,7 @@ function fixture(roles = ['system_admin']) {
     templateOptions:()=>'',templateUploadCard:()=>'',templateListCard:()=>'',testQuestionManagerCard:()=>'',
     openTemplate:id=>{w.openedTemplate=id;}, prepareTemplateUpload:id=>{w.uploadType=id;}
   });
-  for(const file of ['planning-management-v24.js','instruction-type-management-v23.js','table-form-design-v33.js']) w.eval(source(file));
+  for(const file of ['planning-management-v24.js','test-question-management-v22.js','instruction-type-management-v23.js','table-form-design-v33.js']) w.eval(source(file));
   w.renderPlanning(); w.renderInstructions(); w.applyTableFormPolish();
   return {w,dom,description};
 }

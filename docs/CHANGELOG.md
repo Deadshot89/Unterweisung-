@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.35.5 – Verlässliche Ladehinweise und getrennte Bereitstellungen
+
+- Fehlerhinweise für Planungen und Testfragen bleiben beim erneuten Öffnen sowie während eines erneuten Ladeversuchs sichtbar. Erst eine erfolgreiche aktuelle Antwort entfernt den Hinweis; ein Firmenwechsel übernimmt keine fremden Fehlermeldungen.
+- Bei der Rückkehr zu Unterweisungen während eines laufenden Nachladens wird die neue Ergebnisansicht aktualisiert, ohne Formulare neu aufzubauen oder zusätzliche parallele Anfragen zu starten.
+- Hauptseiten-Deployments und PR-Vorschauen verwenden getrennte GitHub-Actions-Gruppen. Das Schließen einer zusammengeführten Vorschau kann das Hauptseiten-Deployment nicht mehr abbrechen; ältere Läufe derselben Vorschau bleiben abbrechbar.
+- Regressionstests prüfen Fehlerrückkehr, Wiederholung, Firmenwechsel, Gruppenüberschneidungen und die Auswahl von Upload-/Schließaktionen.
+- Keine Änderungen an API, Datenbank oder Importfreigabe. Kein Datenimportauftrag; v0.36 bleibt separat. Die Veröffentlichung auf der Hauptseite benötigt eine eigene Freigabe.
+
 ## v0.35.4 – Stabile Aktualisierung von Planung und Unterweisungen
 
 - Nachgeladene Planungen aktualisieren nur die Ergebnisliste; Formulare, Teilnehmerauswahl, Suche und Fokus bleiben bestehen.

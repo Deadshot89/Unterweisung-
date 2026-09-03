@@ -236,3 +236,32 @@ test('saving during an older planning read forces a new read and ignores the old
   requests[0].resolve([plan]);await settle();
   assert.equal(w.state.data.plannedTrainings[0].location,'Fresh saved plan');assert.match(w.$('planning').textContent,/Fresh saved plan/);
 });
+
+for(const view of ['planning','instructions'])test(view+' retains a load warning on revisit until a retry succeeds',async t=>{
+  const {w,requests,settle,click}=await fixture(t,view);
+  const rows=view==='planning'?[plan]:[question];
+  const statusId=view==='planning'?'planningLoadStatus':'tqLoadStatus';
+  const reload=view==='planning'?'Planungen neu laden':'Fragen neu laden';
+  requests[0].resolve(rows);await settle();
+  click(reload);requests[1].reject(new Error('Synthetic unavailable'));await settle();
+  w.render(view);await settle();
+  assert.match(w.$(statusId).textContent,/konnten nicht geladen werden/i,'reopening must retain the unresolved error');
+  assert.match(w.$(view).textContent,view==='planning'?/Test-Raum/:/Synthetische Testfrage/);
+  assert.equal(requests.length,2,'reopening cached data must not create a retry loop');
+  click(reload);w.render(view);await settle();
+  assert.match(w.$(statusId).textContent,/konnten nicht geladen werden/i,'a pending retry is not a successful recovery');
+  assert.equal(requests.length,3);
+  requests[2].resolve(rows);await settle();
+  assert.equal(w.$(statusId).textContent,'','successful retry clears the warning in the current view');
+});
+
+for(const view of ['planning','instructions'])test(view+' does not carry a load warning into another company',async t=>{
+  const {w,requests,settle}=await fixture(t,view);
+  const statusId=view==='planning'?'planningLoadStatus':'tqLoadStatus';
+  requests[0].reject(new Error('Synthetic unavailable'));await settle();
+  assert.match(w.$(statusId).textContent,/konnten nicht geladen werden/i);
+  w.state.companyId='second-company';w.state.data={};w.render(view);await settle();
+  assert.equal(w.$(statusId).textContent,'','an old company error must not label the new company');
+  requests[1].resolve([]);await settle();
+  assert.equal(w.$(statusId).textContent,'');
+});
