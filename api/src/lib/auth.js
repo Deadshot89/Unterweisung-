@@ -99,7 +99,9 @@ export async function getAuthorizedContext(request){
   const allowedCompanies=dbUsers.map(u=>({companyId:u.companyId,role:dbRoleToRole(u.role),userId:u.id,email:u.email,displayName:u.displayName}));
   const requested=base.requestedCompanyId; let selected=null;
   if(requested)selected=allowedCompanies.find(c=>c.companyId===requested)||null;
-  if(!selected&&!isSystemAdmin&&allowedCompanies.length)selected=allowedCompanies[0];
+  if(requested&&!selected&&!isSystemAdmin){const err=new Error('Kein Zugriff auf die angeforderte Firma.');err.status=403;throw err;}
+  if(!isSystemAdmin&&allowedCompanies.length>1){const err=new Error('Mehrere Firmenzuordnungen sind für Firmenbenutzer nicht zulässig.');err.status=403;throw err;}
+  if(!selected&&!isSystemAdmin&&allowedCompanies.length===1)selected=allowedCompanies[0];
   if(isSystemAdmin&&requested&&!selected){
     if(!(await activeCompanyExists(pool,requested))){const err=new Error('Die ausgewählte Firma ist nicht aktiv oder existiert nicht.');err.status=403;throw err;}
     const root=allowedCompanies.find(c=>c.role===Roles.SYSTEM_ADMIN)||allowedCompanies[0]||{userId:base.userId,email:base.email,displayName:base.userDetails};
