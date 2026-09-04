@@ -1,0 +1,47 @@
+name: Live Neutral Shell Check Once
+
+on:
+  push:
+    branches:
+      - hotfix-neutral-company-shell
+    paths:
+      - .github/workflows/live-neutral-shell-check-once.yml
+
+permissions:
+  contents: read
+
+jobs:
+  verify-live:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify production login gate and neutral central labels
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE='https://delightful-sky-05dbf7603.7.azurestaticapps.net'
+          for file in index.html login-gate-v44.css app.js dashboard-design-v32.js professional-suite-v35.js; do
+            path="$file"
+            [ "$file" = 'index.html' ] && path=''
+            curl --fail --silent --show-error --location --retry 4 --retry-delay 2 "$BASE/$path" -o "/tmp/$file"
+          done
+
+          grep -F '<body class="auth-pending">' /tmp/index.html
+          grep -E 'id="portalNavigation"[^>]*hidden' /tmp/index.html
+          grep -F 'body.auth-pending .system-strip,body.auth-pending .primary-tabs,body.auth-pending .view,body.auth-pending .app-footer-v35{display:none!important}' /tmp/login-gate-v44.css
+          grep -F 'if(!state.me || isAuthenticationError(err)) renderAuthenticationRequired(err.message||err);' /tmp/app.js
+
+          grep -F '<h2>Unterweisungsübersicht</h2>' /tmp/dashboard-design-v32.js
+          ! grep -F 'Essentra Übersicht' /tmp/dashboard-design-v32.js
+          ! grep -F "'Essentra Components GmbH'" /tmp/dashboard-design-v32.js
+          grep -F 'Unterweisungsmanager · Arbeitsbereich' /tmp/professional-suite-v35.js
+          ! grep -F 'Essentra Arbeitsstand' /tmp/professional-suite-v35.js
+
+          status="$(curl --silent --show-error --output /tmp/me.txt --write-out '%{http_code}' --retry 4 --retry-delay 2 "$BASE/api/me" || true)"
+          echo "Anonymous /api/me HTTP status: $status"
+          cat /tmp/me.txt || true
+          case "$status" in
+            401|403) ;;
+            *) echo "Expected anonymous /api/me to reject with 401/403, got $status" >&2; exit 1;;
+          esac
+
+          echo 'LIVE_NEUTRAL_LOGIN_SHELL_OK'
