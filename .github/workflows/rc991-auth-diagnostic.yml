@@ -20,6 +20,12 @@ jobs:
           node-version: '22'
       - name: Install API dependencies
         run: npm install --prefix api --omit=dev
+      - name: Check auth runtime prerequisites
+        env:
+          AUTH_SESSION_SECRET: ${{ secrets.AUTH_SESSION_SECRET }}
+          SYSTEM_ADMIN_EMAILS: ${{ secrets.SYSTEM_ADMIN_EMAILS }}
+        run: |
+          node -e "console.log(JSON.stringify({authSessionSecretPresent:process.env.AUTH_SESSION_SECRET?.length>=32,systemAdminEmailsPresent:!!process.env.SYSTEM_ADMIN_EMAILS?.trim()}))"
       - name: Read auth state without mutation
         env:
           SQL_CONNECTION_STRING: ${{ secrets.SQL_CONNECTION_STRING }}
