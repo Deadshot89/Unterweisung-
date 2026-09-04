@@ -38,9 +38,7 @@ jobs:
               COL_LENGTH('dbo.Users','sessionVersion') AS sessionVersionColumn,
               COL_LENGTH('dbo.Users','passwordSetAt') AS passwordSetAtColumn`);
             const exact=await pool.request().input('email',sql.NVarChar(254),candidate)
-              .query(`SELECT id,companyId,email,displayName,role,active,provider,
-                CASE WHEN COL_LENGTH('dbo.Users','passwordHash') IS NULL THEN CAST(0 AS BIT)
-                     WHEN passwordHash IS NULL THEN CAST(0 AS BIT) ELSE CAST(1 AS BIT) END AS passwordEnabled
+              .query(`SELECT id,companyId,email,displayName,role,active,provider
                 FROM dbo.Users WHERE LOWER(LTRIM(RTRIM(email)))=LOWER(@email)`);
             const named=await pool.request().input('name',sql.NVarChar(200),'%Tobias%')
               .query(`SELECT TOP 20 id,companyId,email,displayName,role,active,provider FROM dbo.Users
@@ -49,7 +47,7 @@ jobs:
                 WHERE role='system_admin' ORDER BY companyId,displayName`);
             console.log(JSON.stringify({
               schemaReady: schema.recordset[0]?.passwordHashColumn!=null && schema.recordset[0]?.sessionVersionColumn!=null,
-              exactCandidate: exact.recordset.map(r=>({companyId:r.companyId,displayName:r.displayName,role:r.role,active:!!r.active,provider:r.provider,passwordEnabled:!!r.passwordEnabled,emailHash:hash(r.email)})),
+              exactCandidate: exact.recordset.map(r=>({companyId:r.companyId,displayName:r.displayName,role:r.role,active:!!r.active,provider:r.provider,emailHash:hash(r.email)})),
               tobiasMatches: named.recordset.map(r=>({companyId:r.companyId,displayName:r.displayName,role:r.role,active:!!r.active,provider:r.provider,emailMasked:mask(r.email),emailHash:hash(r.email)})),
               systemAdmins: admins.recordset.map(r=>({companyId:r.companyId,displayName:r.displayName,active:!!r.active,provider:r.provider,emailMasked:mask(r.email),emailHash:hash(r.email)}))
             },null,2));
