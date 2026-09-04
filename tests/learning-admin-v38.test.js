@@ -11,7 +11,8 @@ test('Admin/HSE rich editor exposes all approved professional content fields',()
   assert.match(html,/employee-portal-v37\.js[\s\S]*learning-admin-v38\.js/);
   for(const label of ['Lernziel','Einleitung','Wichtige Merkpunkte','Praxisbezug / Bildunterschrift','Hinweis-Titel','Hinweis-Text','Vorschau']) assert.match(ui,new RegExp(label));
   for(const field of ['learningGoal','learningIntro','keyPoints','imageCaption','calloutTitle','calloutText']) assert.match(ui,new RegExp(field));
-  assert.match(ui,/UMLearningExperience\.renderLearningStep/);
+  assert.match(ui,/renderer\s*=\s*globalThis\.UMLearningExperience/);
+  assert.match(ui,/renderer\.renderLearningStep/);
 });
 
 test('rich editor remains restricted to system admin, company admin and HSE',()=>{
