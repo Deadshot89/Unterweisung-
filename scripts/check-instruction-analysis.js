@@ -97,7 +97,8 @@ console.log('Publication review, tenant scope, stale source, gap blocking and id
 
 // Test session keeps full language-specific content and answer keys after subsequent edits.
 const externalSource=readFileSync('api/src/functions/externalInstruction.js','utf8').split("app.http('externalInstruction'")[0].replace(/^import .*;\n/gm,'');
-const external=vm.createContext({sql:fakeSql,balancedPositions,placeCorrectAnswer,selectTestQuestions,instructionText,validateAnalysis,Math,Date});
+const loadPublishedLearningContent=async()=>({learningGoal:'',learningIntro:'',keyPoints:[],steps:[]});
+const external=vm.createContext({sql:fakeSql,balancedPositions,placeCorrectAnswer,selectTestQuestions,instructionText,validateAnalysis,loadPublishedLearningContent,Math,Date});
 vm.runInContext(externalSource,external);
 const released={...fullJob,sourceBlobPath:'templates/german-version.pdf',title:'Deutsche Quelle'};
 let activeQuestions=[{...bank[0],sourceAspectId:'pre_use'}],savedSession=null;
