@@ -29,6 +29,8 @@ assert(script.includes('updateNavigationGroups'), 'Navigation wird nicht gruppie
 assert(script.includes('ensureProfessionalFooter'), 'Footer/Standanzeige fehlt.');
 assert(script.includes('app-shell-v35'), 'App-Shell-Klasse fehlt.');
 assert(script.includes('pro-shell-grid'), 'Shell-Grid-Klasse fehlt.');
+assert(!script.includes('Essentra Arbeitsstand'), 'Zentraler Footer darf keine Essentra-Firma fest verdrahten.');
+assert(script.includes('Unterweisungsmanager · Arbeitsbereich'), 'Footer braucht eine neutrale zentrale Bezeichnung.');
 assert(!script.includes('new MutationObserver'), 'Major-Design-Script darf keinen Body-MutationObserver mehr nutzen.');
 assert(script.includes('setView = function'), 'setView Hook fehlt.');
 assert(script.includes('render = function'), 'render Hook fehlt.');
