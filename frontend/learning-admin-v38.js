@@ -99,6 +99,16 @@
     }
   }
 
+  function v38BindInstructionPreviewActions(){
+    const root=document.getElementById('v38InstructionPreviewBackdrop');
+    root?.querySelectorAll('[data-v38-preview-action]').forEach(button=>{
+      button.onclick=()=>{
+        if(button.dataset.v38PreviewAction==='close')return v38CloseInstructionPreview();
+        if(button.dataset.v38PreviewAction==='original')return v38OpenPreviewOriginal(button.dataset.templateId);
+      };
+    });
+  }
+
   async function v38OpenInstructionPreview(typeId){
     if(!canEditRichLearning())return;
     const instruction=currentType(typeId);
@@ -117,10 +127,11 @@
         ? renderer.renderQuestionList({questions,passPercent:Number(instruction.passPercent||80),namePrefix:'v38PreviewQuestion'})
         : '<p class="muted">Für diese Unterweisung sind keine Testfragen hinterlegt.</p>';
       const originalHtml=instruction.templateId
-        ? `<button class="ghost" type="button" onclick="v38OpenPreviewOriginal('${escV(instruction.templateId)}')">Originalunterlage öffnen</button>`
+        ? `<button class="ghost" type="button" data-v38-preview-action="original" data-template-id="${escV(instruction.templateId)}">Originalunterlage öffnen</button>`
         : '';
       document.getElementById('v38InstructionPreviewBackdrop')?.remove();
-      document.body.insertAdjacentHTML('beforeend',`<div id="v38InstructionPreviewBackdrop" class="learning-modal-backdrop"><div class="learning-modal" role="dialog" aria-modal="true"><div class="learning-modal-head"><div><span class="portal-badge">Nur Vorschau</span><h2>${escV(instruction.name||'Unterweisung')}</h2><p class="muted">${escV(instruction.category||'Allgemein')} · ${Number(instruction.intervalMonths||12)} Monate</p><p class="muted">Diese Admin-Vorschau erzeugt keinen Lernfortschritt, keinen Testabschluss und keinen Nachweis.</p></div><button class="ghost" type="button" onclick="v38CloseInstructionPreview()">Schließen</button></div><div class="learning-actions"><div class="learning-actions-group">${originalHtml}</div></div>${learningHtml}${testHtml}</div></div>`);
+      document.body.insertAdjacentHTML('beforeend',`<div id="v38InstructionPreviewBackdrop" class="learning-modal-backdrop"><div class="learning-modal" role="dialog" aria-modal="true"><div class="learning-modal-head"><div><span class="portal-badge">Nur Vorschau</span><h2>${escV(instruction.name||'Unterweisung')}</h2><p class="muted">${escV(instruction.category||'Allgemein')} · ${Number(instruction.intervalMonths||12)} Monate</p><p class="muted">Diese Admin-Vorschau erzeugt keinen Lernfortschritt, keinen Testabschluss und keinen Nachweis.</p></div><button class="ghost" type="button" data-v38-preview-action="close">Schließen</button></div><div class="learning-actions"><div class="learning-actions-group">${originalHtml}</div></div>${learningHtml}${testHtml}</div></div>`);
+      v38BindInstructionPreviewActions();
     }catch(error){
       alert('Unterweisungsvorschau konnte nicht geöffnet werden: '+String(error.message||error));
     }
