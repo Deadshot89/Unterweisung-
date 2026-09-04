@@ -3,12 +3,13 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Unterweisungsmanager Online · v0.35.5</title>
+  <title>Unterweisungsmanager Online · v0.35.6</title>
   <link rel="stylesheet" href="/styles.css">
   <link rel="stylesheet" href="/view-header-design-v34.css">
   <link rel="stylesheet" href="/professional-suite-v35.css">
+  <link rel="stylesheet" href="/login-gate-v44.css">
 </head>
-<body>
+<body class="auth-pending">
   <header class="topbar app-shell-header">
     <div class="brand-wrap">
       <div class="brand">UM</div>
@@ -19,7 +20,7 @@
     </div>
     <div class="top-actions">
       <span id="userInfo" class="user-info professional-user">Login wird geprüft…</span>
-      <a class="btn ghost login-action" href="/.auth/login/aad">Anmelden</a>
+      <button id="companySwitchAction" class="btn ghost" type="button" hidden>Firma wechseln</button>
       <a class="btn ghost logout-action" href="/.auth/logout">Abmelden</a>
     </div>
   </header>
@@ -30,12 +31,16 @@
       <strong>Systemstatus:</strong>
       <span>Betriebsbereit</span>
       <span class="strip-divider"></span>
-      <span>Essentra aktiv</span>
+      <span id="activeCompanyLabel">Keine Firma ausgewählt</span>
       <span class="strip-divider"></span>
-      <span>Version <span id="appVersion">v0.35.5</span></span>
+      <span>Version <span id="appVersion">v0.35.6</span></span>
     </section>
 
-    <nav class="tabs primary-tabs">
+    <section id="companySelectionGate" class="company-selection-gate">
+      <div class="card auth-pending-card"><h2>Anmeldung wird geprüft …</h2><p class="muted">Firmendaten werden erst nach erfolgreicher Anmeldung geladen.</p></div>
+    </section>
+
+    <nav id="portalNavigation" class="tabs primary-tabs" hidden>
       <button data-view="dashboard" class="active">Dashboard</button>
       <button data-view="companies">Firmen</button>
       <button data-view="employees">Mitarbeiter</button>
@@ -71,6 +76,7 @@
   </template>
 
   <script src="/config.js"></script>
+  <script src="/auth-login-v42.js"></script>
   <script src="/app.js"></script>
   <script src="/company-settings-v15.js"></script>
   <script src="/external-fix-v12.js"></script>
