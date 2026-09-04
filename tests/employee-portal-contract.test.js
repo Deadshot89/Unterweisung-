@@ -10,12 +10,35 @@ test('employee portal exposes the approved work buckets and actions', () => {
   const css = read('frontend/employee-portal-v37.css');
   assert.match(html, /employee-portal-v37\.css/);
   assert.match(html, /employee-portal-v37\.js/);
+  assert.match(html, /learning-experience-v38\.css/);
+  assert.match(html, /learning-experience-v38\.js/);
   for (const label of ['Jetzt erledigen','Einplanung erforderlich','Geplante Termine','Bald fällig','Abgeschlossen']) assert.match(portal, new RegExp(label));
   for (const action of ['Starten','Fortsetzen','Termin anfragen','Nachweis herunterladen']) assert.match(portal, new RegExp(action));
-  assert.match(portal, /learning-step-image/);
-  assert.match(portal, /learning-progress/);
   assert.match(css, /employee-dashboard/);
   assert.match(css, /learning-image-modal/);
+});
+
+test('employee learning uses the shared professional renderer for steps, tests and results', () => {
+  const portal = read('frontend/employee-portal-v37.js');
+  assert.match(portal, /UMLearningExperience\.renderLearningStep/);
+  assert.match(portal, /UMLearningExperience\.renderQuestionList/);
+  assert.match(portal, /UMLearningExperience\.renderResult/);
+  assert.match(portal, /learningGoal/);
+  assert.match(portal, /learningIntro/);
+  assert.match(portal, /keyPoints/);
+  assert.match(portal, /imageCaption/);
+  assert.match(portal, /calloutTitle/);
+  assert.match(portal, /calloutText/);
+  assert.doesNotMatch(portal, /Das solltest du mitnehmen/);
+});
+
+test('employee learning keeps server-owned progression and answer submission contracts', () => {
+  const portal = read('frontend/employee-portal-v37.js');
+  assert.match(portal, /attemptId\s*:\s*data\.attemptId/);
+  assert.match(portal, /currentStep\s*:\s*portalState\.stepIndex/);
+  assert.match(portal, /namePrefix\s*:\s*['"]portalQuestion['"]/);
+  assert.match(portal, /questionId\s*:\s*q\.id/);
+  assert.match(portal, /answerIndex/);
 });
 
 test('login page offers Microsoft and email/password without changing role semantics', () => {
