@@ -27,18 +27,10 @@ jobs:
           from pathlib import Path
           path = Path('frontend/app.js')
           source = path.read_text(encoding='utf-8')
-          old = """  }catch(err){
-            if(isAuthenticationError(err)) renderAuthenticationRequired(err.message||err);
-            else renderServiceUnavailable(err.message||err);
-          }
-          }"""
-          new = """  }catch(err){
-            if(!state.me || isAuthenticationError(err)) renderAuthenticationRequired(err.message||err);
-            else renderServiceUnavailable(err.message||err);
-          }
-          }"""
+          old = "if(isAuthenticationError(err)) renderAuthenticationRequired(err.message||err);"
+          new = "if(!state.me || isAuthenticationError(err)) renderAuthenticationRequired(err.message||err);"
           if source.count(old) != 1:
-              raise SystemExit(f'Expected one loadData catch block, found {source.count(old)}')
+              raise SystemExit(f'Expected one authentication fallback line, found {source.count(old)}')
           path.write_text(source.replace(old, new), encoding='utf-8')
           PY
       - name: Install dependencies
