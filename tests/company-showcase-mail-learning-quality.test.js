@@ -100,9 +100,10 @@ test('PSA training is a fully written presentation-quality learning path', () =>
 });
 
 test('learning copy uses professional section wording instead of the rejected phrase', () => {
-  const ui = readFileSync(new URL('../frontend/demo/demo-mail-learning.js', import.meta.url), 'utf8');
-  assert.doesNotMatch(ui, /Das solltest du mitnehmen/i);
-  assert.match(ui, /Wichtige Merkpunkte/);
+  const source = readFileSync(new URL('../frontend/demo/demo-mail-learning.js', import.meta.url), 'utf8')
+    + readFileSync(new URL('../frontend/learning-experience-v38.js', import.meta.url), 'utf8');
+  assert.doesNotMatch(source, /Das solltest du mitnehmen/i);
+  assert.match(source, /Wichtige Merkpunkte/);
 });
 
 test('core learning illustrations are detailed presentation assets rather than minimal placeholders', () => {
@@ -115,20 +116,23 @@ test('core learning illustrations are detailed presentation assets rather than m
   }
 });
 
-test('demo extension exposes external invitation, planning mail and professional learning presentation controls', () => {
+test('demo extension exposes external invitation, planning mail and the shared professional learning core', () => {
   const ui = readFileSync(new URL('../frontend/demo/demo-mail-learning.js', import.meta.url), 'utf8');
   const css = readFileSync(new URL('../frontend/demo/demo-mail-learning.css', import.meta.url), 'utf8');
+  const sharedCss = readFileSync(new URL('../frontend/learning-experience-v38.css', import.meta.url), 'utf8');
   const index = readFileSync(new URL('../frontend/demo/index.html', import.meta.url), 'utf8');
   assert.match(ui, /Externe Unterweisung senden/);
   assert.match(ui, /Termin per Mail senden/);
   assert.match(ui, /Mailvorschau/);
-  assert.match(ui, /learning-goal/);
-  assert.match(ui, /learning-image-caption/);
-  assert.match(ui, /learning-callout/);
-  assert.match(css, /\.learning-stage/);
-  assert.match(css, /\.learning-image-caption/);
-  assert.match(css, /\.learning-callout/);
+  assert.match(ui, /UMLearningExperience\.renderLearningStep/);
+  assert.match(ui, /UMLearningExperience\.renderQuestionList/);
+  assert.match(ui, /UMLearningExperience\.renderResult/);
+  assert.match(sharedCss, /\.um-learning-stage/);
+  assert.match(sharedCss, /\.um-learning-visual/);
+  assert.match(sharedCss, /\.um-learning-callout/);
   assert.match(css, /\.mail-preview/);
+  assert.match(index, /learning-experience-v38\.css/);
+  assert.match(index, /learning-experience-v38\.js/);
   assert.match(index, /demo-quality-data\.js/);
   assert.match(index, /demo-mail-learning\.js/);
   assert.match(index, /demo-mail-learning\.css/);
