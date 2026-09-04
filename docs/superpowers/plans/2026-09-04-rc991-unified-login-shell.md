@@ -4,7 +4,7 @@
 
 **Goal:** Replace the mixed Microsoft-only / employee-portal login behavior with one pre-authentication shell that offers Microsoft Entra and E-Mail/Passwort while preserving the existing role and tenant flow.
 
-**Architecture:** Extract the already-approved dual-login UI and password-session actions from `employee-portal-v37.js` into a small auth-only module loaded before `app.js`. `app.js` remains responsible for deciding when authentication is required, while `auth-shell-v40.js` remains responsible for visual auth state classes. This removes the current MutationObserver replacement hack and leaves one visible internal login path.
+**Architecture:** Extract the approved dual-login UI and password-session actions from `employee-portal-v37.js` into a small auth-only module loaded before `app.js`. `app.js` decides when authentication is required; `auth-shell-v40.js` controls `auth-pending`, `auth-required`, and `auth-authenticated`. The old header Microsoft-login action and portal MutationObserver workaround are removed so there is exactly one visible internal login surface.
 
 **Tech Stack:** Vanilla browser JavaScript, Azure Static Web Apps Entra route, existing password-auth API, Node `node:test` static contract tests.
 
@@ -16,8 +16,8 @@
 - `main` stays unchanged until separate production approval.
 - Internal login offers exactly two equivalent paths: `/.auth/login/aad` and `/api/auth/password/login`.
 - Both login paths must resolve through the same existing `/api/me` role/company flow after authentication.
-- `system_admin` must still stop at company selection before `/api/bootstrap`.
-- `company_admin`, `hse`, `line_manager`, and `employee` must continue directly into their server-authorized company context.
+- `system_admin` must stop at company selection before `/api/bootstrap`.
+- `company_admin`, `hse`, `line_manager`, and `employee` continue directly into their server-authorized company context.
 - Non-system users requesting a foreign `x-company-id` must continue to receive 403.
 - External personal instruction links remain independent from internal login.
 - Passwords must not be stored or logged in frontend code.
@@ -28,14 +28,14 @@
 
 ## File Structure
 
-- Create `frontend/auth-login-v42.js`: single responsibility for rendering the dual login form and handling password login/logout.
-- Modify `frontend/index.html`: load the focused auth-login module before `app.js` so the initial auth failure path can call it deterministically.
-- Modify `frontend/app.js`: route `renderAuthenticationRequired()` into the common auth-login module instead of rendering Microsoft-only markup.
-- Modify `frontend/employee-portal-v37.js`: remove the duplicate login renderer, password login/logout implementation, and MutationObserver replacement hack; retain employee-learning/dashboard behavior only.
-- Keep `frontend/auth-shell-v40.js`: state-class controller (`auth-pending`, `auth-required`, `auth-authenticated`) without duplicating login markup.
-- Create `tests/unified-login-shell-v42.test.js`: focused static contract for one login shell, autocomplete, endpoints, logout, and no portal MutationObserver workaround.
-- Modify `tests/employee-portal-contract.test.js`: point the login contract at the common auth module rather than the employee portal.
-- Modify `package.json`: include the new test in `pretest`.
+- Create `frontend/auth-login-v42.js`: single responsibility for rendering dual login and handling password login/logout.
+- Modify `frontend/index.html`: load the common auth module before `app.js` and remove the old header-only Microsoft login action.
+- Modify `frontend/app.js`: route `renderAuthenticationRequired()` into the common login module.
+- Modify `frontend/employee-portal-v37.js`: remove duplicate login renderer, password login/logout functions, MutationObserver replacement, and duplicate logout binding.
+- Keep `frontend/auth-shell-v40.js`: visual auth-state controller only.
+- Create `tests/unified-login-shell-v42.test.js`: focused contract for one login shell, endpoints, autocomplete, logout, and absence of duplicate login surfaces.
+- Modify `tests/employee-portal-contract.test.js`: point login semantics at the shared auth module.
+- Modify `package.json`: register the new test in `pretest`.
 
 ### Task 1: Add a failing contract for one shared dual-login shell
 
@@ -46,11 +46,10 @@
 
 **Interfaces:**
 - Consumes: `frontend/index.html`, `frontend/app.js`, `frontend/auth-shell-v40.js`, `frontend/employee-portal-v37.js`, planned `frontend/auth-login-v42.js`.
-- Produces: RED tests that reject the current Microsoft-only `renderAuthenticationRequired()` and portal MutationObserver replacement.
+- Produces: RED tests that reject the current Microsoft-only app login, header login duplication, and portal MutationObserver replacement.
 
-- [ ] **Step 1: Create the focused login-shell contract**
+- [ ] **Step 1: Create `tests/unified-login-shell-v42.test.js`**
 
-Create `tests/unified-login-shell-v42.test.js` with:
 ```js
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -67,6 +66,7 @@ test('one pre-auth shell owns Microsoft and email/password login',()=>{
   const portal=read('frontend/employee-portal-v37.js');
 
   assert.match(html,/auth-login-v42\.js[\s\S]*app\.js/,'Auth-Login muss vor app.js geladen werden.');
+  assert.doesNotMatch(html,/class="[^"]*login-action[^"]*"/,'Der alte Header-Login darf nicht als zweiter Loginweg sichtbar bleiben.');
   assert.match(app,/UMAuthLogin\.render/,'renderAuthenticationRequired muss die gemeinsame Login-Shell verwenden.');
   assert.match(login,/\.auth\/login\/aad/);
   assert.match(login,/\/api\/auth\/password\/login/);
@@ -76,6 +76,7 @@ test('one pre-auth shell owns Microsoft and email/password login',()=>{
   assert.match(login,/\/api\/auth\/password\/logout/);
   assert.match(login,/\.auth\/logout/);
   assert.doesNotMatch(portal,/MutationObserver[\s\S]{0,900}login-box/,'Mitarbeiterportal darf keinen zweiten Login nachträglich ersetzen.');
+  assert.doesNotMatch(portal,/function\s+renderUnifiedLogin|function\s+portalPasswordLogin|function\s+portalLogout/);
   assert.doesNotMatch(app,/login-box[\s\S]{0,800}Mit Microsoft anmelden[\s\S]{0,800}Sitzung abmelden/,'app.js darf keinen Microsoft-only Ersatzlogin mehr rendern.');
 });
 
@@ -91,9 +92,9 @@ test('auth state remains separate from login markup and tenant routing',()=>{
 });
 ```
 
-- [ ] **Step 2: Move the employee portal login contract to the common module**
+- [ ] **Step 2: Move the employee portal login contract to the common auth module**
 
-Replace the existing login test body in `tests/employee-portal-contract.test.js` with:
+Replace the existing login test in `tests/employee-portal-contract.test.js` with:
 ```js
 test('login page offers Microsoft and email/password without changing role semantics', () => {
   const html = read('frontend/index.html');
@@ -110,13 +111,13 @@ test('login page offers Microsoft and email/password without changing role seman
 
 Add `tests/unified-login-shell-v42.test.js` to the `node --test ...` list in `package.json` immediately after `tests/tenant-isolation-login-v40.test.js`.
 
-- [ ] **Step 4: Run the new contract and verify RED**
+- [ ] **Step 4: Verify RED**
 
 ```bash
 node --test tests/unified-login-shell-v42.test.js tests/employee-portal-contract.test.js tests/tenant-isolation-login-v40.test.js
 ```
 
-Expected: failure because `frontend/auth-login-v42.js` does not exist and `app.js` still owns a Microsoft-only login card.
+Expected: RED because `auth-login-v42.js` is absent, the header still exposes `.login-action`, `app.js` still owns Microsoft-only login markup, and the portal still contains the replacement hack.
 
 - [ ] **Step 5: Commit the RED contract**
 
@@ -133,12 +134,11 @@ git commit -m "test(rc991): require one shared dual-auth login shell"
 - Test: `tests/unified-login-shell-v42.test.js`
 
 **Interfaces:**
-- Consumes: DOM target element supplied by caller.
+- Consumes: a target DOM element supplied by caller.
 - Produces: frozen `globalThis.UMAuthLogin` with `render({target,message})`, `passwordLogin(event)`, and `logout(event)`.
 
 - [ ] **Step 1: Create `frontend/auth-login-v42.js` with no app-state or tenant authority**
 
-Use this module shape:
 ```js
 (function(root){
   const escapeHtml=(value='')=>String(value??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
@@ -180,25 +180,36 @@ Use this module shape:
     location.href='/.auth/logout';
   }
 
-  function bindLogout(){document.querySelector('.logout-action')?.addEventListener('click',logout);}
-  document.addEventListener('DOMContentLoaded',bindLogout);
-  bindLogout();
+  function bindLogout(){
+    const action=document.querySelector('.logout-action');
+    if(!action||action.dataset.authLogoutBound==='1')return;
+    action.dataset.authLogoutBound='1';
+    action.addEventListener('click',logout);
+  }
+
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bindLogout,{once:true});
+  else bindLogout();
   root.UMAuthLogin=Object.freeze({render,passwordLogin,logout});
 })(globalThis);
 ```
 
-This module must not read or assign `state.companyId`, roles, company IDs, or tenant headers. Those stay owned by existing authenticated application code.
+This module must not read or assign `state`, `state.companyId`, roles, company IDs, or tenant headers.
 
-- [ ] **Step 2: Load the module before `app.js`**
+- [ ] **Step 2: Load the module before `app.js` and remove the duplicate header login**
 
-In `frontend/index.html`, change the beginning of the script list to:
+In `frontend/index.html`, use:
 ```html
 <script src="/config.js"></script>
 <script src="/auth-login-v42.js"></script>
 <script src="/app.js"></script>
 ```
 
-Do not add a second login page or `/login.html`.
+Remove this old header element entirely:
+```html
+<a class="btn ghost login-action" href="/.auth/login/aad">Anmelden</a>
+```
+
+Keep the existing `.logout-action`; the shared auth module owns its click behavior.
 
 - [ ] **Step 3: Run syntax and focused module tests**
 
@@ -207,16 +218,16 @@ node --check frontend/auth-login-v42.js
 node --test tests/unified-login-shell-v42.test.js
 ```
 
-Expected: the module-existence and endpoint checks pass; app/portal cleanup assertions may still be RED until Task 3.
+Expected: module/script/header checks pass; app/portal cleanup assertions remain RED until Tasks 3 and 4.
 
-- [ ] **Step 4: Commit the focused module**
+- [ ] **Step 4: Commit the focused module and header cleanup**
 
 ```bash
 git add frontend/auth-login-v42.js frontend/index.html
 git commit -m "feat(rc991): add shared dual-auth login module"
 ```
 
-### Task 3: Route app authentication failures into the shared login shell
+### Task 3: Route application authentication failures into the shared shell
 
 **Files:**
 - Modify: `frontend/app.js`
@@ -224,11 +235,10 @@ git commit -m "feat(rc991): add shared dual-auth login module"
 
 **Interfaces:**
 - Consumes: `globalThis.UMAuthLogin.render({target,message})`.
-- Produces: `renderAuthenticationRequired(message)` that clears prior app state, closes the workspace, marks auth-required through existing `renderUserInfo(false)`, and renders the shared login shell.
+- Produces: `renderAuthenticationRequired(message)` that clears prior app state, closes workspace data, and renders exactly one login shell.
 
 - [ ] **Step 1: Replace the Microsoft-only markup inside `renderAuthenticationRequired()`**
 
-Use:
 ```js
 function renderAuthenticationRequired(message=''){
   state.apiAvailable=false;
@@ -249,38 +259,39 @@ function renderAuthenticationRequired(message=''){
 }
 ```
 
-The fallback is only a neutral reload/error state; it must not introduce another Microsoft-only login implementation.
+The fallback is a neutral loading/error message only; it must not contain another Microsoft or password login implementation.
 
-- [ ] **Step 2: Preserve the existing company routing unchanged**
+- [ ] **Step 2: Preserve role/company routing unchanged**
 
-Do not alter these semantics in `loadData()`:
+Keep these semantics in `loadData()`:
 ```js
 state.me = await api('/me');
 if(state.me?.companyId) state.companyId = state.me.companyId;
 if(requiresCompanySelection()){
   state.companyId = null;
-  await showCompanySelection();
+  if(typeof showCompanySelection==='function')await showCompanySelection();
+  else renderServiceUnavailable('Firmenauswahl ist noch nicht geladen.');
   return;
 }
 await loadCompanyData();
 ```
 
-- [ ] **Step 3: Run the focused login and tenant tests**
+- [ ] **Step 3: Run focused login/tenant tests**
 
 ```bash
 node --test tests/unified-login-shell-v42.test.js tests/tenant-isolation-login-v40.test.js tests/system-admin-company-selection.test.js
 ```
 
-Expected: shared login-shell and company-selection contracts pass.
+Expected: shared-shell and company-selection contracts pass except portal cleanup assertions that belong to Task 4.
 
-- [ ] **Step 4: Commit the app routing change**
+- [ ] **Step 4: Commit app routing**
 
 ```bash
 git add frontend/app.js tests/unified-login-shell-v42.test.js
 git commit -m "fix(rc991): route authentication into shared login shell"
 ```
 
-### Task 4: Remove the employee-portal duplicate login implementation
+### Task 4: Remove duplicate login behavior from the employee portal
 
 **Files:**
 - Modify: `frontend/employee-portal-v37.js`
@@ -291,35 +302,26 @@ git commit -m "fix(rc991): route authentication into shared login shell"
 - Consumes: shared login/logout behavior from `UMAuthLogin` outside the employee portal.
 - Produces: employee portal code concerned only with employee/line-manager dashboards and learning actions.
 
-- [ ] **Step 1: Delete the duplicate functions from `employee-portal-v37.js`**
+- [ ] **Step 1: Delete these duplicate functions from `employee-portal-v37.js`**
 
-Remove only these functions:
-```js
+```text
 renderUnifiedLogin
 portalPasswordLogin
 portalLogout
 ```
 
-Do not remove employee task, dashboard, learning, proof-download, appointment, or team behavior.
+- [ ] **Step 2: Delete the MutationObserver/login-box replacement and portal logout binding**
 
-- [ ] **Step 2: Delete the MutationObserver/login-box replacement and duplicate logout event binding**
-
-Remove the block equivalent to:
-```js
-const observer=new MutationObserver(()=>{const legacy=document.querySelector('main .login-box');if(legacy&&!state.me)renderUnifiedLogin(legacy.textContent||'');});
-observer.observe(document.body,{childList:true,subtree:true});
-document.addEventListener('DOMContentLoaded',()=>{document.querySelector('.logout-action')?.addEventListener('click',portalLogout);setTimeout(()=>{const legacy=document.querySelector('main .login-box');if(legacy&&!state.me)renderUnifiedLogin(legacy.textContent||'');},0);});
-document.querySelector('.logout-action')?.addEventListener('click',portalLogout);
-```
+Remove the complete block that watches `main .login-box`, calls `renderUnifiedLogin(...)`, and binds `.logout-action` to `portalLogout`.
 
 - [ ] **Step 3: Remove the deleted login symbols from the portal export**
 
-The export must no longer include `renderUnifiedLogin` or `portalPasswordLogin`; keep only employee-domain functions such as:
+The export must retain employee-domain functions only:
 ```js
 Object.assign(window,{portalStartInstruction,portalRequestAppointment,portalDownloadProof,portalCloseLearning,portalLearningNext,portalLearningPrev,portalSubmitTraining,portalOpenOriginal,portalZoomLearningImage,portalSaveLearningStep,portalToggleLearningStep,portalSaveDelivery});
 ```
 
-- [ ] **Step 4: Run employee/login regression tests**
+- [ ] **Step 4: Run employee/login regressions**
 
 ```bash
 node --check frontend/employee-portal-v37.js
@@ -342,9 +344,9 @@ git commit -m "refactor(rc991): remove duplicate employee login shell"
 
 **Interfaces:**
 - Consumes: green Admin Preview plan plus Tasks 1–4 of this plan.
-- Produces: a fully verified RC991 candidate suitable for controlled synchronization into Essentra and Kontur branches.
+- Produces: fully verified RC991 suitable for controlled synchronization into Essentra and Kontur branches.
 
-- [ ] **Step 1: Run syntax checks for all changed frontend modules**
+- [ ] **Step 1: Run syntax checks for changed frontend modules**
 
 ```bash
 node --check frontend/auth-login-v42.js
@@ -352,6 +354,7 @@ node --check frontend/auth-shell-v40.js
 node --check frontend/app.js
 node --check frontend/employee-portal-v37.js
 node --check frontend/learning-admin-v38.js
+node --check frontend/instruction-type-management-v23.js
 ```
 
 Expected: every command exits successfully.
@@ -374,7 +377,7 @@ Expected: `pretest`, frontend/static contracts, API tests, and syntax checks all
 
 - [ ] **Step 4: Push the tested RC991 commit and inspect the triggered Azure Static Web Apps workflow**
 
-The workflow in `.github/workflows/azure-static-web-apps.yml` must finish GREEN for the RC991 commit. Do not treat a local green run alone as deployment verification.
+The workflow in `.github/workflows/azure-static-web-apps.yml` must finish GREEN for the exact RC991 commit. A local green run alone is not deployment verification.
 
 - [ ] **Step 5: Verify `main` is still unchanged**
 
@@ -382,18 +385,18 @@ The workflow in `.github/workflows/azure-static-web-apps.yml` must finish GREEN 
 git rev-parse main
 ```
 
-Expected production baseline remains the previously approved `4ee691a80d66dbd6b543ae9b5a59532f2f1569cf` unless the user has separately approved a production release.
+Expected baseline remains `4ee691a80d66dbd6b543ae9b5a59532f2f1569cf` unless the user separately approves production release.
 
 - [ ] **Step 6: Synchronize only the verified shared commits into company branches**
 
-After the workflow is GREEN, apply the same tested shared changes to:
+Apply the tested shared changes to:
 ```text
 company/essentra-components
 company/kontur-werkzeugstahl
 ```
 
-Do not merge `main`, do not seed data, and do not change tenant-specific company records while synchronizing code.
+Do not merge `main`, seed data, or change tenant-specific records while synchronizing code.
 
 - [ ] **Step 7: Verify both company branches after synchronization**
 
-Trigger/inspect their deployment workflows and require GREEN on both before reporting the shared login/preview block complete.
+Inspect their deployment workflows and require GREEN on both before reporting the shared login/preview block complete.
