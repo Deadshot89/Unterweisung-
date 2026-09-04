@@ -77,9 +77,61 @@
   function v38EditLearningStep(typeId,id){const row=(adminState.steps.get(typeId)||[]).find(x=>String(x.id)===String(id));if(!row)return;adminState.editingStepId=id;document.getElementById('v38StepId').value=id;document.getElementById('v38StepOrder').value=Number(row.sortOrder||10);document.getElementById('v38StepTitle').value=row.title||'';document.getElementById('v38StepBody').value=row.body||'';document.getElementById('v38ImageCaption').value=row.imageCaption||'';document.getElementById('v38CalloutTitle').value=row.calloutTitle||'';document.getElementById('v38CalloutText').value=row.calloutText||'';v38PreviewLearningStep(typeId);document.getElementById('v38StepTitle')?.scrollIntoView({behavior:'smooth',block:'center'});}
   async function v38ToggleLearningStep(typeId,id,status){try{await api('/learning-steps/'+encodeURIComponent(id),{method:'PATCH',body:JSON.stringify({status})});adminState.steps.delete(typeId);await v38LoadLearningSteps(typeId,true);}catch(error){alert('Freigabe konnte nicht geändert werden: '+String(error.message||error));}}
 
+  async function v38PreviewStep(step){
+    const view={...step,imageUrl:''};
+    if(!step.imageFileId)return view;
+    try{
+      const file=await api('/files/'+encodeURIComponent(step.imageFileId)+'/download');
+      view.imageUrl=file.url||'';
+    }catch(error){
+      view.imageError=String(error.message||error||'Bild konnte nicht geladen werden.');
+    }
+    return view;
+  }
+
+  async function v38OpenPreviewOriginal(templateId){
+    if(!templateId)return;
+    try{
+      const file=await api('/templates/'+encodeURIComponent(templateId)+'/download');
+      window.open(file.url,'_blank','noopener');
+    }catch(error){
+      alert('Originalunterlage konnte nicht geöffnet werden: '+String(error.message||error));
+    }
+  }
+
+  async function v38OpenInstructionPreview(typeId){
+    if(!canEditRichLearning())return;
+    const instruction=currentType(typeId);
+    const encoded=encodeURIComponent(typeId);
+    try{
+      const [rawSteps,rawQuestions]=await Promise.all([
+        api('/learning-steps?instructionTypeId='+encoded+'&language=de'),
+        api('/test-questions?instructionTypeId='+encoded+'&language=de')
+      ]);
+      const steps=await Promise.all((rawSteps||[]).map(v38PreviewStep));
+      const questions=(rawQuestions||[]).filter(q=>q.active!==false);
+      const learningHtml=steps.length
+        ? steps.map((step,index)=>renderer.renderLearningStep({instruction,step,index,total:steps.length})+(step.imageError?`<div class="notice warning">${escV(step.imageError)}</div>`:'')).join('')
+        : '<div class="notice warning">Für diese Unterweisung sind noch keine Lernschritte hinterlegt.</div>';
+      const testHtml=questions.length
+        ? renderer.renderQuestionList({questions,passPercent:Number(instruction.passPercent||80),namePrefix:'v38PreviewQuestion'})
+        : '<p class="muted">Für diese Unterweisung sind keine Testfragen hinterlegt.</p>';
+      const originalHtml=instruction.templateId
+        ? `<button class="ghost" type="button" onclick="v38OpenPreviewOriginal('${escV(instruction.templateId)}')">Originalunterlage öffnen</button>`
+        : '';
+      document.getElementById('v38InstructionPreviewBackdrop')?.remove();
+      document.body.insertAdjacentHTML('beforeend',`<div id="v38InstructionPreviewBackdrop" class="learning-modal-backdrop"><div class="learning-modal" role="dialog" aria-modal="true"><div class="learning-modal-head"><div><span class="portal-badge">Nur Vorschau</span><h2>${escV(instruction.name||'Unterweisung')}</h2><p class="muted">${escV(instruction.category||'Allgemein')} · ${Number(instruction.intervalMonths||12)} Monate</p><p class="muted">Diese Admin-Vorschau erzeugt keinen Lernfortschritt, keinen Testabschluss und keinen Nachweis.</p></div><button class="ghost" type="button" onclick="v38CloseInstructionPreview()">Schließen</button></div><div class="learning-actions"><div class="learning-actions-group">${originalHtml}</div></div>${learningHtml}${testHtml}</div></div>`);
+    }catch(error){
+      alert('Unterweisungsvorschau konnte nicht geöffnet werden: '+String(error.message||error));
+    }
+  }
+
+  function v38CloseInstructionPreview(){document.getElementById('v38InstructionPreviewBackdrop')?.remove();}
+  function v38OpenInstructionFromTable(typeId){if(typeof selectInstructionWorkspaceItem==='function')selectInstructionWorkspaceItem(typeId);return v38OpenInstructionPreview(typeId);}
+
   if(typeof instructionDetailPanel==='function'){
     const prior=instructionDetailPanel;
     window.instructionDetailPanel=function(editable=false){let html=prior(editable);const typeId=selectedTypeId();html=html.replace(/<div class="learning-admin">[\s\S]*$/,'');if(!editable||!typeId||!canEditRichLearning())return html;setTimeout(()=>v38LoadLearningSteps(typeId),0);return html+richLearningPanel(typeId);};
   }
-  Object.assign(window,{canEditRichLearning,v38SaveInstructionContent,v38PreviewLearningStep,v38SaveLearningStep,v38ClearLearningStep,v38LoadLearningSteps,v38EditLearningStep,v38ToggleLearningStep});
+  Object.assign(window,{canEditRichLearning,v38SaveInstructionContent,v38PreviewLearningStep,v38SaveLearningStep,v38ClearLearningStep,v38LoadLearningSteps,v38EditLearningStep,v38ToggleLearningStep,v38OpenInstructionPreview,v38CloseInstructionPreview,v38OpenInstructionFromTable,v38OpenPreviewOriginal});
 })();
