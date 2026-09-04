@@ -3,7 +3,7 @@ import { getPool, sql } from '../lib/db.js';
 import { json, notFound, forbidden, serverError } from '../lib/http.js';
 import { getAuthorizedContext, assertRole, Roles } from '../lib/auth.js';
 import { resolveEmployeeAccess, employeeIdAllowed } from '../lib/employeeAccess.js';
-import { createReadSasUrl } from '../lib/blob.js';
+import { blobExists, createReadSasUrl } from '../lib/blob.js';
 import { writeAudit } from '../lib/audit.js';
 
 async function restrictedFileAllowed(pool, ctx, access, file) {
@@ -44,6 +44,13 @@ app.http('files', {
       if (file.status === 'blocked' || file.scanStatus === 'quarantined' || file.scanStatus === 'blocked') return forbidden('Datei ist gesperrt oder in Quarantäne. Download nicht erlaubt.');
       const access = await resolveEmployeeAccess(pool, ctx);
       if (!(await restrictedFileAllowed(pool, ctx, access, file))) return forbidden('Keine Berechtigung für diese Datei.');
+      if (!(await blobExists(file.blobPath))) {
+        await writeAudit(pool, ctx, 'file.blobMissing', 'file', id, { kind: file.kind, scanStatus: file.scanStatus });
+        return json({
+          error: 'Die Datei ist im System registriert, aber im Speicher nicht vorhanden. Bitte die Unterlage erneut hochladen.',
+          code: 'FILE_BLOB_MISSING'
+        }, 404);
+      }
       await writeAudit(pool, ctx, 'file.downloadRequested', 'file', id, { kind: file.kind, scanStatus: file.scanStatus });
       return json({ id:file.id,fileName:file.fileName,contentType:file.contentType,kind:file.kind,sizeBytes:file.sizeBytes,scanStatus:file.scanStatus,url:createReadSasUrl(file.blobPath,10) });
     } catch (err) { return serverError(err, context); }
