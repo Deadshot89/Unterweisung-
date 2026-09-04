@@ -45,3 +45,13 @@ test('application resolves the portal mode immediately after /api/me and before 
   assert.match(app, /function\s+renderPortalAccessDenied\(\)/);
   assert.doesNotMatch(app, /document\.querySelectorAll\(['"]\.tabs button['"]\)\.forEach\(b=>b\.addEventListener/);
 });
+
+test('role guard prevents direct admin views from employee portal modes', () => {
+  const guard=read('frontend/role-guard-v20.js');
+  assert.match(guard,/function\s+portalModeAllowsView/);
+  assert.match(guard,/employee-portal/);
+  assert.match(guard,/employee-manager-portal/);
+  assert.match(guard,/admin-portal/);
+  assert.match(guard,/portalModeAllowsView\(view\).*hasAnyRole/s);
+  assert.match(guard,/#portalNavigation|portalNavigation/);
+});
