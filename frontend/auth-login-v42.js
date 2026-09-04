@@ -38,8 +38,6 @@
     location.href='/.auth/logout';
   }
 
-  function bindLogout(){document.querySelector('.logout-action')?.addEventListener('click',logout);}
-  document.addEventListener('DOMContentLoaded',bindLogout);
-  bindLogout();
+  document.addEventListener('click',event=>{if(event.target?.closest?.('.logout-action'))logout(event);});
   root.UMAuthLogin=Object.freeze({render,passwordLogin,logout});
 })(globalThis);

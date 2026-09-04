@@ -1,4 +1,4 @@
-// v0.36.3 Mitarbeiterportal, Dual-Login und bildgestützte Lernschritte.
+// v0.36.3 Mitarbeiterportal und bildgestützte Lernschritte.
 (function(){
   const portalState={training:null,stepIndex:0,adminCache:new Map()};
   const ADMIN_ROLES=new Set(['system_admin','company_admin','hse']);
@@ -16,37 +16,6 @@
   function isOnlineRow(row){return String(rowType(row).deliveryMode||'practical')==='online';}
   function dateText(value){return value?fmtDate(value):'—';}
   function taskMeta(row){return `${esc(row.category||'Allgemein')} · ${row.validUntil?'fällig '+dateText(row.validUntil):'noch kein gültiger Abschluss'}`;}
-
-  function renderUnifiedLogin(errorText=''){
-    const main=document.querySelector('main');if(!main)return;
-    const detail=String(errorText||'').replace(/^.*?Fehler:\s*/,'').trim();
-    main.innerHTML=`<section class="dual-login-shell">
-      <div class="dual-login-head"><span class="portal-badge">Unterweisungsmanager</span><h2>Anmeldung</h2><p class="muted">Microsoft oder E-Mail und Passwort – beide Wege verwenden dieselben Rollen und Firmenrechte.</p></div>
-      <div class="dual-login-grid">
-        <div class="card dual-login-card"><h3>Mit Microsoft anmelden</h3><p>Für Benutzer mit Microsoft-/Entra-Konto. Deine hinterlegte Rolle im Unterweisungsmanager bestimmt anschließend den Funktionsumfang.</p><a class="btn primary" href="/.auth/login/aad">Mit Microsoft anmelden</a></div>
-        <div class="card dual-login-card"><h3>E-Mail und Passwort</h3><p>Für interne Benutzer ohne Microsoft-Konto. Die Rechte sind identisch mit der im Benutzerkonto hinterlegten Rolle.</p>
-          <form id="portalPasswordLogin"><div class="field"><label for="portalLoginEmail">E-Mail</label><input id="portalLoginEmail" type="email" autocomplete="username" required></div>
-          <div class="field"><label for="portalLoginPassword">Passwort</label><input id="portalLoginPassword" type="password" autocomplete="current-password" required></div>
-          <button class="primary" type="submit">Anmelden</button><div id="portalLoginResult" class="employee-login-error">${detail?`<div class="notice warning">${esc(detail)}</div>`:''}</div></form></div>
-      </div><p class="muted" style="text-align:center;margin-top:18px">Externe Unterweisungen bleiben unabhängig davon über ihren persönlichen Link erreichbar.</p>
-    </section>`;
-    document.getElementById('portalPasswordLogin')?.addEventListener('submit',portalPasswordLogin);
-  }
-
-  async function portalPasswordLogin(event){
-    event?.preventDefault();const result=document.getElementById('portalLoginResult');if(result)result.textContent='Anmeldung wird geprüft …';
-    try{
-      const response=await fetch('/api/auth/password/login',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify({email:document.getElementById('portalLoginEmail')?.value||'',password:document.getElementById('portalLoginPassword')?.value||''})});
-      const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.error||'Anmeldung fehlgeschlagen.');
-      location.reload();
-    }catch(error){if(result)result.innerHTML=`<div class="notice dangerbox">${esc(error.message||error)}</div>`;}
-  }
-
-  async function portalLogout(event){
-    event?.preventDefault();
-    try{await fetch('/api/auth/password/logout',{method:'POST',credentials:'include'});}catch{}
-    location.href='/.auth/logout';
-  }
 
   function employeeTaskCard(row,kind){
     let action='';
@@ -155,9 +124,5 @@
     const original=instructionDetailPanel;instructionDetailPanel=function(editable=false){const html=original(editable);const selected=window.instructionWorkspaceState?.selectedId||instructionWorkspaceState?.selectedId||'';if(!editable||!selected||!canEditLearning())return html;setTimeout(()=>portalLoadLearningAdmin(selected),0);return html+learningAdminPanel(selected);};
   }
 
-  const observer=new MutationObserver(()=>{const legacy=document.querySelector('main .login-box');if(legacy&&!state.me)renderUnifiedLogin(legacy.textContent||'');});observer.observe(document.body,{childList:true,subtree:true});
-  document.addEventListener('DOMContentLoaded',()=>{document.querySelector('.logout-action')?.addEventListener('click',portalLogout);setTimeout(()=>{const legacy=document.querySelector('main .login-box');if(legacy&&!state.me)renderUnifiedLogin(legacy.textContent||'');},0);});
-  document.querySelector('.logout-action')?.addEventListener('click',portalLogout);
-
-  Object.assign(window,{renderUnifiedLogin,portalPasswordLogin,portalStartInstruction,portalRequestAppointment,portalDownloadProof,portalCloseLearning,portalLearningNext,portalLearningPrev,portalSubmitTraining,portalOpenOriginal,portalZoomLearningImage,portalSaveLearningStep,portalToggleLearningStep,portalSaveDelivery});
+  Object.assign(window,{portalStartInstruction,portalRequestAppointment,portalDownloadProof,portalCloseLearning,portalLearningNext,portalLearningPrev,portalSubmitTraining,portalOpenOriginal,portalZoomLearningImage,portalSaveLearningStep,portalToggleLearningStep,portalSaveDelivery});
 })();
