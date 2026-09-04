@@ -57,7 +57,14 @@ assert.ok(managed.every(row=>row.id.startsWith('qb1-')));
 
 // Evaluate real external API selection and grading functions with an in-memory query adapter.
 const runtimeSource=fs.readFileSync('api/src/functions/externalInstruction.js','utf8').split("app.http('externalInstruction'")[0].replace(/^import .*;\n/gm,'');
-const context=vm.createContext({placeCorrectAnswer,balancedPositions,selectTestQuestions,Math:Object.assign(Object.create(Math),{random:()=>0}),sql:{NVarChar:()=>{}}});
+const context=vm.createContext({
+  placeCorrectAnswer,
+  balancedPositions,
+  selectTestQuestions,
+  loadPublishedLearningContent:async()=>({learningGoal:'',learningIntro:'',keyPoints:[],steps:[]}),
+  Math:Object.assign(Object.create(Math),{random:()=>0}),
+  sql:{NVarChar:()=>{}}
+});
 vm.runInContext(runtimeSource,context);
 let servedRows=original;
 const pool={request(){return {input(){return this;},async query(query){return {recordset:query.includes('active=1')?servedRows.filter(row=>row.active):servedRows};}};}};
