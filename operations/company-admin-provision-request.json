@@ -1,0 +1,10 @@
+{
+  "requestId": "kontur-andreas-zohren-20260904-01",
+  "confirmed": true,
+  "expectedBranch": "company/kontur-werkzeugstahl",
+  "companyName": "Kontur Werkzeugstahl GmbH",
+  "displayName": "Andreas Zohren",
+  "email": "andreas.zohren@arcelormittal.com",
+  "role": "company_admin",
+  "exclusive": true
+}
