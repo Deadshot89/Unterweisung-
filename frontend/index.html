@@ -3,12 +3,16 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Unterweisungsmanager Online · v0.35.5</title>
+  <title>Unterweisungsmanager Online · v0.36.3</title>
   <link rel="stylesheet" href="/styles.css">
   <link rel="stylesheet" href="/view-header-design-v34.css">
   <link rel="stylesheet" href="/professional-suite-v35.css">
+  <link rel="stylesheet" href="/professional-suite-v36.css">
+  <link rel="stylesheet" href="/employee-portal-v37.css">
+  <link rel="stylesheet" href="/learning-experience-v38.css">
+  <link rel="stylesheet" href="/company-context-v39.css">
 </head>
-<body>
+<body class="auth-pending">
   <header class="topbar app-shell-header">
     <div class="brand-wrap">
       <div class="brand">UM</div>
@@ -19,7 +23,7 @@
     </div>
     <div class="top-actions">
       <span id="userInfo" class="user-info professional-user">Login wird geprüft…</span>
-      <a class="btn ghost login-action" href="/.auth/login/aad">Anmelden</a>
+      <button id="companySwitchAction" class="btn ghost" type="button" hidden>Firma wechseln</button>
       <a class="btn ghost logout-action" href="/.auth/logout">Abmelden</a>
     </div>
   </header>
@@ -30,26 +34,16 @@
       <strong>Systemstatus:</strong>
       <span>Betriebsbereit</span>
       <span class="strip-divider"></span>
-      <span>Essentra aktiv</span>
+      <span id="activeCompanyLabel">Keine Firma ausgewählt</span>
       <span class="strip-divider"></span>
-      <span>Version <span id="appVersion">v0.35.5</span></span>
+      <span>Version <span id="appVersion">v0.36.3</span></span>
     </section>
 
-    <nav class="tabs primary-tabs">
-      <button data-view="dashboard" class="active">Dashboard</button>
-      <button data-view="companies">Firmen</button>
-      <button data-view="employees">Mitarbeiter</button>
-      <button data-view="instructions">Unterweisungen</button>
-      <button data-view="status">Status</button>
-      <button data-view="reminders">Erinnerungen</button>
-      <button data-view="proofs">Nachweise</button>
-      <button data-view="managerReport">Manager-Report</button>
-      <button data-view="planning">Planung</button>
-      <button data-view="external">Externe Links</button>
-      <button data-view="users">Benutzer</button>
-      <button data-view="operations">Betrieb</button>
-      <button data-view="security">Sicherheit</button>
-    </nav>
+    <section id="companySelectionGate" class="company-selection-gate">
+      <div class="card auth-pending-card"><h2>Anmeldung wird geprüft …</h2><p class="muted">Firmendaten werden erst nach erfolgreicher Anmeldung geladen.</p></div>
+    </section>
+
+    <nav id="portalNavigation" class="tabs primary-tabs" hidden></nav>
 
     <section id="dashboard" class="view active"></section>
     <section id="companies" class="view"></section>
@@ -71,17 +65,23 @@
   </template>
 
   <script src="/config.js"></script>
+  <script src="/auth-login-v42.js"></script>
+  <script src="/portal-shell-v43.js"></script>
   <script src="/app.js"></script>
+  <script src="/company-context-v39.js"></script>
   <script src="/company-settings-v15.js"></script>
   <script src="/external-fix-v12.js"></script>
+  <script src="/external-manager-v38.js"></script>
   <script src="/system-admin-v16.js"></script>
   <script src="/employee-management-v18.js"></script>
   <script src="/user-management-v19.js"></script>
   <script src="/role-guard-v20.js"></script>
   <script src="/template-management-v21.js"></script>
   <script src="/test-question-management-v22.js"></script>
+  <script src="/instruction-analysis.js"></script>
   <script src="/instruction-type-management-v23.js"></script>
   <script src="/planning-management-v24.js"></script>
+  <script src="/planning-mail-v38.js"></script>
   <script src="/status-worklist-v25.js"></script>
   <script src="/essentra-live-check-v26.js"></script>
   <script src="/essentra-defect-log-v27.js"></script>
@@ -93,5 +93,10 @@
   <script src="/table-form-design-v33.js"></script>
   <script src="/view-header-design-v34.js"></script>
   <script src="/professional-suite-v35.js"></script>
+  <script src="/learning-experience-v38.js"></script>
+  <script src="/employee-portal-v37.js"></script>
+  <script src="/employee-learning-v38.js"></script>
+  <script src="/learning-admin-v38.js"></script>
+  <script src="/auth-shell-v40.js"></script>
 </body>
 </html>

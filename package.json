@@ -1,6 +1,6 @@
 {
   "name": "unterweisungsmanager-online",
-  "version": "0.35.5",
+  "version": "0.36.3",
   "private": true,
   "description": "Mandantenfähiger Unterweisungsmanager für Azure Static Web Apps + Azure Functions + Azure SQL/Blob Storage",
   "scripts": {
@@ -13,8 +13,8 @@
     "db:seed": "node scripts/import-startdata.js",
     "blob:upload-templates": "node scripts/upload-templates.js",
     "setup:essentra": "npm run db:migrate && npm run db:seed && npm run blob:upload-templates",
-    "test": "node scripts/check-external-flow.js && node scripts/check-company-mail-settings.js && node scripts/check-system-admin.js && node scripts/check-employee-management.js && node scripts/check-user-management.js && node scripts/check-role-guard.js && node scripts/check-template-upload.js && node scripts/check-test-question-management.js && node scripts/check-instruction-type-management.js && node scripts/check-planning-management.js && node scripts/check-status-worklist.js && node scripts/check-essentra-live-check.js && node scripts/check-essentra-defect-log.js && node scripts/check-manager-report.js && node scripts/check-proof-management.js && node scripts/check-reminder-center.js && node scripts/check-design-polish.js && node scripts/check-dashboard-design.js && node scripts/check-table-form-design.js && node scripts/check-view-header-design.js && node scripts/check-professional-suite.js && npm run api:test && node --check scripts/*.js",
-    "pretest": "node scripts/check-main-layout.js && node --test tests/data-import-control.test.cjs tests/view-refresh.test.js tests/deploy-isolation.test.js",
+    "test": "node scripts/check-external-flow.js && node scripts/check-company-mail-settings.js && node scripts/check-system-admin.js && node scripts/check-employee-management.js && node scripts/check-user-management.js && node scripts/check-role-guard.js && node scripts/check-template-upload.js && node scripts/check-test-question-management.js && node scripts/check-answer-distribution.js && node scripts/check-instruction-analysis.js && node scripts/check-instruction-type-management.js && node scripts/check-instruction-workspace-v36.js && node scripts/check-auth-preview-wiring.js && node scripts/check-auth-environment-guard.js && node scripts/check-managed-api-runtime-settings.js && node scripts/check-runtime-packaging.js && node scripts/check-planning-management.js && node scripts/check-admin-workspace.js && node scripts/check-status-worklist.js && node scripts/check-essentra-live-check.js && node scripts/check-essentra-defect-log.js && node scripts/check-manager-report.js && node scripts/check-proof-management.js && node scripts/check-reminder-center.js && node scripts/check-design-polish.js && node scripts/check-dashboard-design.js && node scripts/check-table-form-design.js && node scripts/check-view-header-design.js && node scripts/check-professional-suite.js && node --check frontend/learning-experience-v38.js && node --check frontend/employee-learning-v38.js && node --check frontend/planning-mail-v38.js && node --check frontend/external-manager-v38.js && node --check frontend/external/instruction-v38.js && node --check frontend/learning-admin-v38.js && node --check frontend/portal-shell-v43.js && npm run api:test && node --check scripts/*.js",
+    "pretest": "node scripts/check-main-layout.js && node --test tests/data-import-control.test.cjs tests/preview-deployment-safety.test.cjs tests/planning-refresh.test.js tests/deploy-isolation.test.js tests/instruction-lifecycle.test.js tests/password-auth.test.js tests/access-scope.test.js tests/employee-portal-contract.test.js tests/unified-learning-experience.test.cjs tests/learning-content-contract.test.js tests/external-learning-v38.test.js tests/line-manager-external-invitations.test.js tests/planning-mail-v38.test.js tests/learning-admin-v38.test.js tests/system-admin-company-selection.test.js tests/company-context-v39.test.js tests/shell-auth-version-v39.test.js tests/tenant-isolation-login-v40.test.js tests/unified-login-shell-v42.test.js tests/company-admin-provisioning.test.js tests/blob-missing-download-v41.test.js tests/central-portal-routing-v43.test.js",
     "api:test": "cd api && npm test",
     "db:seed:tests": "node scripts/import-startdata.js --with-default-tests",
     "backup:export": "node scripts/export-backup.js",
@@ -23,7 +23,7 @@
   },
   "devDependencies": {
     "@azure/static-web-apps-cli": "^2.0.0",
-    "jsdom": "^26.1.0",
+    "jsdom": "26.1.0",
     "yaml": "^2.9.0"
   },
   "type": "module",

@@ -33,6 +33,16 @@ Die Anfrage darf bei der Prüfung höchstens eine Stunde alt und höchstens fün
 
 Die Datei ist ein explizites Betriebssignal innerhalb der bestehenden GitHub-Schreibrechte, kein zusätzlicher Authentifizierungsmechanismus. Wer Schreibrechte auf `main` besitzt, kann einen gültigen Auftrag erstellen. Alte Workflow-Läufe behalten ihren damaligen Code; insbesondere alte Importläufe nicht erneut starten.
 
+## Vorschau-Deployments ohne automatische Datenwartung
+
+Auch der v0.36-Vorschau-Branch verwendet den oben beschriebenen Importschutz. Der Website-Workflow führt weder die Administratorreparatur noch die Schemaeinrichtung oder das Neuverteilen vorhandener Testantworten aus. Die entsprechenden Wartungsskripte bleiben unverändert im Repository, sind aber nicht mehr an ein Deployment gekoppelt. Ihre Ausführung benötigt einen eigenen ausdrücklich freigegebenen Wartungsauftrag; der Importauftrag ist keine pauschale Freigabe für diese zusätzlichen Skripte.
+
+Die serverseitige SQL-/Blob-/KI-Konfiguration wird weiterhin in das ignorierte API-Paket übernommen. Das allein führt keine Datenbankabfragen oder Dateiimporte aus. Die bestehenden Anwendungstests sowie die Prüfung der tatsächlich ausgelieferten Stylesheets bleiben aktiv.
+
+Die bisherigen Deployment-Aufrufe von `/api/health` entfallen ebenfalls: Dieser Endpunkt ruft derzeit `ensureConfiguredContainers()` auf und kann dadurch fehlende Blob-Container anlegen. Er wurde in dieser Änderung nicht umgebaut. Ein erfolgreiches Deployment bestätigt deshalb Build und Veröffentlichung, nicht die aktuelle SQL-/Blob-Erreichbarkeit oder einen echten KI-Dokumentlauf. Bestehendes Schema und Container bleiben Voraussetzung; für neue Umgebungen ist eine separat freigegebene Einrichtung nötig.
+
+Bereits gespeicherte Benutzer, Rollen, Antworten, Unterlagen und Schemas werden durch diese Entkopplung nicht zurückgesetzt oder wiederhergestellt. Alte Workflow-Läufe nicht erneut ausführen: Sie verwenden ihren alten Ablauf und können weiterhin Datenwartung enthalten.
+
 ## Abbruch und Rücknahme
 
 Die aktuelle Codex-GitHub-Anbindung kann einen laufenden Workflow nicht abbrechen. Falls nötig, erfolgt der Abbruch direkt in GitHub Actions über „Cancel workflow“. Ein Abbruch macht bereits abgeschlossene Migrationen, bestätigte Datenimporte oder PDF-Uploads nicht rückgängig. Keine automatische Rücknahme und kein automatischer Neuimport.

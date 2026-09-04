@@ -1,3 +1,4 @@
+import './runtime-settings.js';
 import { BlobServiceClient, StorageSharedKeyCredential, generateBlobSASQueryParameters, BlobSASPermissions } from '@azure/storage-blob';
 
 let serviceClient;
@@ -81,6 +82,20 @@ export async function deleteBlobIfExists(blobPath, options = {}) {
   const container = await ensureContainer({ ...options, blobPath });
   const blob = container.getBlockBlobClient(blobPath);
   await blob.deleteIfExists();
+}
+
+export async function blobExists(blobPath, options = {}) {
+  if (!blobPath) return false;
+  const container = getContainerClient({ ...options, blobPath });
+  const blob = container.getBlobClient(blobPath);
+  try {
+    return await blob.exists();
+  } catch (err) {
+    const status = Number(err?.statusCode || err?.status || 0);
+    const code = String(err?.details?.errorCode || err?.code || '');
+    if (status === 404 || code === 'BlobNotFound' || code === 'ContainerNotFound') return false;
+    throw err;
+  }
 }
 
 export function createReadSasUrl(blobPath, minutes = 10, options = {}) {

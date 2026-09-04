@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { JSDOM } from 'jsdom';
 
 const ui = readFileSync('frontend/status-worklist-v25.js', 'utf8');
 const index = readFileSync('frontend/index.html', 'utf8');
@@ -24,3 +25,135 @@ assert.match(index, /status-worklist-v25\.js/, 'Index muss Status-Arbeitsliste l
 assert.match(index, /Unterweisungsmanager Online · v0\./, 'Index muss eine sichtbare Online-Version anzeigen.');
 
 console.log('Status worklist checks passed');
+
+// Exercise the actual DOM: losing persistent selection or rebuilding the search
+// field, hiding rows beyond a fixed limit, or dispatching the wrong row must fail.
+const dom = new JSDOM('<section id="status"></section>', {runScripts:'outside-only',url:'https://status.test/'});
+const w=dom.window,d=w.document;
+const rows=Array.from({length:65},(_,i)=>({companyId:'one',employeeId:'e'+i,typeId:i%2?'type-b':'type-a',employeeName:'Person '+String(i).padStart(3,'0'),email:'p'+i+'@example.test',department:'Lager',role:'Mitarbeiter',instructionName:'Unterweisung '+(i%2?'B':'A'),category:'Sicherheit',lineManagerId:i%2?'':'manager',lineManagerName:i%2?'Vertretung':'Leitung',conductedAt:i===0?'2026-01-01':null,validUntil:i===0?'2027-01-01':null,status:i===0?'valid':i===64?'not_required':'missing',recordId:i===0?'record-0':null,certificateFileId:i===0?'file-0':null,certificateFileName:i===0?'Vollständiger Nachweis.pdf':null,certificateScanStatus:'clean',groupId:i===0?'group-0':null,exclusionId:i===64?'exclusion-64':null}));
+rows[0].employeeName+='<img src=x onerror=alert(1)>';
+w.state={companyId:'one',apiAvailable:true,statusRows:structuredClone(rows),me:{roles:['company_admin']}};
+w.$=id=>d.getElementById(id);w.API_BASE_URL='/api';w.DEFAULT_COMPANY_ID='one';
+w.esc=value=>String(value??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+w.fmtDate=value=>value?new Date(value).toLocaleDateString('de-DE'):'—';w.badge=value=>'<span>'+w.esc(value)+'</span>';
+w.types=()=>[{id:'type-a',name:'Unterweisung A'},{id:'type-b',name:'Unterweisung B'}];w.emp=()=>({name:'Leitung'});
+w.buildLocalStatusRows=()=>[];w.todayIso=()=> '2026-09-03';
+const calls=[];let apiFailure=false,holdRead=null,holdWrite=null;
+w.api=async(path,options)=>{calls.push({path,method:options?.method||'GET',body:options?.body?JSON.parse(options.body):null});if(apiFailure)throw new Error('Unavailable');if(!options){if(holdRead)return holdRead;return structuredClone(rows);}if(holdWrite)await holdWrite;return {url:'https://status.test/external',id:'created'};};
+w.loadData=async()=>{};w.setView=()=>w.renderStatus();w.alert=()=>{};w.prompt=()=> '30';w.confirm=()=>true;
+const fileCalls=[];w.openFile=id=>fileCalls.push(id);
+const app=readFileSync('frontend/app.js','utf8');
+w.eval(app.slice(app.indexOf('function proofCell('),app.indexOf('function renderPlanning(')));
+w.eval(ui);
+const fire=(id,value,event='input')=>{const el=d.getElementById(id);el.value=value;el.dispatchEvent(new w.Event(event,{bubbles:true}));return el;};
+const click=(action,key)=>{const el=[...d.querySelectorAll('[data-status-action]')].find(el=>el.dataset.statusAction===action&&(!key||el.dataset.key===key));assert.ok(el,'Missing action '+action);el.click();};
+const settle=()=>new Promise(resolve=>setImmediate(resolve));
+const select=key=>{const el=[...d.querySelectorAll('.statusSelect')].find(el=>el.value===key);assert.ok(el,'Missing row '+key);el.checked=true;el.dispatchEvent(new w.Event('change',{bubbles:true}));};
+const selected=()=>Array.from(w.selectedStatusRows(),r=>r.employeeId);
+w.renderStatus();
+assert.equal(d.querySelectorAll('tbody tr').length,25,'A large status list must show one page, not all rows.');
+const baseStyles=d.createElement('style');baseStyles.textContent=readFileSync('frontend/styles.css','utf8');d.head.append(baseStyles);
+assert.equal(w.getComputedStyle(d.querySelector('tbody tr')).display,'table-row','Dashboard card styles must not turn status table rows into flex containers.');
+assert.equal(d.querySelector('#status img'),null);
+assert.equal(d.querySelector('[data-status-action="conduct"]'),null,'Record actions belong to the detail, not every table row.');
+const firstSelection=d.querySelector('.statusSelect');firstSelection.focus();select('e0::type-a');
+assert.equal(d.activeElement,firstSelection,'Selecting a row keeps keyboard focus on that checkbox.');
+select('e1::type-b');click('next');
+assert.deepEqual(selected(),['e0','e1'],'Paging must retain selection from other pages.');
+select('e25::type-b');
+const search=d.getElementById('statusSearch');search.focus();fire('statusSearch','Person 064');
+assert.equal(d.getElementById('statusSearch'),search,'Search must not recreate its focused field.');
+assert.equal(d.activeElement,search);assert.equal(d.querySelectorAll('tbody tr').length,1);
+assert.deepEqual(selected(),['e0','e1','e25'],'Hidden selected rows remain explicitly selected.');
+assert.match(d.getElementById('statusSelection').textContent,/3.*ausgeblendet/);
+click('open','e64::type-a');assert.ok(d.querySelector('[data-status-action="required"]'));
+fire('statusSearch','');click('previous');
+assert.equal(d.getElementById('statusSearch'),search);
+w.renderStatus();assert.deepEqual(selected(),['e0','e1','e25'],'An outer page render retains selection.');
+click('open','e0::type-a');assert.match(d.getElementById('statusDetail').textContent,/Vollständiger Nachweis.pdf/);
+assert.ok(d.querySelector('[data-status-action="upload"]'));assert.ok(d.querySelector('[data-status-action="conduct"]'));
+click('proof');await settle();assert.deepEqual(fileCalls,['file-0']);
+click('conduct');await settle();assert.equal(calls.find(c=>c.path==='/records').body.employeeId,'e0');
+assert.equal(calls.find(c=>c.path==='/records').body.typeId,'type-a');
+assert.deepEqual(selected(),['e1','e25'],'A successfully completed detail row leaves the bulk selection.');
+click('link');await settle();assert.equal(calls.find(c=>c.path==='/invitations').body.sendMail,false);
+select('e0::type-a');apiFailure=true;click('conduct');await settle();
+assert.ok(selected().includes('e0'),'A failed detail action retains its selection for retry.');
+apiFailure=false;click('exclude');await settle();
+assert.ok(!selected().includes('e0'),'A successful detail exclusion clears its selection.');
+fire('statusSearch','Person 064');select('e64::type-a');click('open','e64::type-a');click('required');await settle();
+assert.ok(calls.some(c=>c.path==='/exclusions/exclusion-64'&&c.method==='DELETE'));
+assert.ok(!selected().includes('e64'),'Successfully restoring a requirement clears its stale selection.');
+fire('statusSearch','');click('open','e0::type-a');
+click('clear');assert.deepEqual(selected(),[]);
+click('select-page');assert.equal(selected().length,25,'Select visible must select this page only.');
+click('next');click('select-page');assert.equal(selected().length,50);
+click('next');assert.equal(d.querySelectorAll('tbody tr').length,15);
+fire('statusSearch','Person 064');assert.equal(d.querySelectorAll('tbody tr').length,1,'Changing filters resets pagination.');
+fire('statusSearch','');fire('lineManagerFilter','Vertretung','change');assert.equal(w.filteredStatusRows().length,32,'Name-only Line Managers remain filterable.');
+fire('lineManagerFilter','','change');
+const result=d.getElementById('statusActionResult');result.textContent='Keep action result';
+apiFailure=true;await w.reloadStatusWorklist();
+assert.match(d.getElementById('statusNotice').textContent,/Unavailable/);assert.equal(w.state.statusRows.length,65);
+assert.match(d.getElementById('statusActionResult').textContent,/Keep action result/);
+apiFailure=false;rows[0].employeeName='Updated server name';await w.reloadStatusWorklist();
+assert.match(d.getElementById('statusDetail').textContent,/Updated server name/);
+w.state.statusRows=w.state.statusRows.filter(r=>r.employeeId!=='e0');w.renderStatus();
+assert.ok(!selected().includes('e0'),'Deleted rows are removed from persisted selection.');
+w.state.me.roles=['employee'];w.renderStatus();
+assert.equal(d.querySelector('.statusSelect'),null);assert.equal(d.querySelector('[data-status-action="conduct"]'),null);
+assert.equal(d.querySelector('[data-status-action="upload"]'),null);assert.deepEqual(selected(),[]);
+assert.equal(d.querySelector('td[data-label="Auswahl"]'),null,'Read-only cards must not contain an empty selection field.');
+const before=calls.length;await w.bulkConductSelected();await w.bulkCreateExternalLinks();await w.bulkMarkNotRequired();
+assert.equal(calls.length,before,'Read-only roles must not dispatch bulk writes.');
+w.state.me.roles=['company_admin'];w.state.companyId='two';w.renderStatus();
+assert.equal(d.querySelectorAll('tbody tr').length,0,'Rows from the previous company cannot appear.');assert.deepEqual(selected(),[]);
+w.state.companyId='one';w.state.statusRows=structuredClone(rows);w.renderStatus();
+let release;holdRead=new Promise(resolve=>{release=resolve;});const loading=w.reloadStatusWorklist();
+w.state.companyId='two';w.state.statusRows=[];w.renderStatus();release(structuredClone(rows));await loading;holdRead=null;
+assert.equal(w.state.statusRows.length,0,'A previous-company reload cannot overwrite the current company.');
+w.state.companyId='one';w.state.statusRows=[];w.renderStatus();
+assert.equal(d.querySelectorAll('tbody tr').length,0,'An authoritative empty API result stays empty.');
+
+// Bulk actions include selected rows on other pages, not unselected neighbours.
+w.state.statusRows=structuredClone(rows);w.renderStatus();click('select-page');click('clear');
+select('e1::type-b');click('next');select('e26::type-a');fire('statusSearch','Person 064');
+calls.length=0;let finishWrite;holdWrite=new Promise(resolve=>{finishWrite=resolve;});
+click('bulk-conduct');click('bulk-conduct');
+assert.equal(calls.filter(c=>c.method==='POST').length,1,'A double click cannot create duplicate records.');
+finishWrite();await settle();await settle();holdWrite=null;
+const completed=calls.filter(c=>c.path==='/records');assert.equal(completed.length,2);
+assert.deepEqual(completed.map(c=>c.body.employeeIds),[['e1'],['e26']]);
+assert.deepEqual(completed.map(c=>c.body.typeId),['type-b','type-a']);
+assert.match(d.getElementById('statusActionResult').textContent,/2 Unterweisungen abgeschlossen/);
+assert.deepEqual(selected(),[],'Successfully processed records leave the selection to prevent an accidental repeat.');
+fire('statusSearch','');click('clear');select('e0::type-a');select('e1::type-b');
+calls.length=0;click('bulk-links');await settle();await settle();
+const links=calls.filter(c=>c.path==='/invitations');assert.equal(links.length,1,'Valid rows are excluded from bulk invitations.');
+assert.equal(links[0].body.employeeId,'e1');assert.equal(links[0].body.sendMail,false);
+assert.match(d.getElementById('statusActionResult').textContent,/https:\/\/status.test\/external/);
+calls.length=0;w.confirm=()=>false;click('bulk-exclude');await settle();assert.equal(calls.length,0,'Cancelling a bulk exclusion performs no writes.');
+w.confirm=()=>true;click('bulk-exclude');await settle();await settle();
+assert.deepEqual(calls.filter(c=>c.path==='/exclusions').map(c=>c.body.employeeId),['e0','e1']);
+
+// CSV exports all filtered rows, independent of the current page.
+let exported;w.Blob=Blob;w.URL.createObjectURL=blob=>{exported=blob;return 'blob:test';};w.URL.revokeObjectURL=()=>{};
+w.HTMLAnchorElement.prototype.click=function(){};
+click('next');click('export');const csv=await exported.text();
+assert.equal(csv.trim().split('\n').length,66);assert.match(csv,/Person 064/);
+
+w.state.statusRows=Array.from({length:1001},(_,i)=>({...rows[1],employeeId:'large-'+i,employeeName:'Large '+i}));
+w.renderStatus();fire('statusSearch','');
+for(let i=0;i<40;i++)click('next');
+assert.equal(d.querySelectorAll('tbody tr').length,1,'Rows beyond the former 1000-row cutoff remain reachable.');
+assert.match(d.getElementById('statusResults').textContent,/Large 1000/);
+
+// A tenant switch during a grouped write must not send later groups to the new tenant.
+w.state.statusRows=structuredClone(rows);w.renderStatus();fire('statusSearch','');click('clear');
+select('e1::type-b');select('e2::type-a');calls.length=0;
+let finishFirstGroup;holdWrite=new Promise(resolve=>{finishFirstGroup=resolve;});
+const tenantBulk=w.runStatusWorklistAction(w.bulkConductSelected);
+w.state.companyId='two';w.state.statusRows=[];w.renderStatus();finishFirstGroup();await tenantBulk;holdWrite=null;
+assert.equal(calls.filter(c=>c.path==='/records').length,1,'A company switch aborts the remaining write groups.');
+dom.window.close();
+console.log('Status workspace paging, selection, detail, action, permission and reload DOM checks passed');

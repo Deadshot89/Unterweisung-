@@ -12,12 +12,13 @@
     "@azure/functions": "^4.7.0",
     "@azure/storage-blob": "^12.26.0",
     "mssql": "^11.0.1",
+    "pdf-lib": "1.17.1",
     "uuid": "^11.0.5"
   },
   "devDependencies": {
     "azure-functions-core-tools": "^4.0.6821"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   }
 }

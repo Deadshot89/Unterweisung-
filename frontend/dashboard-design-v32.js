@@ -1,7 +1,7 @@
-// v0.34: Professionelles Dashboard ohne technische Testtexte.
-// Fokus: Essentra Arbeitsuebersicht, klare Kennzahlen, schnelle Aktionen.
+// v0.39: Mandantenneutrales professionelles Dashboard.
+// Die Release-Version wird nicht durch Designmodule veraendert.
 
-const DASHBOARD_DESIGN_VERSION = 'v0.34';
+const DASHBOARD_DESIGN_VERSION = 'v0.39';
 
 function dashboardRows(){
   return state.statusRows?.length ? state.statusRows : buildLocalStatusRows();
@@ -47,21 +47,20 @@ function dashboardMetric(label, value, tone, subline){
 
 function renderModernDashboard(){
   const el = $('dashboard');
-  if(!el) return;
+  if(!el || !state.data || !state.companyId) return;
   const c = dashboardCounts();
-  const companyName = typeof designCompanyName === 'function' ? designCompanyName() : 'Essentra Components GmbH';
+  const companyName = typeof designCompanyName === 'function' ? designCompanyName() : (state.me?.companyName || state.companyId || 'Aktuelle Firma');
   const openRows = dashboardTopOpen();
-  const sourceText = state.apiAvailable ? 'Daten verbunden' : 'Offline-Daten';
   el.innerHTML = `<div class="grid dashboard-grid">
     <section class="card dashboard-hero span-12">
       <div>
         <span class="eyebrow">${esc(companyName)}</span>
-        <h2>Essentra Übersicht</h2>
+        <h2>${esc(companyName)} · Übersicht</h2>
         <p>Aktueller Unterweisungsstand, offene Aufgaben und direkte Aktionen auf einen Blick.</p>
       </div>
       <div class="hero-status">
         <span class="status-dot"></span>
-        <strong>${esc(sourceText)}</strong>
+        <strong>Firmendaten verbunden</strong>
       </div>
     </section>
 
@@ -99,16 +98,12 @@ function renderModernDashboard(){
   </div>`;
 }
 
-if(typeof renderDashboard === 'function'){
-  renderDashboard = renderModernDashboard;
-}
+if(typeof renderDashboard === 'function') renderDashboard = renderModernDashboard;
 
 window.renderModernDashboard = renderModernDashboard;
 window.dashboardCounts = dashboardCounts;
 window.dashboardTopOpen = dashboardTopOpen;
 
-setTimeout(() => {
-  if(document.getElementById('dashboard')?.classList.contains('active')) renderModernDashboard();
-  const version = document.getElementById('appVersion');
-  if(version) version.textContent = DASHBOARD_DESIGN_VERSION;
-}, 0);
+document.addEventListener('DOMContentLoaded', () => {
+  if(document.getElementById('dashboard')?.classList.contains('active') && state.data && state.companyId) renderModernDashboard();
+}, {once:true});

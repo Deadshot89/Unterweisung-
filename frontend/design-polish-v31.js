@@ -1,7 +1,7 @@
-// v0.34: Professioneller Kopfbereich und saubere Benutzeranzeige.
-// Entfernt technische Rollen-/Systemtexte aus der sichtbaren Hauptoberflaeche.
+// v0.39: Professioneller Kopfbereich ohne Polling oder Versionsueberschreibung.
+// Die Release-Version wird ausschliesslich vom Release-Shell gesetzt.
 
-const DESIGN_VERSION = 'v0.34';
+const DESIGN_VERSION = 'v0.39';
 
 const FRIENDLY_ROLE_LABELS = {
   system_admin: 'System Admin',
@@ -13,8 +13,8 @@ const FRIENDLY_ROLE_LABELS = {
 
 function designCompanyName(){
   const companiesList = typeof companies === 'function' ? companies() : [];
-  const company = companiesList.find(c => c.id === state.companyId) || companiesList[0];
-  return company?.name || state.me?.companyName || 'Essentra Components GmbH';
+  const company = companiesList.find(c => c.id === state.companyId);
+  return company?.name || state.me?.companyName || state.companyId || 'Keine Firma ausgewählt';
 }
 
 function designUserName(){
@@ -37,7 +37,7 @@ function renderProfessionalUserInfo(ok = true){
   if(!ok || !state.me){
     el.innerHTML = '<span class="identity-name">Nicht angemeldet</span><span class="identity-subline">Bitte anmelden</span>';
     if(login) login.style.display = '';
-    if(logout) logout.style.display = 'none';
+    if(logout) logout.style.display = '';
     return;
   }
 
@@ -62,16 +62,10 @@ if(typeof renderUserInfo === 'function'){
 function applyDesignPolish(){
   renderProfessionalUserInfo(Boolean(state.me));
   document.body.dataset.design = DESIGN_VERSION;
-  const version = document.getElementById('appVersion');
-  if(version) version.textContent = DESIGN_VERSION;
 }
 
 window.applyDesignPolish = applyDesignPolish;
 window.renderProfessionalUserInfo = renderProfessionalUserInfo;
 
-let designTries = 0;
-const designTimer = window.setInterval(() => {
-  designTries += 1;
-  applyDesignPolish();
-  if(state.me || designTries > 20) window.clearInterval(designTimer);
-}, 250);
+document.addEventListener('DOMContentLoaded', applyDesignPolish, {once:true});
+window.addEventListener('load', applyDesignPolish, {once:true});

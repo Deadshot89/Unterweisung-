@@ -1,0 +1,52 @@
+{
+  "routes": [
+    { "route": "/.auth/*", "allowedRoles": ["anonymous"] },
+    { "route": "/*.css", "allowedRoles": ["anonymous"] },
+    { "route": "/*.js", "allowedRoles": ["anonymous"] },
+    { "route": "/*.png", "allowedRoles": ["anonymous"] },
+    { "route": "/*.jpg", "allowedRoles": ["anonymous"] },
+    { "route": "/*.jpeg", "allowedRoles": ["anonymous"] },
+    { "route": "/*.svg", "allowedRoles": ["anonymous"] },
+    { "route": "/*.ico", "allowedRoles": ["anonymous"] },
+    { "route": "/*.woff", "allowedRoles": ["anonymous"] },
+    { "route": "/*.woff2", "allowedRoles": ["anonymous"] },
+    { "route": "/external/*", "allowedRoles": ["anonymous"] },
+    { "route": "/api/external/*", "allowedRoles": ["anonymous"] },
+    { "route": "/api/auth/password/*", "allowedRoles": ["anonymous"] },
+    { "route": "/api/health", "allowedRoles": ["anonymous"] },
+    { "route": "/api/*", "allowedRoles": ["anonymous"] },
+    { "route": "/*", "allowedRoles": ["anonymous"] }
+  ],
+  "navigationFallback": {
+    "rewrite": "/index.html",
+    "exclude": [
+      "/api/*",
+      "/external/*",
+      "/.auth/*",
+      "*.pdf",
+      "*.png",
+      "*.jpg",
+      "*.jpeg",
+      "*.svg",
+      "*.ico",
+      "*.woff",
+      "*.woff2",
+      "*.css",
+      "*.js"
+    ]
+  },
+  "mimeTypes": {
+    ".json": "application/json",
+    ".pdf": "application/pdf"
+  },
+  "globalHeaders": {
+    "X-Frame-Options": "DENY",
+    "X-Content-Type-Options": "nosniff",
+    "Referrer-Policy": "strict-origin-when-cross-origin",
+    "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
+    "Content-Security-Policy": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://*.blob.core.windows.net; connect-src 'self'; frame-src 'self' https://*.blob.core.windows.net; frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'"
+  },
+  "platform": {
+    "apiRuntime": "node:22"
+  }
+}

@@ -62,20 +62,19 @@ function resultBadge(row){
 
 function invitationTable(rows){
   if(!rows.length) return '<p class="muted">Noch keine externen Einladungen vorhanden.</p>';
-  return `<div class="table-wrap"><table><thead><tr><th>Empfänger</th><th>Unterweisung</th><th>Status</th><th>Testergebnis</th><th>Fragen</th><th>Ablauf</th><th>Abgeschlossen</th><th>Nachweis</th><th>Mail</th></tr></thead><tbody>${rows.map(r=>{
-    const questions = r.answeredQuestions ? `${Number(r.answeredQuestions).toLocaleString('de-DE')} beantwortet` : '—';
+  return `<div class="table-wrap admin-table-wrap"><table class="admin-table invitation-table"><thead><tr><th scope="col">Empfänger</th><th scope="col">Unterweisung</th><th scope="col">Status / Test</th><th scope="col">Termine</th><th scope="col">Nachweis / Mail</th></tr></thead><tbody>${rows.map(r=>{
+    const questions = r.answeredQuestions !== null && r.answeredQuestions !== undefined ? `${Number(r.answeredQuestions).toLocaleString('de-DE')} beantwortet` : '—';
+    const name = r.recipientName || r.employeeName || r.email || '—';
+    const showEmail = r.email && name.toLowerCase() !== r.email.toLowerCase();
+    const hasTestResult = r.passed === true || r.passed === false || r.passed === 1 || r.passed === 0;
     return `<tr>
-      <td><b>${esc(r.recipientName||r.employeeName||r.email)}</b><br><span class="muted">${esc(r.email||'')}</span></td>
-      <td>${esc(r.instructionName)}<br><span class="muted">${esc((r.language||'de').toUpperCase())}</span></td>
-      <td>${badgeInvitation(r.status)}<br>${resultBadge(r)}</td>
-      <td><b>${scoreLabel(r)}</b><br><span class="muted">Bestehen ab ${esc(r.passPercent||80)} %</span></td>
-      <td>${questions}</td>
-      <td>${fmtDate(r.expiresAt)}</td>
-      <td>${fmtDate(r.completedAt || r.testCompletedAt)}</td>
-      <td>${r.certificateFileId?`<button class="small" onclick="openFile('${esc(r.certificateFileId)}')">Nachweis öffnen</button>`:'—'}</td>
-      <td>${r.mailSentAt?`<span class="muted">gesendet ${fmtDate(r.mailSentAt)}</span>`:`<span class="muted">manuell / Link</span>`}${r.mailError?`<br><span class="muted">Fehler: ${esc(r.mailError)}</span>`:''}</td>
+      <td data-label="Empfänger"><div class="admin-cell"><b>${esc(name)}</b>${showEmail?`<span class="muted">${esc(r.email)}</span>`:''}</div></td>
+      <td data-label="Unterweisung"><div class="admin-cell"><b>${esc(r.instructionName)}</b><span class="muted">${esc((r.language||'de').toUpperCase())}</span></div></td>
+      <td data-label="Status / Test"><div class="admin-cell"><div class="admin-badges">${badgeInvitation(r.status)}${hasTestResult?resultBadge(r):''}</div><span>${scoreLabel(r)} · ${questions}</span><small class="muted">Bestehen ab ${esc(r.passPercent??80)} %</small></div></td>
+      <td data-label="Termine"><div class="admin-cell"><span><small class="muted">Gültig bis</small><br>${fmtDate(r.expiresAt)}</span><span><small class="muted">Abgeschlossen</small><br>${fmtDate(r.completedAt || r.testCompletedAt)}</span></div></td>
+      <td data-label="Nachweis / Mail"><div class="admin-cell"><div class="admin-actions">${r.certificateFileId?`<button class="small" data-invitation-action="proof" data-id="${esc(r.certificateFileId)}">Nachweis öffnen</button>`:'<span class="muted">Kein Nachweis</span>'}</div><small class="muted">${r.mailSentAt?`Mail gesendet ${fmtDate(r.mailSentAt)}`:'Manuell / Link'}</small>${r.mailError?`<small class="muted">Mailfehler: ${esc(r.mailError)}</small>`:''}</div></td>
     </tr>`;
-  }).join('')}</tbody></table></div>`;
+  }).join('')}</tbody></table></div><p class="muted admin-count">${rows.length} Einladungen angezeigt.</p>`;
 }
 
 function renderExternal(){
@@ -87,30 +86,32 @@ function renderExternal(){
   const defaultMode = selectedMailMode(settings);
   const settingsLine = settings ? `${mailModeLabel(defaultMode)} · ${settings.mailFromName || 'Unterweisungsmanager'}${settings.replyToEmail ? ' · Antwort an ' + settings.replyToEmail : ''}` : 'Firmen-Mailsteuerung wird geladen ...';
 
-  $('external').innerHTML = `<div class="grid">
+  $('external').innerHTML = `<div class="grid admin-workspace">
     <div class="card span-12">
       <h2>Externe Unterweisung senden</h2>
       <p class="muted">Erzeugt einen sicheren Einmal-Link. Der Empfänger liest die Unterweisung, beantwortet den Test und der Abschluss erscheint danach automatisch unten in der Tabelle.</p>
       <div class="notice"><b>API-Status:</b> ${badge(apiClass === 'ok' ? 'valid' : 'missing')} ${esc(apiText)}<br><b>Mailsteuerung:</b> ${esc(settingsLine)}</div>
       <div class="form-grid external-form">
-        <div class="field"><label>Empfänger E-Mail</label><input id="inviteEmail" placeholder="name@firma.de"></div>
-        <div class="field"><label>Name optional</label><input id="inviteName" placeholder="Vorname Nachname"></div>
-        <div class="field"><label>Unterweisung</label><select id="inviteType">${instructionTypes.map(t=>`<option value="${esc(t.id)}">${esc(t.name)}</option>`).join('')}</select></div>
-        <div class="field"><label>Sprache</label><select id="inviteLang"><option value="de">Deutsch</option><option value="en">Englisch</option><option value="pl">Polnisch</option></select></div>
-        <div class="field"><label>Gültig Tage</label><input id="inviteDays" type="number" value="14" min="1" max="365"></div>
-        <div class="field"><label>Bestehen ab %</label><input id="invitePass" type="number" value="80" min="0" max="100"></div>
-        <div class="field"><label>Test erforderlich</label><select id="inviteTest"><option value="1">Ja</option><option value="0">Nein, nur Bestätigung</option></select></div>
-        <div class="field"><label>Mailmodus</label><select id="inviteMailMode">
+        <div class="field"><label for="inviteEmail">Empfänger E-Mail</label><input type="email" id="inviteEmail" placeholder="name@firma.de"></div>
+        <div class="field"><label for="inviteName">Name optional</label><input id="inviteName" placeholder="Vorname Nachname"></div>
+        <div class="field"><label for="inviteType">Unterweisung</label><select id="inviteType">${instructionTypes.map(t=>`<option value="${esc(t.id)}">${esc(t.name)}</option>`).join('')}</select></div>
+        <div class="field"><label for="inviteLang">Sprache</label><select id="inviteLang"><option value="de">Deutsch</option><option value="en">Englisch</option><option value="pl">Polnisch</option></select></div>
+        <div class="field"><label for="inviteDays">Gültig Tage</label><input id="inviteDays" type="number" value="14" min="1" max="365"></div>
+        <div class="field"><label for="invitePass">Bestehen ab %</label><input id="invitePass" type="number" value="80" min="0" max="100"></div>
+        <div class="field"><label for="inviteTest">Test erforderlich</label><select id="inviteTest"><option value="1">Ja</option><option value="0">Nein, nur Bestätigung</option></select></div>
+        <div class="field"><label for="inviteMailMode">Mailmodus</label><select id="inviteMailMode">
           <option value="manual" ${defaultMode==='manual'?'selected':''}>Nur Link + Mailtext erzeugen</option>
           <option value="outlook" ${defaultMode==='outlook'?'selected':''}>Mailprogramm / Outlook öffnen</option>
           <option value="graph" ${defaultMode==='graph'?'selected':''}>Graph senden (nur Firmenmail aktiv)</option>
         </select></div>
-        <div class="field full"><button class="primary" onclick="createInvitation()">Einmal-Link erzeugen</button></div>
-        <div class="field full"><textarea id="inviteResult" readonly placeholder="Link und Mailtext erscheinen hier"></textarea></div>
+        <div class="field full admin-form-actions"><button class="primary" data-invitation-action="create">Einmal-Link erzeugen</button></div>
+        <div class="field full"><label for="inviteResult">Link und Mailtext</label><textarea id="inviteResult" readonly placeholder="Link und Mailtext erscheinen hier"></textarea></div>
       </div>
     </div>
-    <div class="card span-12"><div class="toolbar"><h2>Einladungen / externe Abschlüsse</h2><button class="ghost" onclick="loadData().then(()=>setView('external'))">Aktualisieren</button></div>${invitationTable(rows)}</div>
+    <div class="card span-12"><div class="toolbar admin-toolbar"><h2>Einladungen / externe Abschlüsse</h2><button class="ghost" data-invitation-action="refresh">Aktualisieren</button></div>${invitationTable(rows)}</div>
   </div>`;
+
+  $('external').onclick = handleInvitationWorkspaceClick;
 
   if(!instructionTypes.length){
     $('inviteResult').value = 'Keine Unterweisungstypen geladen. Bitte Dashboard prüfen und Seite mit Strg+F5 neu laden.';
@@ -120,6 +121,16 @@ function renderExternal(){
       const externalView = document.getElementById('external');
       if(externalView?.classList.contains('active')) renderExternal();
     });
+  }
+}
+
+function handleInvitationWorkspaceClick(event){
+  const button = event.target.closest('button[data-invitation-action]');
+  if(!button) return;
+  switch(button.dataset.invitationAction){
+    case 'proof': return openFile(button.dataset.id);
+    case 'create': return createInvitation();
+    case 'refresh': return loadData().then(()=>setView('external'));
   }
 }
 
