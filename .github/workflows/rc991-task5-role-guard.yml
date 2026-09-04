@@ -1,0 +1,82 @@
+name: RC991 Task 5 Portal Role Guard
+
+on:
+  push:
+    branches:
+      - rc991-unified-learning-portal
+    paths:
+      - .github/workflows/rc991-task5-role-guard.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch-test-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: rc991-unified-learning-portal
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Apply exact Task 5 replacements
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const path='frontend/role-guard-v20.js';
+          let s=fs.readFileSync(path,'utf8');
+          const replaceOnce=(oldText,newText,label)=>{
+            const first=s.indexOf(oldText);
+            if(first<0) throw new Error(`${label}: old block not found`);
+            if(s.indexOf(oldText,first+1)>=0) throw new Error(`${label}: old block occurs more than once`);
+            s=s.slice(0,first)+newText+s.slice(first+oldText.length);
+          };
+
+          replaceOnce(
+            `function viewAllowed(view){ return hasAnyRole(ROLE_VIEW_RULES[view] || ['system_admin']); }`,
+            `function portalModeAllowsView(view){\n  const mode=state.portalMode;\n  if(mode==='admin-portal')return true;\n  if(mode==='employee-manager-portal')return ['dashboard','planning','external'].includes(view);\n  if(mode==='employee-portal')return view==='dashboard';\n  return false;\n}\nfunction viewAllowed(view){ return portalModeAllowsView(view) && hasAnyRole(ROLE_VIEW_RULES[view] || ['system_admin']); }`,
+            'portal mode view gate'
+          );
+
+          replaceOnce(
+            `  const tabs = document.querySelectorAll('.tabs button[data-view]');`,
+            `  const tabs = document.querySelectorAll('#portalNavigation button[data-view]');`,
+            'navigation visibility scope'
+          );
+
+          replaceOnce(
+            `  const active = document.querySelector('.tabs button.active');`,
+            `  const active = document.querySelector('#portalNavigation button.active');`,
+            'active navigation scope'
+          );
+
+          replaceOnce(
+            `        document.querySelectorAll('.tabs button').forEach(b=>b.classList.toggle('active',b.dataset.view===id));`,
+            `        document.querySelectorAll('#portalNavigation button[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===id));`,
+            'denied navigation scope'
+          );
+
+          fs.writeFileSync(path,s);
+          NODE
+      - name: Install dependencies
+        run: |
+          npm install
+          npm install --prefix api --omit=dev
+      - name: Run focused portal boundary contracts
+        run: node --test tests/central-portal-routing-v43.test.js tests/tenant-isolation-login-v40.test.js tests/access-scope.test.js
+      - name: Run static role-guard contract
+        run: node scripts/check-role-guard.js
+      - name: Run syntax check
+        run: node --check frontend/role-guard-v20.js
+      - name: Run complete regression suite before commit
+        run: npm test
+      - name: Commit verified Task 5 implementation
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add frontend/role-guard-v20.js
+          git diff --cached --check
+          git commit -m "fix(rc991): enforce admin and employee portal boundaries"
+          git push origin HEAD:rc991-unified-learning-portal
