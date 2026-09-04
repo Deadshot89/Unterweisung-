@@ -1,0 +1,121 @@
+name: RC991 System Admin Bootstrap
+
+on:
+  push:
+    branches:
+      - rc991-unified-learning-portal
+    paths:
+      - .github/workflows/rc991-system-admin-bootstrap.yml
+
+permissions:
+  contents: read
+
+jobs:
+  bootstrap:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install API dependencies
+        run: npm install --prefix api --omit=dev
+      - name: Apply migration 011 and bootstrap confirmed system admin
+        env:
+          SQL_CONNECTION_STRING: ${{ secrets.SQL_CONNECTION_STRING }}
+          SYSTEM_ADMIN_EMAIL: UnterweisungManagment@outlook.de
+          SYSTEM_ADMIN_COMPANY_ID: company-essentra
+          SYSTEM_ADMIN_DISPLAY_NAME: Tobias Limberg
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          import { readFileSync } from 'node:fs';
+          import { randomUUID, createHash } from 'node:crypto';
+          import { getPool, sql } from './api/src/lib/db.js';
+
+          const email=String(process.env.SYSTEM_ADMIN_EMAIL||'').trim().toLowerCase();
+          const companyId=String(process.env.SYSTEM_ADMIN_COMPANY_ID||'').trim();
+          const displayName=String(process.env.SYSTEM_ADMIN_DISPLAY_NAME||'').trim();
+          assert.ok(/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email),'Confirmed admin email is invalid');
+          assert.ok(companyId&&displayName,'Confirmed admin target is incomplete');
+
+          let pool;
+          let tx;
+          let transactionOpen=false;
+          try {
+            pool=await getPool();
+            tx=new sql.Transaction(pool);
+            await tx.begin(sql.ISOLATION_LEVEL.SERIALIZABLE);
+            transactionOpen=true;
+
+            const migration=readFileSync('database/migrations/011_employee_portal_dual_auth.sql','utf8');
+            const batches=migration.split(/^\s*GO\s*$/gmi).map(x=>x.trim()).filter(Boolean);
+            for(const batch of batches) await new sql.Request(tx).query(batch);
+
+            const req=()=>new sql.Request(tx)
+              .input('email',sql.NVarChar(254),email)
+              .input('companyId',sql.NVarChar(80),companyId);
+            const company=await req().query('SELECT id FROM dbo.Companies WHERE id=@companyId AND active=1');
+            assert.equal(company.recordset.length,1,'Target company must exist and be active');
+
+            const before=await req().query(`SELECT id,companyId,email,displayName,role,active,provider
+              FROM dbo.Users WITH (UPDLOCK,HOLDLOCK)
+              WHERE LOWER(LTRIM(RTRIM(email)))=LOWER(@email)`);
+            assert.ok(before.recordset.length<=1,'Confirmed Microsoft identity is ambiguous');
+            const existing=before.recordset[0];
+            const userId=existing?.id||`user-${randomUUID()}`;
+
+            const write=new sql.Request(tx)
+              .input('id',sql.NVarChar(120),userId)
+              .input('companyId',sql.NVarChar(80),companyId)
+              .input('email',sql.NVarChar(254),email)
+              .input('displayName',sql.NVarChar(200),displayName);
+            if(existing){
+              await write.query(`UPDATE dbo.Users SET companyId=@companyId,email=@email,displayName=@displayName,
+                role='system_admin',active=1,provider='aad',updatedAt=SYSUTCDATETIME()
+                WHERE id=@id`);
+            }else{
+              await write.query(`INSERT INTO dbo.Users(id,companyId,email,displayName,role,active,provider,invitedAt)
+                VALUES(@id,@companyId,@email,@displayName,'system_admin',1,'aad',SYSUTCDATETIME())`);
+            }
+
+            const verified=await req().query(`SELECT id,companyId,role,active,provider
+              FROM dbo.Users WHERE LOWER(LTRIM(RTRIM(email)))=LOWER(@email)`);
+            assert.equal(verified.recordset.length,1,'System admin verification failed');
+            assert.equal(verified.recordset[0].role,'system_admin');
+            assert.equal(Boolean(verified.recordset[0].active),true);
+
+            const schema=await new sql.Request(tx).query(`SELECT
+              COL_LENGTH('dbo.Users','passwordHash') AS passwordHashColumn,
+              COL_LENGTH('dbo.Users','sessionVersion') AS sessionVersionColumn,
+              OBJECT_ID('dbo.InstructionLearningSteps','U') AS learningStepsTable,
+              OBJECT_ID('dbo.InternalTrainingAttempts','U') AS attemptsTable`);
+            assert.ok(schema.recordset[0].passwordHashColumn!=null,'passwordHash migration missing');
+            assert.ok(schema.recordset[0].sessionVersionColumn!=null,'sessionVersion migration missing');
+            assert.ok(schema.recordset[0].learningStepsTable!=null,'learning steps migration missing');
+            assert.ok(schema.recordset[0].attemptsTable!=null,'training attempts migration missing');
+
+            const repairKey=createHash('sha256').update(`${companyId}\n${email}\nsystem_admin`).digest('hex');
+            const hasSecurityEvents=await new sql.Request(tx).query(`SELECT OBJECT_ID('dbo.SecurityEvents','U') AS id`);
+            if(hasSecurityEvents.recordset[0]?.id){
+              await new sql.Request(tx)
+                .input('companyId',sql.NVarChar(80),companyId)
+                .input('actor',sql.NVarChar(120),'github-actions-system-admin-bootstrap')
+                .input('eventType',sql.NVarChar(120),'system_admin.bootstrap.v0363')
+                .input('details',sql.NVarChar(sql.MAX),JSON.stringify({repairKey,userId,change:existing?'promoted':'created',runId:process.env.GITHUB_RUN_ID||null}))
+                .query(`INSERT INTO dbo.SecurityEvents(companyId,actorUserId,eventType,severity,detailsJson)
+                  VALUES(@companyId,@actor,@eventType,'info',@details)`);
+            }
+
+            await tx.commit();
+            transactionOpen=false;
+            console.log(JSON.stringify({status:'applied_and_verified',change:existing?'promoted':'created',role:'system_admin',schemaReady:true}));
+          } catch(error) {
+            if(transactionOpen) await tx.rollback().catch(()=>{});
+            console.error(`System admin bootstrap failed (${error.code||error.name||'error'}).`);
+            process.exitCode=1;
+          } finally {
+            if(pool) await pool.close();
+          }
+          NODE
