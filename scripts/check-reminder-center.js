@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 
 const index = fs.readFileSync('frontend/index.html', 'utf8');
+const portalShell = fs.readFileSync('frontend/portal-shell-v43.js', 'utf8');
 const roleGuard = fs.readFileSync('frontend/role-guard-v20.js', 'utf8');
 const reminderUi = fs.readFileSync('frontend/reminder-center-v30.js', 'utf8');
 
@@ -19,7 +20,7 @@ function assertMatches(source, pattern, label) {
 }
 
 assertMatches(index, /Unterweisungsmanager Online · v0\./, 'sichtbare Online-Version');
-assertIncludes(index, 'data-view="reminders"', 'Erinnerungen-Reiter');
+assertIncludes(portalShell, "['reminders','Erinnerungen']", 'Erinnerungen in zentraler Adminnavigation');
 assertIncludes(index, '<section id="reminders"', 'Erinnerungen-Section');
 assertIncludes(index, '/reminder-center-v30.js', 'Erinnerungscenter geladen');
 
