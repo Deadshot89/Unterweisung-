@@ -17,7 +17,9 @@ assert(index.includes('/dashboard-design-v32.js'), 'Dashboard-Design-Datei wird 
 
 assert(dashboard.includes('function renderModernDashboard'), 'Modernes Dashboard-Rendering fehlt.');
 assert(dashboard.includes('renderDashboard = renderModernDashboard'), 'Dashboard-Override fehlt.');
-assert(dashboard.includes('Essentra Übersicht'), 'Dashboard braucht klare Essentra-Ueberschrift.');
+assert(dashboard.includes('companyName'), 'Dashboard braucht einen dynamischen Firmenbezug.');
+assert(dashboard.includes('· Übersicht'), 'Dashboard braucht eine klare dynamische Ueberschrift.');
+assert(!dashboard.includes('Essentra Übersicht'), 'Gemeinsames Dashboard darf keine Firma fest einbauen.');
 assert(dashboard.includes('Offene Aufgaben'), 'Offene Aufgaben KPI fehlt.');
 assert(dashboard.includes('Schnellzugriff'), 'Schnellzugriffsbereich fehlt.');
 assert(dashboard.includes('setView(\'status\')'), 'Status-Schnellzugriff fehlt.');
