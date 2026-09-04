@@ -1,0 +1,101 @@
+name: RC991 Task 4 Company Cache Reset
+
+on:
+  push:
+    branches:
+      - rc991-unified-learning-portal
+    paths:
+      - .github/workflows/rc991-task4-company-cache-reset.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch-test-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: rc991-unified-learning-portal
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Apply exact Task 4 replacements
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const replaceOnce=(path,oldText,newText,label)=>{
+            let s=fs.readFileSync(path,'utf8');
+            const first=s.indexOf(oldText);
+            if(first<0) throw new Error(`${label}: old block not found`);
+            if(s.indexOf(oldText,first+1)>=0) throw new Error(`${label}: old block occurs more than once`);
+            s=s.slice(0,first)+newText+s.slice(first+oldText.length);
+            fs.writeFileSync(path,s);
+          };
+
+          replaceOnce(
+            'frontend/employee-portal-v37.js',
+            `  const portalState={training:null,stepIndex:0,adminCache:new Map()};\n  const ADMIN_ROLES=new Set(['system_admin','company_admin','hse']);\n\n  function portalRoles(){return state.me?.roles||[];}\n  function isEmployeeExperience(){const roles=portalRoles();return (roles.includes('employee')||roles.includes('line_manager'))&&!roles.some(r=>ADMIN_ROLES.has(r));}\n  function isLineManager(){return portalRoles().includes('line_manager');}\n  function canEditLearning(){return portalRoles().some(r=>ADMIN_ROLES.has(r));}\n`,
+            `  const portalState={training:null,stepIndex:0,adminCache:new Map()};\n  const ADMIN_ROLES=new Set(['system_admin','company_admin','hse']);\n\n  function portalRoles(){return state.me?.roles||[];}\n  function isEmployeeExperience(){return state.portalMode==='employee-portal'||state.portalMode==='employee-manager-portal';}\n  function isLineManager(){return state.portalMode==='employee-manager-portal';}\n  function canEditLearning(){return portalRoles().some(r=>ADMIN_ROLES.has(r));}\n`,
+            'employee portal central mode'
+          );
+
+          replaceOnce(
+            'frontend/employee-portal-v37.js',
+            `  function taskMeta(row){return \`${'${esc(row.category||\'Allgemein\')}'} · ${'${row.validUntil?\'fällig \'+dateText(row.validUntil):\'noch kein gültiger Abschluss\'}'}\`;}\n\n  function employeeTaskCard(row,kind){`,
+            `  function taskMeta(row){return \`${'${esc(row.category||\'Allgemein\')}'} · ${'${row.validUntil?\'fällig \'+dateText(row.validUntil):\'noch kein gültiger Abschluss\'}'}\`;}\n\n  function resetEmployeePortalState(){\n    portalState.training=null;\n    portalState.stepIndex=0;\n    portalState.adminCache.clear();\n    document.getElementById('portalLearningBackdrop')?.remove();\n    document.querySelectorAll('.learning-image-modal').forEach(node=>node.remove());\n  }\n\n  function employeeTaskCard(row,kind){`,
+            'employee portal reset function'
+          );
+
+          replaceOnce(
+            'frontend/employee-portal-v37.js',
+            `  Object.assign(window,{portalStartInstruction,portalRequestAppointment,portalDownloadProof,portalCloseLearning,portalLearningNext,portalLearningPrev,portalSubmitTraining,portalOpenOriginal,portalZoomLearningImage,portalSaveLearningStep,portalToggleLearningStep,portalSaveDelivery});\n})();`,
+            `  window.resetEmployeePortalState = resetEmployeePortalState;\n  Object.assign(window,{portalStartInstruction,portalRequestAppointment,portalDownloadProof,portalCloseLearning,portalLearningNext,portalLearningPrev,portalSubmitTraining,portalOpenOriginal,portalZoomLearningImage,portalSaveLearningStep,portalToggleLearningStep,portalSaveDelivery});\n})();`,
+            'employee portal reset export'
+          );
+
+          replaceOnce(
+            'frontend/employee-learning-v38.js',
+            `  function learningEsc(value=''){return renderer?.escapeHtml?renderer.escapeHtml(value):String(value??'');}\n  function learningModal(){return document.getElementById('portalLearningBackdrop');}\n  function progressPercent(){`,
+            `  function learningEsc(value=''){return renderer?.escapeHtml?renderer.escapeHtml(value):String(value??'');}\n  function learningModal(){return document.getElementById('portalLearningBackdrop');}\n  function resetEmployeeLearningState(){\n    learningModal()?.remove();\n    document.querySelectorAll('.learning-image-modal').forEach(node=>node.remove());\n    portalState.training=null;\n    portalState.stepIndex=0;\n    portalState.imageUrls.clear();\n    portalState.result=null;\n  }\n  function progressPercent(){`,
+            'employee learning reset function'
+          );
+
+          replaceOnce(
+            'frontend/employee-learning-v38.js',
+            `  Object.assign(window,{portalStartInstruction,portalRenderTraining,portalLearningNext,portalLearningPrev,portalSubmitTraining,portalRenderResult,portalRestartLearning,portalFinishLearning,portalCloseLearning,portalOpenOriginal,portalZoomLearningImage});\n})();`,
+            `  window.resetEmployeeLearningState=resetEmployeeLearningState;\n  Object.assign(window,{portalStartInstruction,portalRenderTraining,portalLearningNext,portalLearningPrev,portalSubmitTraining,portalRenderResult,portalRestartLearning,portalFinishLearning,portalCloseLearning,portalOpenOriginal,portalZoomLearningImage});\n})();`,
+            'employee learning reset export'
+          );
+
+          replaceOnce(
+            'frontend/company-context-v39.js',
+            `  state.apiAvailable = false;\n  state.source = 'loading';\n}\n`,
+            `  state.apiAvailable = false;\n  state.source = 'loading';\n  if(typeof globalThis.resetEmployeePortalState === 'function') globalThis.resetEmployeePortalState();\n  if(typeof globalThis.resetEmployeeLearningState === 'function') globalThis.resetEmployeeLearningState();\n}\n`,
+            'company scoped reset hooks'
+          );
+
+          replaceOnce(
+            'frontend/company-context-v39.js',
+            `  resetCompanyScopedState();\n  state.companyId = null;\n  setCompanyWorkspaceVisible(false);\n  updateCompanyShell(null);\n`,
+            `  resetCompanyScopedState();\n  state.companyId = null;\n  state.portalMode = 'company-selection';\n  UMPortalShell.clearPortalShell();\n  setCompanyWorkspaceVisible(false);\n  updateCompanyShell(null);\n`,
+            'company selection portal mode'
+          );
+          NODE
+      - name: Install dependencies
+        run: |
+          npm install
+          npm install --prefix api --omit=dev
+      - name: Run focused Task 4 contracts
+        run: node --test tests/company-context-v39.test.js tests/employee-portal-contract.test.js tests/central-portal-routing-v43.test.js tests/tenant-isolation-login-v40.test.js tests/system-admin-company-selection.test.js
+      - name: Run complete regression suite before commit
+        run: npm test
+      - name: Commit verified Task 4 implementation
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add frontend/company-context-v39.js frontend/employee-portal-v37.js frontend/employee-learning-v38.js
+          git diff --cached --check
+          git commit -m "fix(rc991): reset portal caches on company context changes"
+          git push origin HEAD:rc991-unified-learning-portal
