@@ -1,0 +1,5 @@
+node_modules/
+api/runtime-settings.deploy.json
+api/local.settings.json
+.env
+.env.*

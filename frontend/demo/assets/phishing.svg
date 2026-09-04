@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 720" role="img" aria-label="Professionelle Illustration: Beschäftigte prüft eine verdächtige E-Mail und erkennt Phishing-Merkmale">
+  <title>Phishing erkennen und sicher reagieren</title>
+  <desc>Eine moderne Arbeitsplatzszene mit Laptop, verdächtiger E-Mail, Warnhinweisen und Sicherheitsschild. Eine Person prüft Absender, Linkziel und Auffälligkeiten bevor sie handelt.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#eef8ff"/><stop offset=".55" stop-color="#e4eefb"/><stop offset="1" stop-color="#d4dcec"/></linearGradient>
+    <linearGradient id="desk" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#718398"/><stop offset="1" stop-color="#35475b"/></linearGradient>
+    <linearGradient id="screen" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#fbfdff"/><stop offset="1" stop-color="#eaf2fb"/></linearGradient>
+    <linearGradient id="shirt" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#2b72c4"/><stop offset="1" stop-color="#12467e"/></linearGradient>
+    <linearGradient id="shield" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#2b6ff2"/><stop offset="1" stop-color="#1139a6"/></linearGradient>
+    <radialGradient id="alert" cx="50%" cy="50%" r="50%"><stop stop-color="#fff2f2"/><stop offset=".55" stop-color="#ff6565"/><stop offset="1" stop-color="#cc2737"/></radialGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="150%"><feDropShadow dx="0" dy="16" stdDeviation="18" flood-color="#14283d" flood-opacity=".2"/></filter>
+    <filter id="blur"><feGaussianBlur stdDeviation="10"/></filter>
+    <clipPath id="scene"><rect x="20" y="20" width="1160" height="680" rx="38"/></clipPath>
+  </defs>
+  <g clip-path="url(#scene)">
+    <rect width="1200" height="720" fill="url(#bg)"/>
+    <g opacity=".42">
+      <rect x="62" y="72" width="228" height="330" rx="24" fill="#c6d7e9"/>
+      <rect x="89" y="102" width="174" height="40" rx="12" fill="#eff6fb"/>
+      <rect x="89" y="165" width="174" height="12" rx="6" fill="#aabed1"/>
+      <rect x="89" y="196" width="138" height="12" rx="6" fill="#aabed1"/>
+      <rect x="920" y="54" width="230" height="258" rx="22" fill="#c8d8e8"/>
+      <circle cx="1036" cy="142" r="54" fill="#edf4fb"/>
+      <path d="M973 238h126" stroke="#9eb4c9" stroke-width="11" stroke-linecap="round"/>
+      <path d="M1001 267h71" stroke="#9eb4c9" stroke-width="11" stroke-linecap="round"/>
+    </g>
+    <ellipse cx="900" cy="86" rx="150" ry="48" fill="#fff" opacity=".6" filter="url(#blur)"/>
+    <rect x="0" y="535" width="1200" height="185" fill="#d6dee8"/>
+    <g filter="url(#shadow)">
+      <rect x="330" y="460" width="670" height="112" rx="24" fill="url(#desk)"/>
+      <rect x="430" y="118" width="505" height="360" rx="28" fill="#18293b"/>
+      <rect x="456" y="145" width="453" height="305" rx="16" fill="url(#screen)"/>
+      <path d="M392 480h582l54 72H333z" fill="#26394d"/>
+      <path d="M490 517h371" stroke="#71869b" stroke-width="8" stroke-linecap="round"/>
+    </g>
+    <g transform="translate(486 173)">
+      <rect x="0" y="0" width="392" height="54" rx="12" fill="#e6edf5"/>
+      <circle cx="29" cy="27" r="13" fill="#d7e2ec"/>
+      <path d="M56 19h180M56 35h105" stroke="#7f93a7" stroke-width="7" stroke-linecap="round"/>
+      <rect x="0" y="72" width="392" height="196" rx="16" fill="#fff" stroke="#d9e4ef" stroke-width="3"/>
+      <circle cx="37" cy="106" r="18" fill="url(#alert)"/>
+      <path d="M37 95v13" stroke="#fff" stroke-width="6" stroke-linecap="round"/>
+      <circle cx="37" cy="116" r="3" fill="#fff"/>
+      <path d="M72 95h212M72 119h155" stroke="#455e78" stroke-width="8" stroke-linecap="round"/>
+      <rect x="70" y="150" width="247" height="16" rx="8" fill="#e2e8f0"/>
+      <rect x="70" y="181" width="190" height="16" rx="8" fill="#e2e8f0"/>
+      <rect x="70" y="220" width="242" height="32" rx="10" fill="#fff1f1" stroke="#f0a0a6" stroke-width="2"/>
+      <path d="M84 236h187" stroke="#c93b49" stroke-width="6" stroke-linecap="round"/>
+      <path d="M326 148l42 42-42 42" fill="none" stroke="#ef4444" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" opacity=".82"/>
+    </g>
+    <g transform="translate(828 286)" filter="url(#shadow)">
+      <circle cx="79" cy="79" r="73" fill="#fff" stroke="#1d4ed8" stroke-width="12"/>
+      <path d="M78 38l44 18v35c0 29-16 52-44 67-28-15-44-38-44-67V56z" fill="url(#shield)"/>
+      <path d="M57 88l14 14 31-37" fill="none" stroke="#fff" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+    </g>
+    <g transform="translate(106 250)" filter="url(#shadow)">
+      <path d="M67 33c8-38 43-62 80-54 39 8 62 49 49 88-10 30-42 49-75 42-37-8-63-37-54-76z" fill="#d59b78"/>
+      <path d="M62 25c10-38 42-59 80-56 34 3 63 27 72 58-42-16-90-19-152-2z" fill="#263444"/>
+      <path d="M50 113c-45 22-70 75-69 168l174 0c-1-82-14-136-55-160-16-10-32-14-50-8z" fill="url(#shirt)"/>
+      <path d="M151 171c59 17 101 51 132 93l-48 37c-35-38-73-59-126-76z" fill="#164b84"/>
+      <path d="M240 274c20 1 38 7 52 19l-25 37c-18 4-38-1-53-13l-2-24z" fill="#d59b78"/>
+      <path d="M102 47c14 1 27 6 38 14" stroke="#7b4b38" stroke-width="4" stroke-linecap="round"/>
+      <path d="M144 70c-2 16 3 29 15 36" fill="none" stroke="#a96d51" stroke-width="4" stroke-linecap="round"/>
+    </g>
+    <g transform="translate(989 380)" filter="url(#shadow)">
+      <circle cx="73" cy="73" r="63" fill="#fff" stroke="#ef4444" stroke-width="10"/>
+      <path d="M44 44l58 58M102 44l-58 58" stroke="#ef4444" stroke-width="12" stroke-linecap="round"/>
+    </g>
+    <g transform="translate(390 584)">
+      <circle cx="28" cy="28" r="28" fill="#2563eb"/>
+      <path d="M16 28l8 8 18-20" fill="none" stroke="#fff" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M74 18h260M74 40h190" stroke="#58738d" stroke-width="7" stroke-linecap="round"/>
+      <circle cx="390" cy="28" r="28" fill="#f59e0b"/>
+      <path d="M378 28h24M390 16v24" stroke="#fff" stroke-width="6" stroke-linecap="round"/>
+      <path d="M436 18h230M436 40h164" stroke="#58738d" stroke-width="7" stroke-linecap="round"/>
+    </g>
+  </g>
+  <rect x="20" y="20" width="1160" height="680" rx="38" fill="none" stroke="#fff" stroke-width="4" opacity=".84"/>
+</svg>

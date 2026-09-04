@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <title>Unterweisungsmanager · Unternehmens-Demo</title>
+  <link rel="stylesheet" href="../learning-experience-v38.css">
+  <link rel="stylesheet" href="./demo.css">
+  <link rel="stylesheet" href="./demo-admin.css">
+  <link rel="stylesheet" href="./demo-mail-learning.css">
+  <link rel="stylesheet" href="./presentation.css">
+</head>
+<body>
+  <div class="demo-banner" role="status">DEMO – ausschließlich Beispieldaten</div>
+  <header class="demo-topbar">
+    <div class="demo-brand">
+      <div class="demo-brand-mark">UM</div>
+      <div><strong>Unterweisungsmanager</strong><span>Unternehmens-Demo</span></div>
+    </div>
+    <div class="demo-company"><span>Musterwerk Solutions GmbH</span><small>Produktion &amp; Logistik · Nordrhein-Westfalen</small></div>
+    <button id="demoReset" type="button" class="btn ghost">Demo zurücksetzen</button>
+  </header>
+
+  <section id="showcaseIntro" class="showcase-intro" aria-labelledby="showcaseTitle">
+    <div class="showcase-hero">
+      <div class="showcase-copy">
+        <span class="showcase-kicker">Unterweisungen digital organisieren</span>
+        <h1 id="showcaseTitle">Unterweisungen zentral steuern. Nachweise jederzeit im Blick.</h1>
+        <p>Diese Demo zeigt einen durchgängigen Ablauf für Unternehmen: vom Handlungsbedarf im Dashboard über Planung und Durchführung bis zum dokumentierten Nachweis.</p>
+        <div class="showcase-actions">
+          <button id="showcaseTourStart" type="button" class="btn primary">Geführte Tour starten</button>
+          <button id="showcaseDirectDemo" type="button" class="btn secondary">Direkt zur Demo</button>
+        </div>
+      </div>
+      <aside class="showcase-proof" aria-label="Was die Demo zeigt">
+        <strong>In einer Präsentation sichtbar</strong>
+        <div class="showcase-proof-list">
+          <div class="showcase-proof-item"><span class="showcase-proof-icon">1</span><div><b>Handlungsbedarf erkennen</b><span>Fälligkeiten, offene Unterweisungen und Status zentral sehen.</span></div></div>
+          <div class="showcase-proof-item"><span class="showcase-proof-icon">2</span><div><b>Verantwortung verteilen</b><span>Admin, Führungskraft und Mitarbeiter sehen passend zu ihrer Rolle.</span></div></div>
+          <div class="showcase-proof-item"><span class="showcase-proof-icon">3</span><div><b>Durchführung dokumentieren</b><span>Online- und Praxis-Unterweisungen bis zum Nachweis nachvollziehen.</span></div></div>
+        </div>
+      </aside>
+    </div>
+
+    <section class="showcase-section" aria-labelledby="whyTitle">
+      <div class="showcase-section-head">
+        <div><span class="eyebrow">Unternehmensnutzen</span><h2 id="whyTitle">Warum Unterweisungsmanager?</h2></div>
+        <p>Weniger verstreute Listen und Einzelabsprachen, klarere Verantwortlichkeiten und ein nachvollziehbarer Stand für Mitarbeitende, Führungskräfte und Administration.</p>
+      </div>
+      <div class="benefit-grid">
+        <article class="benefit-card"><span class="benefit-icon">✓</span><h3>Handlungsbedarf wird sichtbar</h3><p>Überfällige, bald fällige und noch fehlende Unterweisungen werden strukturiert statt in mehreren Dateien gesucht.</p></article>
+        <article class="benefit-card"><span class="benefit-icon">↔</span><h3>Rollen bleiben klar</h3><p>Mitarbeitende bearbeiten ihre eigenen Themen, Führungskräfte ihr Team und die Administration behält den Unternehmensüberblick.</p></article>
+        <article class="benefit-card"><span class="benefit-icon">▣</span><h3>Nachweise bleiben auffindbar</h3><p>Abschlüsse und praktische Bestätigungen lassen sich nachvollziehen und dem richtigen Mitarbeiter zuordnen.</p></article>
+      </div>
+    </section>
+
+    <section class="showcase-section" aria-labelledby="storyTitle">
+      <div class="showcase-section-head">
+        <div><span class="eyebrow">Präsentationsablauf</span><h2 id="storyTitle">Vom Überblick bis zum Nachweis</h2></div>
+        <p>Die geführte Tour wechselt automatisch durch die wichtigsten Rollen und Ansichten. Du kannst jederzeit aussteigen und anschließend frei in der Demo weiterarbeiten.</p>
+      </div>
+      <div class="story-rail">
+        <article class="story-step"><span class="story-number">1</span><h3>Unternehmen</h3><p>Dashboard und Status zeigen, wo Handlungsbedarf besteht.</p></article>
+        <article class="story-step"><span class="story-number">2</span><h3>Führungskraft</h3><p>Teambezogene Planung und praktische Bestätigung werden sichtbar.</p></article>
+        <article class="story-step"><span class="story-number">3</span><h3>Mitarbeiter</h3><p>Eigene Unterweisungen sind verständlich nach Dringlichkeit gruppiert.</p></article>
+        <article class="story-step"><span class="story-number">4</span><h3>Nachweis</h3><p>Der Abschluss bleibt dokumentiert; in der Demo eindeutig als Muster gekennzeichnet.</p></article>
+      </div>
+    </section>
+  </section>
+
+  <section class="presenter-bar" aria-label="Präsentationssteuerung">
+    <div><strong>Ansicht präsentieren als</strong><span>Rollenwechsel simuliert ausschließlich die Demo.</span></div>
+    <label>Rolle
+      <select id="demoRole">
+        <option value="company_admin">System-/Firmenadmin</option>
+        <option value="line_manager">Führungskraft</option>
+        <option value="employee">Mitarbeiter</option>
+      </select>
+    </label>
+    <label>Demo-Person
+      <select id="demoPerson"></select>
+    </label>
+  </section>
+
+  <main id="demoApp">
+    <nav id="demoNav" class="demo-nav" aria-label="Demo-Navigation"></nav>
+    <section id="demoContent" class="demo-content" aria-live="polite"></section>
+  </main>
+
+  <aside id="showcaseTourDock" class="tour-dock" hidden aria-live="polite">
+    <div class="tour-progress"><span data-tour-progress></span></div>
+    <div class="tour-body">
+      <div class="tour-meta"><span>Geführte Präsentation</span><span data-tour-count>1 / 6</span></div>
+      <h3 data-tour-title>Unternehmensüberblick</h3>
+      <p data-tour-text></p>
+    </div>
+    <div class="tour-actions">
+      <button type="button" class="tour-close" data-tour-close>Schließen</button>
+      <div><button type="button" class="btn ghost small" data-tour-prev>Zurück</button><button type="button" class="btn primary small" data-tour-next>Nächster Schritt</button></div>
+    </div>
+  </aside>
+
+  <div id="demoModalRoot"></div>
+  <script src="../learning-experience-v38.js"></script>
+  <script type="module" src="./demo-quality-data.js"></script>
+  <script type="module" src="./demo-quality-sync.js"></script>
+  <script type="module" src="./demo-ui.js"></script>
+  <script type="module" src="./demo-admin.js"></script>
+  <script type="module" src="./demo-reset-sync.js"></script>
+  <script type="module" src="./demo-mail-learning.js"></script>
+  <script type="module" src="./presentation-guide.js"></script>
+</body>
+</html>

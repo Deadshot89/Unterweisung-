@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 720" role="img" aria-label="Professionelle Illustration: Beschäftigter prüft beschädigte Schutzausrüstung an einem sicheren Industriearbeitsplatz">
+  <title>PSA prüfen und Mängel melden</title>
+  <desc>Ein Beschäftigter mit Helm, Schutzbrille, Warnweste und Handschuhen prüft eine beschädigte Schutzbrille an einem industriellen Arbeitsplatz. Ein Warnsymbol und ein separater Ablagebehälter verdeutlichen, dass beschädigte PSA ausgesondert werden muss.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#eef6ff"/><stop offset=".52" stop-color="#dceafa"/><stop offset="1" stop-color="#c7d9ef"/></linearGradient>
+    <linearGradient id="factory" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#173454"/><stop offset="1" stop-color="#31587d"/></linearGradient>
+    <linearGradient id="glass" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#ffffff" stop-opacity=".92"/><stop offset=".45" stop-color="#c9efff" stop-opacity=".72"/><stop offset="1" stop-color="#8bc9e8" stop-opacity=".6"/></linearGradient>
+    <linearGradient id="helmet" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#ffd95a"/><stop offset=".58" stop-color="#ffb30f"/><stop offset="1" stop-color="#e78b00"/></linearGradient>
+    <linearGradient id="jacket" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#1262b0"/><stop offset="1" stop-color="#073b72"/></linearGradient>
+    <linearGradient id="vest" x1="0" y1="0" x2="1" y2="0"><stop stop-color="#e7ff63"/><stop offset="1" stop-color="#b9db28"/></linearGradient>
+    <linearGradient id="bench" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#5f7690"/><stop offset="1" stop-color="#24364a"/></linearGradient>
+    <radialGradient id="light" cx="50%" cy="50%" r="50%"><stop stop-color="#fff" stop-opacity=".95"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="150%"><feDropShadow dx="0" dy="16" stdDeviation="18" flood-color="#0f2740" flood-opacity=".2"/></filter>
+    <filter id="soft" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="12"/></filter>
+    <clipPath id="scene"><rect x="20" y="20" width="1160" height="680" rx="38"/></clipPath>
+  </defs>
+  <g clip-path="url(#scene)">
+    <rect width="1200" height="720" fill="url(#bg)"/>
+    <rect x="650" y="0" width="550" height="720" fill="url(#factory)" opacity=".98"/>
+    <g opacity=".3">
+      <rect x="715" y="60" width="34" height="470" rx="12" fill="#9cc5e7"/>
+      <rect x="850" y="30" width="28" height="500" rx="10" fill="#8db9dd"/>
+      <rect x="1010" y="45" width="38" height="485" rx="12" fill="#9cc5e7"/>
+      <path d="M650 160h550M650 310h550M650 470h550" stroke="#b9d6ee" stroke-width="14" opacity=".35"/>
+    </g>
+    <ellipse cx="770" cy="82" rx="150" ry="44" fill="url(#light)" filter="url(#soft)"/>
+    <ellipse cx="1040" cy="160" rx="110" ry="38" fill="url(#light)" filter="url(#soft)"/>
+    <rect x="0" y="570" width="1200" height="150" fill="#d4dde7"/>
+    <path d="M0 604h1200" stroke="#b4c3d2" stroke-width="5"/>
+    <g filter="url(#shadow)">
+      <rect x="676" y="514" width="490" height="84" rx="18" fill="url(#bench)"/>
+      <rect x="930" y="426" width="202" height="128" rx="18" fill="#172536"/>
+      <path d="M952 466h158v66H952z" fill="#263b50"/>
+      <path d="M975 478h112" stroke="#6f879e" stroke-width="6" stroke-linecap="round"/>
+    </g>
+    <g filter="url(#shadow)">
+      <path d="M461 302c-78 30-121 116-130 234l251 8c4-102-5-181-45-228-21-25-46-29-76-14z" fill="url(#jacket)"/>
+      <path d="M407 332c-26 53-40 120-42 196l64 2c6-83 17-145 45-195z" fill="url(#vest)" opacity=".95"/>
+      <path d="M475 332c31 19 51 63 59 129l50-10c-8-89-36-142-79-166z" fill="url(#vest)" opacity=".9"/>
+      <path d="M401 386h150" stroke="#d8e7ef" stroke-width="14" opacity=".9"/>
+      <path d="M417 433h141" stroke="#718aa0" stroke-width="4" opacity=".55"/>
+      <path d="M542 365c57 48 101 90 162 116l-25 63c-83-34-143-83-192-138z" fill="#0b4e91"/>
+      <path d="M682 480c41 18 81 31 122 39l-15 56c-51-8-100-26-138-47z" fill="#113f70"/>
+      <path d="M782 513c28 3 51 10 65 21l-19 52c-22 5-45 1-66-12l-5-37z" fill="#202c3a"/>
+      <path d="M438 222c14-44 69-72 117-55 51 19 71 80 42 124-23 35-77 45-117 18-30-20-53-53-42-87z" fill="#d69a76"/>
+      <path d="M474 192c41-28 101-11 124 25-20-54-84-83-139-54-35 18-53 53-48 83 8-21 29-39 63-54z" fill="#1e293b"/>
+      <path d="M418 207c11-67 63-110 130-103 68 7 107 55 108 113-67-31-144-29-238-10z" fill="url(#helmet)"/>
+      <path d="M406 211c72-19 161-18 250 12" fill="none" stroke="#fff1a8" stroke-width="12" stroke-linecap="round" opacity=".92"/>
+      <path d="M462 164h125" stroke="#d78b00" stroke-width="9" stroke-linecap="round" opacity=".65"/>
+      <path d="M456 224c34-14 78-10 111 10" fill="none" stroke="#2e465a" stroke-width="8" stroke-linecap="round"/>
+      <path d="M454 229c17 18 40 24 61 18 17-5 30-18 37-35" fill="none" stroke="#8fd1ee" stroke-width="13" stroke-linecap="round" opacity=".85"/>
+      <path d="M558 252c-2 20 3 35 18 44" fill="none" stroke="#a96e54" stroke-width="5" stroke-linecap="round"/>
+      <path d="M534 293c19 7 38 4 51-8" fill="none" stroke="#7f4f3f" stroke-width="5" stroke-linecap="round"/>
+    </g>
+    <g transform="translate(778 368) rotate(-7)" filter="url(#shadow)">
+      <path d="M0 38c30-35 102-39 150-6l22 45c-54 20-119 20-176 0z" fill="url(#glass)" stroke="#d5f3ff" stroke-width="8"/>
+      <path d="M23 42c25-15 52-17 77-5M117 36c15 4 26 12 34 24" fill="none" stroke="#74a9c6" stroke-width="4" opacity=".8"/>
+      <path d="M70 24l15 29-18 19 24 18-16 24" fill="none" stroke="#ffffff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M83 50l29-11M69 72l-31 6M89 91l23 18" stroke="#7f9eb2" stroke-width="3" stroke-linecap="round"/>
+    </g>
+    <g transform="translate(1000 188)" filter="url(#shadow)">
+      <path d="M0 160L92 0l92 160z" fill="#ffffff" stroke="#ef4444" stroke-width="16"/>
+      <path d="M92 48v55" stroke="#ef4444" stroke-width="18" stroke-linecap="round"/>
+      <circle cx="92" cy="126" r="10" fill="#ef4444"/>
+    </g>
+    <g transform="translate(82 72)" filter="url(#shadow)">
+      <circle cx="48" cy="48" r="48" fill="#2563eb"/>
+      <path d="M48 19l25 10v20c0 17-9 30-25 39-16-9-25-22-25-39V29z" fill="#fff" opacity=".98"/>
+      <path d="M36 49l9 9 17-20" fill="none" stroke="#2563eb" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+    </g>
+    <g opacity=".7">
+      <circle cx="112" cy="620" r="7" fill="#2563eb"/><circle cx="145" cy="620" r="7" fill="#2563eb"/><circle cx="178" cy="620" r="7" fill="#2563eb"/>
+      <path d="M110 648h232" stroke="#95aabd" stroke-width="5" stroke-linecap="round"/>
+    </g>
+  </g>
+  <rect x="20" y="20" width="1160" height="680" rx="38" fill="none" stroke="#ffffff" stroke-width="4" opacity=".8"/>
+</svg>

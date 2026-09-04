@@ -4,6 +4,7 @@ import { getPool, sql } from '../lib/db.js';
 import { json, badRequest, notFound, serverError } from '../lib/http.js';
 import { getAuthorizedContext, assertRole, Roles } from '../lib/auth.js';
 import { writeAudit } from '../lib/audit.js';
+import { currentQuestionVersions } from '../lib/question-order.js';
 
 function clean(value, max) {
   const text = String(value ?? '').trim();
@@ -79,15 +80,15 @@ app.http('testQuestions', {
         const typeId = clean(url.searchParams.get('instructionTypeId'), 80);
         const language = clean(url.searchParams.get('language'), 10);
         const req = pool.request().input('companyId', sql.NVarChar(80), ctx.companyId);
-        let where = 'WHERE q.companyId=@companyId';
-        if (typeId) { req.input('instructionTypeId', sql.NVarChar(80), typeId); where += ' AND q.instructionTypeId=@instructionTypeId'; }
-        if (language) { req.input('language', sql.NVarChar(10), normaliseLanguage(language)); where += ' AND q.language=@language'; }
         const result = await req.query(`SELECT q.id,q.companyId,q.instructionTypeId,t.name AS instructionName,q.language,q.question,q.optionsJson,q.correctIndex,q.active,q.updatedAt
                                         FROM TestQuestions q
                                         JOIN InstructionTypes t ON t.companyId=q.companyId AND t.id=q.instructionTypeId
-                                        ${where}
+                                        WHERE q.companyId=@companyId
                                         ORDER BY t.name,q.language,q.active DESC,q.question`);
-        return json(result.recordset.map(mapQuestion));
+        // Resolve immutable replacement IDs across the company before mutable type/language filters.
+        return json(currentQuestionVersions(result.recordset)
+          .filter(row=>(!typeId || row.instructionTypeId===typeId) && (!language || row.language===normaliseLanguage(language)))
+          .map(mapQuestion));
       }
 
       assertRole(ctx, [Roles.SYSTEM_ADMIN, Roles.COMPANY_ADMIN, Roles.HSE]);
@@ -166,6 +167,8 @@ app.http('testQuestions', {
         fields.push('active=@active');
       }
       if (!fields.length) return badRequest('Keine Änderung angegeben.');
+      // A manual edit no longer claims the generated source coverage or automatic replacement lifecycle.
+      fields.push('sourceAspectId=NULL','explanation=NULL','sourceEvidenceJson=NULL');
       fields.push('updatedAt=SYSUTCDATETIME()');
       await req.query(`UPDATE TestQuestions SET ${fields.join(', ')} WHERE companyId=@companyId AND id=@id`);
       await writeAudit(pool, ctx, 'testQuestion.updated', 'testQuestion', id, body);

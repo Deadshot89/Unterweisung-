@@ -30,8 +30,8 @@ assert(script.includes('ensureProfessionalFooter'), 'Footer/Standanzeige fehlt.'
 assert(script.includes('app-shell-v35'), 'App-Shell-Klasse fehlt.');
 assert(script.includes('pro-shell-grid'), 'Shell-Grid-Klasse fehlt.');
 assert(!script.includes('new MutationObserver'), 'Major-Design-Script darf keinen Body-MutationObserver mehr nutzen.');
-assert(script.includes('setView = function'), 'setView Hook fehlt.');
-assert(script.includes('render = function'), 'render Hook fehlt.');
+assert(/setView\s*=\s*function/.test(script), 'setView Hook fehlt.');
+assert(/render\s*=\s*function/.test(script), 'render Hook fehlt.');
 assert(!script.includes('Azure Static Web Apps'), 'Technischer Azure-Text darf nicht im Major-Design-Script stehen.');
 assert(!script.includes('Dev-Bypass'), 'Dev-Bypass darf nicht im Major-Design-Script stehen.');
 

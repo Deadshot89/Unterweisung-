@@ -1,3 +1,4 @@
+import './runtime-settings.js';
 import { BlobServiceClient, StorageSharedKeyCredential, generateBlobSASQueryParameters, BlobSASPermissions } from '@azure/storage-blob';
 
 let serviceClient;

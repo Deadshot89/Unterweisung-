@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 const apiExternal = readFileSync('api/src/functions/externalInstruction.js', 'utf8');
 const apiInvitations = readFileSync('api/src/functions/invitations.js', 'utf8');
 const frontendExternalFix = readFileSync('frontend/external-fix-v12.js', 'utf8');
-const externalPage = readFileSync('frontend/external/instruction.html', 'utf8');
+const externalPage = readFileSync('frontend/external/instruction.html', 'utf8') + readFileSync('frontend/external/instruction.js', 'utf8');
 
 assert.match(apiExternal, /answerIndex:\s*originalIndex/, 'Antwortoptionen müssen den ursprünglichen richtigen Index behalten.');
 assert.match(apiExternal, /correctCount/, 'API muss Anzahl richtiger Antworten zurückgeben.');
