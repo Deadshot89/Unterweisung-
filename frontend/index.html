@@ -43,21 +43,7 @@
       <div class="card auth-pending-card"><h2>Anmeldung wird geprüft …</h2><p class="muted">Firmendaten werden erst nach erfolgreicher Anmeldung geladen.</p></div>
     </section>
 
-    <nav class="tabs primary-tabs">
-      <button data-view="dashboard" class="active">Dashboard</button>
-      <button data-view="companies">Firmen</button>
-      <button data-view="employees">Mitarbeiter</button>
-      <button data-view="instructions">Unterweisungen</button>
-      <button data-view="status">Status</button>
-      <button data-view="reminders">Erinnerungen</button>
-      <button data-view="proofs">Nachweise</button>
-      <button data-view="managerReport">Manager-Report</button>
-      <button data-view="planning">Planung</button>
-      <button data-view="external">Externe Links</button>
-      <button data-view="users">Benutzer</button>
-      <button data-view="operations">Betrieb</button>
-      <button data-view="security">Sicherheit</button>
-    </nav>
+    <nav id="portalNavigation" class="tabs primary-tabs" hidden></nav>
 
     <section id="dashboard" class="view active"></section>
     <section id="companies" class="view"></section>
@@ -80,6 +66,7 @@
 
   <script src="/config.js"></script>
   <script src="/auth-login-v42.js"></script>
+  <script src="/portal-shell-v43.js"></script>
   <script src="/app.js"></script>
   <script src="/company-context-v39.js"></script>
   <script src="/company-settings-v15.js"></script>
