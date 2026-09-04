@@ -1,0 +1,90 @@
+name: RC991 Task 3 Portal State Patch
+
+on:
+  push:
+    branches:
+      - rc991-unified-learning-portal
+    paths:
+      - .github/workflows/rc991-task3-portal-state-machine.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch-and-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: rc991-unified-learning-portal
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Apply exact Task 3 replacements
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const path='frontend/app.js';
+          let s=fs.readFileSync(path,'utf8');
+          const replaceOnce=(oldText,newText,label)=>{
+            const first=s.indexOf(oldText);
+            if(first<0) throw new Error(`${label}: old block not found`);
+            if(s.indexOf(oldText,first+1)>=0) throw new Error(`${label}: old block occurs more than once`);
+            s=s.slice(0,first)+newText+s.slice(first+oldText.length);
+          };
+
+          replaceOnce(
+            "const state = { data: null, source: 'loading', statusRows: [], apiAvailable: false, mailConfig: null, me: null, companyId: null, users: [], testQuestions: [], operations: null, backups: [], healthHistory: [], securityEvents: [], auditEvents: [] };",
+            "const state = { data: null, source: 'loading', statusRows: [], apiAvailable: false, mailConfig: null, me: null, companyId: null, portalMode: 'auth-pending', users: [], testQuestions: [], operations: null, backups: [], healthHistory: [], securityEvents: [], auditEvents: [] };",
+            'state portalMode'
+          );
+
+          replaceOnce(
+            `function requiresCompanySelection(){\n  return Boolean(state.me?.roles?.includes('system_admin') && (state.me?.requiresCompanySelection || !state.companyId));\n}\n`,
+            `function requiresCompanySelection(){\n  return Boolean(state.me?.roles?.includes('system_admin') && (state.me?.requiresCompanySelection || !state.companyId));\n}\n\nfunction resolveCurrentPortalMode(){\n  return UMPortalShell.resolvePortalMode(state.me,state.companyId);\n}\n\nfunction applyCurrentPortalMode(){\n  state.portalMode=resolveCurrentPortalMode();\n  UMPortalShell.applyPortalMode(state.portalMode,{onNavigate:setView});\n  return state.portalMode;\n}\n\nfunction renderPortalAccessDenied(){\n  setCoreWorkspaceVisible(false);\n  UMPortalShell.clearPortalShell();\n  const gate=$('companySelectionGate');\n  if(gate){\n    gate.hidden=false;\n    gate.innerHTML='<section class="card"><h2>Zugriff nicht freigegeben</h2><div class="notice dangerbox">Für dieses Benutzerkonto ist keine gültige Portalrolle hinterlegt.</div><a class="btn ghost logout-action" href="/.auth/logout">Abmelden</a></section>';\n  }\n}\n`,
+            'portal helpers'
+          );
+
+          replaceOnce(
+            `function renderAuthenticationRequired(message=''){\n  state.apiAvailable = false;\n  state.data = null;\n  state.statusRows = [];\n  state.users = [];\n  state.companyId = null;\n  setCoreWorkspaceVisible(false);`,
+            `function renderAuthenticationRequired(message=''){\n  state.apiAvailable = false;\n  state.data = null;\n  state.statusRows = [];\n  state.users = [];\n  state.companyId = null;\n  state.portalMode = 'auth-required';\n  UMPortalShell.clearPortalShell();\n  setCoreWorkspaceVisible(false);`,
+            'auth-required portal clear'
+          );
+
+          replaceOnce(
+            `  const gate = $('companySelectionGate');\n  if(gate){ gate.hidden = true; gate.innerHTML = ''; }\n  setCoreWorkspaceVisible(true);`,
+            `  const gate = $('companySelectionGate');\n  if(gate){ gate.hidden = true; gate.innerHTML = ''; }\n  applyCurrentPortalMode();\n  setCoreWorkspaceVisible(true);`,
+            'company data portal apply'
+          );
+
+          replaceOnce(
+            `async function loadData(){\n  try{\n    state.me = await api('/me');\n    if(state.me?.companyId) state.companyId = state.me.companyId;\n    renderUserInfo(true);\n\n    if(requiresCompanySelection()){\n      state.companyId = null;\n      if(typeof showCompanySelection === 'function') await showCompanySelection();\n      else renderServiceUnavailable('Firmenauswahl ist noch nicht geladen.');\n      return;\n    }\n\n    await loadCompanyData();\n  }catch(err){\n    const msg = String(err.message || err);\n    if(isAuthenticationError(msg)) renderAuthenticationRequired(msg);\n    else renderServiceUnavailable(msg);\n  }\n}`,
+            `async function loadData(){\n  try{\n    state.me = await api('/me');\n    state.companyId = state.me?.companyId || null;\n    renderUserInfo(true);\n    const mode = applyCurrentPortalMode();\n\n    if(mode === 'company-selection'){\n      state.companyId = null;\n      if(typeof showCompanySelection === 'function') await showCompanySelection();\n      else renderServiceUnavailable('Firmenauswahl ist noch nicht geladen.');\n      return;\n    }\n    if(mode === 'denied'){\n      renderPortalAccessDenied();\n      return;\n    }\n\n    await loadCompanyData();\n  }catch(err){\n    const msg = String(err.message || err);\n    if(isAuthenticationError(msg)) renderAuthenticationRequired(msg);\n    else renderServiceUnavailable(msg);\n  }\n}`,
+            'loadData portal routing'
+          );
+
+          replaceOnce(
+            `function setView(id){\n  document.querySelectorAll('.tabs button').forEach(b=>b.classList.toggle('active',b.dataset.view===id));\n  document.querySelectorAll('.view').forEach(v=>v.classList.toggle('active',v.id===id));\n  render(id);\n}\n\ndocument.querySelectorAll('.tabs button').forEach(b=>b.addEventListener('click',()=>setView(b.dataset.view)));`,
+            `function setView(id){\n  document.querySelectorAll('#portalNavigation button[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===id));\n  document.querySelectorAll('.view').forEach(v=>v.classList.toggle('active',v.id===id));\n  render(id);\n}`,
+            'dynamic navigation binding'
+          );
+
+          fs.writeFileSync(path,s);
+          NODE
+      - name: Install dependencies
+        run: |
+          npm install
+          npm install --prefix api --omit=dev
+      - name: Run focused Task 3 contracts
+        run: node --test tests/central-portal-routing-v43.test.js tests/unified-login-shell-v42.test.js tests/system-admin-company-selection.test.js tests/company-context-v39.test.js tests/tenant-isolation-login-v40.test.js
+      - name: Run complete regression suite before commit
+        run: npm test
+      - name: Commit verified Task 3 app state machine
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add frontend/app.js
+          git diff --cached --check
+          git commit -m "feat(rc991): route authenticated users into central portal modes"
+          git push origin HEAD:rc991-unified-learning-portal
