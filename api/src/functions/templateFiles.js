@@ -3,7 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { getPool, sql } from '../lib/db.js';
 import { json, badRequest, notFound, serverError } from '../lib/http.js';
 import { getAuthorizedContext, assertRole, Roles } from '../lib/auth.js';
-import { createReadSasUrl, uploadBufferToBlob } from '../lib/blob.js';
+import { blobExists, createReadSasUrl, uploadBufferToBlob } from '../lib/blob.js';
 import { createAnalysisJob, publicAnalysis } from '../lib/instruction-analysis/store.js';
 import { writeAudit } from '../lib/audit.js';
 import { decodeBase64Upload, validateUploadedFile, sanitizeFileName, initialScanStatus } from '../lib/uploadSecurity.js';
@@ -89,7 +89,14 @@ app.http('templateDownload', {
         .query('SELECT id,title,fileName,blobPath FROM Templates WHERE companyId=@companyId AND id=@id AND active=1');
       const row = result.recordset[0];
       if (!row) return notFound('Vorlage nicht gefunden');
-      const url = createReadSasUrl(row.blobPath, 10);
+      if (!(await blobExists(row.blobPath, { kind: 'template' }))) {
+        await writeAudit(pool, ctx, 'template.blobMissing', 'template', id, {});
+        return json({
+          error: 'Die Unterlage ist im System registriert, aber im Speicher nicht vorhanden. Bitte die Unterlage erneut hochladen.',
+          code: 'FILE_BLOB_MISSING'
+        }, 404);
+      }
+      const url = createReadSasUrl(row.blobPath, 10, { kind: 'template' });
       return json({ id: row.id, title: row.title, fileName: row.fileName, url, expiresInMinutes: 10 });
     } catch (err) {
       return serverError(err, context);
