@@ -1,5 +1,5 @@
 // v0.34: Professionelles Dashboard ohne technische Testtexte.
-// Fokus: Essentra Arbeitsuebersicht, klare Kennzahlen, schnelle Aktionen.
+// Fokus: mandantenfaehige Arbeitsuebersicht, klare Kennzahlen, schnelle Aktionen.
 
 const DASHBOARD_DESIGN_VERSION = 'v0.34';
 
@@ -49,14 +49,14 @@ function renderModernDashboard(){
   const el = $('dashboard');
   if(!el) return;
   const c = dashboardCounts();
-  const companyName = typeof designCompanyName === 'function' ? designCompanyName() : 'Essentra Components GmbH';
+  const companyName = typeof designCompanyName === 'function' ? designCompanyName() : 'Unternehmen';
   const openRows = dashboardTopOpen();
   const sourceText = state.apiAvailable ? 'Daten verbunden' : 'Offline-Daten';
   el.innerHTML = `<div class="grid dashboard-grid">
     <section class="card dashboard-hero span-12">
       <div>
         <span class="eyebrow">${esc(companyName)}</span>
-        <h2>Essentra Übersicht</h2>
+        <h2>Unterweisungsübersicht</h2>
         <p>Aktueller Unterweisungsstand, offene Aufgaben und direkte Aktionen auf einen Blick.</p>
       </div>
       <div class="hero-status">
