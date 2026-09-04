@@ -5,6 +5,14 @@
 
   function learningEsc(value=''){return renderer?.escapeHtml?renderer.escapeHtml(value):String(value??'');}
   function learningModal(){return document.getElementById('portalLearningBackdrop');}
+  function resetEmployeeLearningState(){
+    learningModal()?.remove();
+    document.querySelectorAll('.learning-image-modal').forEach(node=>node.remove());
+    portalState.training=null;
+    portalState.stepIndex=0;
+    portalState.imageUrls.clear();
+    portalState.result=null;
+  }
   function progressPercent(){
     const data=portalState.training;if(!data)return 0;
     const total=Math.max(1,(data.steps?.length||0)+1);
@@ -158,5 +166,6 @@
     catch(error){alert('Originalunterlage konnte nicht geöffnet werden: '+(error.message||error));}
   }
 
+  window.resetEmployeeLearningState=resetEmployeeLearningState;
   Object.assign(window,{portalStartInstruction,portalRenderTraining,portalLearningNext,portalLearningPrev,portalSubmitTraining,portalRenderResult,portalRestartLearning,portalFinishLearning,portalCloseLearning,portalOpenOriginal,portalZoomLearningImage});
 })();

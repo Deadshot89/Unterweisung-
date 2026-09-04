@@ -4,8 +4,8 @@
   const ADMIN_ROLES=new Set(['system_admin','company_admin','hse']);
 
   function portalRoles(){return state.me?.roles||[];}
-  function isEmployeeExperience(){const roles=portalRoles();return (roles.includes('employee')||roles.includes('line_manager'))&&!roles.some(r=>ADMIN_ROLES.has(r));}
-  function isLineManager(){return portalRoles().includes('line_manager');}
+  function isEmployeeExperience(){return state.portalMode==='employee-portal'||state.portalMode==='employee-manager-portal';}
+  function isLineManager(){return state.portalMode==='employee-manager-portal';}
   function canEditLearning(){return portalRoles().some(r=>ADMIN_ROLES.has(r));}
   function ownStatusRows(){
     const rows=state.statusRows||[];const employeeId=state.me?.employeeId;
@@ -16,6 +16,14 @@
   function isOnlineRow(row){return String(rowType(row).deliveryMode||'practical')==='online';}
   function dateText(value){return value?fmtDate(value):'—';}
   function taskMeta(row){return `${esc(row.category||'Allgemein')} · ${row.validUntil?'fällig '+dateText(row.validUntil):'noch kein gültiger Abschluss'}`;}
+
+  function resetEmployeePortalState(){
+    portalState.training=null;
+    portalState.stepIndex=0;
+    portalState.adminCache.clear();
+    document.getElementById('portalLearningBackdrop')?.remove();
+    document.querySelectorAll('.learning-image-modal').forEach(node=>node.remove());
+  }
 
   function employeeTaskCard(row,kind){
     let action='';
@@ -124,5 +132,6 @@
     const original=instructionDetailPanel;instructionDetailPanel=function(editable=false){const html=original(editable);const selected=window.instructionWorkspaceState?.selectedId||instructionWorkspaceState?.selectedId||'';if(!editable||!selected||!canEditLearning())return html;setTimeout(()=>portalLoadLearningAdmin(selected),0);return html+learningAdminPanel(selected);};
   }
 
+  window.resetEmployeePortalState = resetEmployeePortalState;
   Object.assign(window,{portalStartInstruction,portalRequestAppointment,portalDownloadProof,portalCloseLearning,portalLearningNext,portalLearningPrev,portalSubmitTraining,portalOpenOriginal,portalZoomLearningImage,portalSaveLearningStep,portalToggleLearningStep,portalSaveDelivery});
 })();

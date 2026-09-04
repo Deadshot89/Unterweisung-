@@ -21,6 +21,8 @@ function resetCompanyScopedState(){
   state.auditEvents = [];
   state.apiAvailable = false;
   state.source = 'loading';
+  if(typeof globalThis.resetEmployeePortalState === 'function') globalThis.resetEmployeePortalState();
+  if(typeof globalThis.resetEmployeeLearningState === 'function') globalThis.resetEmployeeLearningState();
 }
 
 function setCompanyWorkspaceVisible(visible){
@@ -83,6 +85,8 @@ async function showCompanySelection(){
   if(!isSystemAdminContext()) return false;
   resetCompanyScopedState();
   state.companyId = null;
+  state.portalMode = 'company-selection';
+  UMPortalShell.clearPortalShell();
   setCompanyWorkspaceVisible(false);
   updateCompanyShell(null);
 
