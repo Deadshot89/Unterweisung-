@@ -12,7 +12,7 @@
   <link rel="stylesheet" href="/learning-experience-v38.css">
   <link rel="stylesheet" href="/company-context-v39.css">
 </head>
-<body>
+<body class="auth-pending">
   <header class="topbar app-shell-header">
     <div class="brand-wrap">
       <div class="brand">UM</div>
@@ -40,7 +40,9 @@
       <span>Version <span id="appVersion">v0.36.3</span></span>
     </section>
 
-    <section id="companySelectionGate" class="company-selection-gate" hidden></section>
+    <section id="companySelectionGate" class="company-selection-gate">
+      <div class="card auth-pending-card"><h2>Anmeldung wird geprüft …</h2><p class="muted">Firmendaten werden erst nach erfolgreicher Anmeldung geladen.</p></div>
+    </section>
 
     <nav class="tabs primary-tabs">
       <button data-view="dashboard" class="active">Dashboard</button>
@@ -108,5 +110,6 @@
   <script src="/employee-portal-v37.js"></script>
   <script src="/employee-learning-v38.js"></script>
   <script src="/learning-admin-v38.js"></script>
+  <script src="/auth-shell-v40.js"></script>
 </body>
 </html>
