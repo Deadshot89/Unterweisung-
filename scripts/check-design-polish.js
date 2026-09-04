@@ -17,7 +17,8 @@ assert(index.includes('Digitales Unterweisungs- und Schulungsmanagement'), 'Prof
 assert(index.includes('class="system-strip"'), 'Kompakte Systemstatus-Leiste fehlt.');
 assert(index.includes('Systemstatus:'), 'Systemstatus fehlt.');
 assert(index.includes('Betriebsbereit'), 'Betriebsbereit-Text fehlt.');
-assert(index.includes('Essentra aktiv'), 'Essentra-Aktiv-Hinweis fehlt.');
+assert(index.includes('id="activeCompanyLabel"'), 'Dynamische Firmenanzeige fehlt.');
+assert(index.includes('id="companySwitchAction"'), 'Firma-wechseln-Aktion fehlt.');
 assert(index.includes('/design-polish-v31.js'), 'Design-Polish-Datei wird nicht geladen.');
 assert(!index.includes('Azure Static Web Apps + Functions + SQL/Blob'), 'Technischer Azure-Text darf nicht mehr sichtbar im Header stehen.');
 assert(!index.includes('Login läuft im Dev-Bypass'), 'Dev-Bypass darf nicht mehr sichtbar in der Hauptoberflaeche stehen.');
@@ -35,5 +36,6 @@ assert(design.includes("r !== 'authenticated'"), 'authenticated muss aus der sic
 assert(design.includes('designCompanyName'), 'Firmenname muss sauber angezeigt werden.');
 assert(design.includes('company-essentra') === false, 'Technische companyId darf im Designscript nicht angezeigt werden.');
 assert(design.includes('login.style.display'), 'Login/Logout Anzeige muss gesteuert werden.');
+assert(!design.includes('setInterval('), 'Design darf die Oberflaeche nicht periodisch neu schreiben.');
 
 console.log('Design polish regression check passed.');
