@@ -55,3 +55,10 @@ test('role guard prevents direct admin views from employee portal modes', () => 
   assert.match(guard,/portalModeAllowsView\(view\).*hasAnyRole/s);
   assert.match(guard,/#portalNavigation|portalNavigation/);
 });
+
+test('role-guard denied recovery remains usable under script-src self CSP', () => {
+  const guard=read('frontend/role-guard-v20.js');
+  assert.doesNotMatch(guard,/\sonclick\s*=/i);
+  assert.match(guard,/data-role-guard-action/);
+  assert.match(guard,/addEventListener\(['"]click['"]/);
+});
