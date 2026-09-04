@@ -44,6 +44,18 @@ export function getRequestContext(request){
 
 function dbRoleToRole(role){ return ROLE_MAP.get(String(role||'').toLowerCase().trim())||String(role||'').toLowerCase().trim(); }
 
+async function activeCompanyExists(pool, companyId){
+  if(!companyId)return false;
+  const result=await pool.request().input('companyId',sql.NVarChar(80),companyId)
+    .query('SELECT TOP 1 id FROM Companies WHERE id=@companyId AND active=1');
+  return !!result.recordset.length;
+}
+
+function systemAdminSelectionContext(base, identity, roles, allowedCompanies, authMode=base.authMode){
+  const normalized=normalizeRoles([...roles,Roles.SYSTEM_ADMIN,Roles.AUTHENTICATED]);
+  return {...base,companyId:null,userId:identity.userId||base.userId,userDetails:identity.displayName||base.userDetails,email:normalizeEmail(identity.email||base.email),roles:normalized,allowedCompanies,isAuthenticated:true,authMode};
+}
+
 export async function getAuthorizedContext(request){
   const base=getRequestContext(request);
   const devBypass=String(process.env.AUTH_DEV_BYPASS||'').toLowerCase()==='true';
@@ -53,8 +65,9 @@ export async function getAuthorizedContext(request){
     const roles=[Roles.COMPANY_ADMIN,Roles.HSE,Roles.LINE_MANAGER,Roles.AUTHENTICATED];
     if(shouldGrantDevSystemAdmin(devEmail))roles.unshift(Roles.SYSTEM_ADMIN);
     const isDevSystemAdmin=roles.includes(Roles.SYSTEM_ADMIN);
-    const selectedCompanyId=isDevSystemAdmin?(base.requestedCompanyId || defaultCompanyId()):defaultCompanyId();
-    return {...base,companyId:selectedCompanyId,userId:process.env.DEV_USER_ID||'dev-admin',userDetails:process.env.DEV_USER_NAME||'Pilot Admin',email:devEmail,roles:normalizeRoles(roles),allowedCompanies:[{companyId:selectedCompanyId,role:isDevSystemAdmin?Roles.SYSTEM_ADMIN:Roles.COMPANY_ADMIN,userId:process.env.DEV_USER_ID||'dev-admin',email:devEmail,displayName:process.env.DEV_USER_NAME||'Pilot Admin'}],isAuthenticated:true,isLocalDev:true,authMode:'dev-bypass'};
+    const selectedCompanyId=isDevSystemAdmin?(base.requestedCompanyId || null):defaultCompanyId();
+    const allowedCompanies=selectedCompanyId?[{companyId:selectedCompanyId,role:isDevSystemAdmin?Roles.SYSTEM_ADMIN:Roles.COMPANY_ADMIN,userId:process.env.DEV_USER_ID||'dev-admin',email:devEmail,displayName:process.env.DEV_USER_NAME||'Pilot Admin'}]:[];
+    return {...base,companyId:selectedCompanyId,userId:process.env.DEV_USER_ID||'dev-admin',userDetails:process.env.DEV_USER_NAME||'Pilot Admin',email:devEmail,roles:normalizeRoles(roles),allowedCompanies,isAuthenticated:true,isLocalDev:true,authMode:'dev-bypass'};
   }
   if(!base.isAuthenticated){ const err=new Error('Nicht angemeldet');err.status=401;throw err; }
   let pool; try{pool=await getPool();}catch(err){if(!requireDbUser&&base.isLocalDev)return base;throw err;}
@@ -78,16 +91,26 @@ export async function getAuthorizedContext(request){
   const isSystemAdmin=isSystemAdminByPrincipal||isSystemAdminByDb;
   if(!dbUsers.length&&!requireDbUser&&base.isLocalDev){
     const roles=normalizeRoles([...base.roles,Roles.COMPANY_ADMIN,Roles.HSE,Roles.LINE_MANAGER,Roles.AUTHENTICATED,...(isSystemAdminByPrincipal?[Roles.SYSTEM_ADMIN]:[])]);
-    const selectedCompanyId=roles.includes(Roles.SYSTEM_ADMIN)?(base.requestedCompanyId || defaultCompanyId()):(base.companyId||defaultCompanyId());
-    return {...base,companyId:selectedCompanyId,roles,allowedCompanies:[{companyId:selectedCompanyId,role:roles.includes(Roles.SYSTEM_ADMIN)?Roles.SYSTEM_ADMIN:Roles.COMPANY_ADMIN,userId:base.userId,email:base.email,displayName:base.userDetails||'Lokaler Testbenutzer'}],isAuthenticated:true};
+    const selectedCompanyId=roles.includes(Roles.SYSTEM_ADMIN)?(base.requestedCompanyId || null):(base.companyId||defaultCompanyId());
+    const allowedCompanies=selectedCompanyId?[{companyId:selectedCompanyId,role:roles.includes(Roles.SYSTEM_ADMIN)?Roles.SYSTEM_ADMIN:Roles.COMPANY_ADMIN,userId:base.userId,email:base.email,displayName:base.userDetails||'Lokaler Testbenutzer'}]:[];
+    return {...base,companyId:selectedCompanyId,roles,allowedCompanies,isAuthenticated:true};
   }
   if(!dbUsers.length&&requireDbUser&&!isSystemAdminByPrincipal){const err=new Error('Benutzer ist nicht im Unterweisungsmanager freigeschaltet');err.status=403;throw err;}
   const allowedCompanies=dbUsers.map(u=>({companyId:u.companyId,role:dbRoleToRole(u.role),userId:u.id,email:u.email,displayName:u.displayName}));
   const requested=base.requestedCompanyId; let selected=null;
   if(requested)selected=allowedCompanies.find(c=>c.companyId===requested)||null;
-  if(!selected&&allowedCompanies.length)selected=allowedCompanies[0];
-  if(isSystemAdmin&&requested){const root=allowedCompanies.find(c=>c.role===Roles.SYSTEM_ADMIN)||allowedCompanies[0]||{userId:base.userId,email:base.email,displayName:base.userDetails}; selected=selected||{companyId:requested,role:Roles.SYSTEM_ADMIN,userId:root.userId,email:root.email,displayName:root.displayName};}
-  if(isSystemAdmin&&!selected)selected={companyId:defaultCompanyId(),role:Roles.SYSTEM_ADMIN,userId:base.userId,email:base.email,displayName:base.userDetails};
+  if(!selected&&!isSystemAdmin&&allowedCompanies.length)selected=allowedCompanies[0];
+  if(isSystemAdmin&&requested&&!selected){
+    if(!(await activeCompanyExists(pool,requested))){const err=new Error('Die ausgewählte Firma ist nicht aktiv oder existiert nicht.');err.status=403;throw err;}
+    const root=allowedCompanies.find(c=>c.role===Roles.SYSTEM_ADMIN)||allowedCompanies[0]||{userId:base.userId,email:base.email,displayName:base.userDetails};
+    selected={companyId:requested,role:Roles.SYSTEM_ADMIN,userId:root.userId,email:root.email,displayName:root.displayName};
+  }
+  if(isSystemAdmin&&!requested){
+    const root=allowedCompanies.find(c=>c.role===Roles.SYSTEM_ADMIN)||allowedCompanies[0]||{userId:base.userId,email:base.email,displayName:base.userDetails};
+    const seenUserId=root.userId||base.userId;
+    if(seenUserId)pool.request().input('id',sql.NVarChar(120),seenUserId).query('UPDATE Users SET lastSeenAt=SYSUTCDATETIME(), updatedAt=SYSUTCDATETIME() WHERE id=@id').catch(err=>console.warn('lastSeenAt update failed',err.message));
+    return systemAdminSelectionContext(base,root,principalRoles,allowedCompanies,base.authMode);
+  }
   if(!selected){const err=new Error('Keine Firma für diesen Benutzer zugeordnet');err.status=403;throw err;}
   const selectedRoles=normalizeRoles([selected.role,...principalRoles.filter(r=>r===Roles.SYSTEM_ADMIN),...(isSystemAdmin?[Roles.SYSTEM_ADMIN]:[])]); if(!selectedRoles.includes(Roles.AUTHENTICATED))selectedRoles.push(Roles.AUTHENTICATED);
   const seenUserId=allowedCompanies.find(c=>c.role===Roles.SYSTEM_ADMIN)?.userId||selected.userId;
