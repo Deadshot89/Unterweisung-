@@ -25,13 +25,13 @@ test('auth-pending state hides the complete application shell even after profess
   assert.match(css, /body\.auth-pending\s+#companySelectionGate\s*\{[^}]*display\s*:\s*block\s*!important/s, 'Login gate must remain visible in auth-pending mode');
 });
 
-test('unknown startup failures still render the login shell instead of a service-only workspace', () => {
+test('failed initial auth lookup renders login; only post-login failures may show service unavailable', () => {
   const app = read('frontend/app.js');
   const match = app.match(/async function loadData\(\)\{([\s\S]*?)\n\}/);
   assert.ok(match, 'loadData function missing');
   const loadData = match[1];
-  assert.doesNotMatch(loadData, /else\s+renderServiceUnavailable\(/, 'Initial auth lookup failures must not replace the login screen with a service-only card');
-  assert.match(loadData, /else\s+renderAuthenticationRequired\(/, 'Unknown initial auth failures must fail closed to the login screen');
+  assert.match(loadData, /if\s*\(\s*!state\.me\s*\|\|\s*isAuthenticationError\(err\)\s*\)\s*renderAuthenticationRequired\(/, 'A failed initial /me lookup must fail closed to the login shell');
+  assert.match(loadData, /else\s+renderServiceUnavailable\(/, 'A backend failure after successful authentication may still show the service-unavailable state');
 });
 
 test('central login shell offers Microsoft and password login on the same website', () => {
