@@ -1,0 +1,31 @@
+name: Hotfix Login Diagnostic
+
+on:
+  push:
+    branches:
+      - hotfix-login-gate
+    paths:
+      - .github/workflows/hotfix-login-diagnostic.yml
+
+permissions:
+  contents: read
+
+jobs:
+  probe-live:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Probe anonymous production auth
+        env:
+          BASE_URL: https://delightful-sky-05dbf7603.7.azurestaticapps.net
+        run: |
+          set -euo pipefail
+          echo '=== /.auth/me ==='
+          curl -sS -D /tmp/auth-h -o /tmp/auth-b --max-time 30 "$BASE_URL/.auth/me"
+          cat /tmp/auth-h
+          cat /tmp/auth-b
+          echo
+          echo '=== /api/me ==='
+          curl -sS -D /tmp/api-h -o /tmp/api-b --max-time 30 "$BASE_URL/api/me" || true
+          cat /tmp/api-h
+          cat /tmp/api-b
+          echo
