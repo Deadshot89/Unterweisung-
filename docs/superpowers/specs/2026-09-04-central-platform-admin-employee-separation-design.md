@@ -171,6 +171,14 @@ Die zentrale Startlogik soll nach erfolgreichem `/api/me` eindeutig entscheiden:
 5. `line_manager` → `employee-manager-portal`
 6. `employee` → `employee-portal`
 
+### Rollenpriorität bei Mehrfachrollen
+
+Falls ein Benutzer technisch mehrere Rollen besitzt, gilt für die Portalwahl verbindlich die Reihenfolge:
+
+`system_admin` → `company_admin` / `hse` → `line_manager` → `employee`
+
+Die höchste vorhandene Rolle bestimmt den Portalmodus. Diese Priorität erweitert keine serverseitigen Einzelberechtigungen; APIs prüfen weiterhin Rolle, Benutzer und Firmenkontext für jede Aktion.
+
 Unbekannte oder inkonsistente Rollen führen zu einer sicheren Zugriffsfehlermeldung statt zu einem Default-Dashboard.
 
 Die Entscheidung wird im Frontend dargestellt, die Berechtigung bleibt aber serverseitig verbindlich.
