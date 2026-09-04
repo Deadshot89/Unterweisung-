@@ -24,9 +24,10 @@ test('employee learning uses a focused shared-renderer module for steps, tests a
   const html = read('frontend/index.html');
   const learning = read('frontend/employee-learning-v38.js');
   assert.match(html, /employee-portal-v37\.js[\s\S]*employee-learning-v38\.js/);
-  assert.match(learning, /UMLearningExperience\.renderLearningStep/);
-  assert.match(learning, /UMLearningExperience\.renderQuestionList/);
-  assert.match(learning, /UMLearningExperience\.renderResult/);
+  assert.match(learning, /renderer\s*=\s*globalThis\.UMLearningExperience/);
+  assert.match(learning, /renderer\.renderLearningStep/);
+  assert.match(learning, /renderer\.renderQuestionList/);
+  assert.match(learning, /renderer\.renderResult/);
   assert.match(learning, /learningGoal/);
   assert.match(learning, /learningIntro/);
   assert.match(learning, /keyPoints/);
