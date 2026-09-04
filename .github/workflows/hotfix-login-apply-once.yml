@@ -1,0 +1,310 @@
+name: Hotfix Login Apply Once
+
+on:
+  push:
+    branches:
+      - hotfix-login-gate
+    paths:
+      - .github/workflows/hotfix-login-apply-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: hotfix-login-gate
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Backport verified auth/API components
+        run: |
+          set -euo pipefail
+          git fetch origin rc991-unified-learning-portal
+          for path in \
+            frontend/auth-login-v42.js \
+            api/src/lib/passwordAuth.js \
+            api/src/functions/passwordAuth.js \
+            api/src/lib/runtime-settings.js \
+            api/src/lib/db.js \
+            scripts/prepare-managed-api-settings.js \
+            .github/workflows/azure-static-web-apps.yml; do
+            mkdir -p "$(dirname "$path")"
+            git show origin/rc991-unified-learning-portal:"$path" > "$path"
+          done
+          git show origin/rc991-unified-learning-portal:api/src/lib/auth.js > api/src/lib/auth.js
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('api/src/lib/auth.js')
+          s=p.read_text()
+          old='if(devBypass&&!base.isAuthenticated){'
+          new='if(devBypass&&!base.isAuthenticated&&base.isLocalDev){'
+          assert s.count(old)==1, f'expected one dev bypass guard, got {s.count(old)}'
+          p.write_text(s.replace(old,new))
+          PY
+      - name: Add central /api/me contract
+        run: |
+          cat > api/src/functions/me.js <<'EOF'
+          import { app } from '@azure/functions';
+          import { getAuthorizedContext, Roles } from '../lib/auth.js';
+          import { json, serverError } from '../lib/http.js';
+          import { getPool } from '../lib/db.js';
+          import { writeSecurityEvent } from '../lib/securityEvents.js';
+
+          app.http('me', {
+            methods: ['GET'],
+            authLevel: 'anonymous',
+            route: 'me',
+            handler: async (request, context) => {
+              try {
+                const ctx = await getAuthorizedContext(request);
+                const pool = await getPool();
+                const requiresCompanySelection = ctx.roles.includes(Roles.SYSTEM_ADMIN) && !ctx.companyId;
+                await writeSecurityEvent(pool, ctx, 'auth.me.loaded', 'info', { roles: ctx.roles, companyId: ctx.companyId, authMode: ctx.authMode, requiresCompanySelection });
+                return json({
+                  authenticated: true,
+                  companyId: ctx.companyId,
+                  userId: ctx.userId,
+                  email: ctx.email,
+                  displayName: ctx.userDetails,
+                  roles: ctx.roles,
+                  isSystemAdmin: ctx.roles.includes(Roles.SYSTEM_ADMIN),
+                  requiresCompanySelection,
+                  isLocalDev: !!ctx.isLocalDev,
+                  authMode: ctx.authMode || (ctx.isLocalDev ? 'dev-bypass' : 'entra'),
+                  allowedCompanies: ctx.allowedCompanies
+                });
+              } catch (err) {
+                return serverError(err, context);
+              }
+            }
+          });
+          EOF
+      - name: Patch frontend fail-closed login gate
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          app=Path('frontend/app.js')
+          s=app.read_text()
+          old="const state = { data: null, source: 'loading', statusRows: [], apiAvailable: false, mailConfig: null, me: null, companyId: DEFAULT_COMPANY_ID, users: [], operations: null, backups: [], healthHistory: [], securityEvents: [], auditEvents: [] };"
+          new="const state = { data: null, source: 'loading', statusRows: [], apiAvailable: false, mailConfig: null, me: null, companyId: null, users: [], operations: null, backups: [], healthHistory: [], securityEvents: [], auditEvents: [] };"
+          assert s.count(old)==1, 'legacy state initializer not found exactly once'
+          s=s.replace(old,new)
+
+          old_api="""async function api(path, options={}){\n  const headers = {'Content-Type':'application/json','x-company-id': state.companyId || DEFAULT_COMPANY_ID, ...(options.headers||{})};\n  const res = await fetch(apiUrl('/api' + path), {...options, headers, mode:'cors'});\n  if(!res.ok) throw new Error(await res.text());\n  return res.json();\n}\n"""
+          new_api="""async function api(path, options={}){\n  const headers = {'Content-Type':'application/json', ...(options.headers||{})};\n  if(state.companyId && !headers['x-company-id']) headers['x-company-id'] = state.companyId;\n  const res = await fetch(apiUrl('/api' + path), {...options, headers, mode:'cors', credentials:'include'});\n  const text = await res.text();\n  let payload = null;\n  if(text){ try { payload = JSON.parse(text); } catch { payload = null; } }\n  if(!res.ok){\n    const error = new Error(payload?.error || text || `HTTP ${res.status}`);\n    error.status = res.status;\n    throw error;\n  }\n  return payload ?? {};\n}\n"""
+          assert s.count(old_api)==1, 'legacy api() block not found exactly once'
+          s=s.replace(old_api,new_api)
+
+          pattern=r"async function loadData\(\)\{.*?\n\}\n\nfunction renderUserInfo\(ok=true\)\{.*?\n\}\n"
+          replacement=r'''function setCoreWorkspaceVisible(visible){
+  const nav = document.getElementById('portalNavigation') || document.querySelector('.primary-tabs');
+  if(nav) nav.hidden = !visible;
+  document.querySelectorAll('.view').forEach(view => { view.hidden = !visible; });
+  document.body.classList.toggle('auth-pending', !visible);
+}
+
+function resetCompanyData(){
+  state.data = null;
+  state.statusRows = [];
+  state.users = [];
+  state.mailConfig = null;
+  state.operations = null;
+  state.backups = [];
+  state.healthHistory = [];
+  state.securityEvents = [];
+  state.auditEvents = [];
+  state.apiAvailable = false;
+  state.source = 'loading';
+}
+
+function updateCompanyLabel(name=''){
+  const label = $('activeCompanyLabel');
+  if(label) label.textContent = name || state.companyId || 'Keine Firma ausgewählt';
+  const switchButton = $('companySwitchAction');
+  if(switchButton) switchButton.hidden = !(state.me?.roles?.includes('system_admin') && state.companyId);
+}
+
+function isAuthenticationError(err){
+  const msg = String(err?.message || err || '').toLowerCase();
+  return Number(err?.status) === 401 || Number(err?.status) === 403 || msg.includes('nicht angemeldet') || msg.includes('not authenticated') || msg.includes('freigeschaltet');
+}
+
+function renderAuthenticationRequired(message=''){
+  resetCompanyData();
+  state.me = null;
+  state.companyId = null;
+  setCoreWorkspaceVisible(false);
+  updateCompanyLabel();
+  const gate = $('companySelectionGate');
+  if(gate) UMAuthLogin.render({target:gate,message});
+  renderUserInfo(false);
+}
+
+function renderServiceUnavailable(message=''){
+  resetCompanyData();
+  state.companyId = null;
+  setCoreWorkspaceVisible(false);
+  updateCompanyLabel();
+  const gate = $('companySelectionGate');
+  if(gate){
+    gate.hidden = false;
+    gate.innerHTML = `<section class="card login-box"><h2>Dienst vorübergehend nicht erreichbar</h2><p>Aus Sicherheitsgründen werden keine Offline- oder Firmendaten ohne erfolgreiche Anmeldung angezeigt.</p>${message?`<p class="muted">${esc(message)}</p>`:''}<button class="btn primary" type="button" id="retryApplicationLoad">Erneut laden</button></section>`;
+    $('retryApplicationLoad')?.addEventListener('click', loadData);
+  }
+  renderUserInfo(Boolean(state.me));
+}
+
+async function loadCompanyData(){
+  if(!state.companyId) throw new Error('Bitte zuerst eine Firma auswählen.');
+  state.data = await api('/bootstrap');
+  state.apiAvailable = true;
+  state.source = 'api';
+  try { state.statusRows = await api('/instruction-status'); } catch { state.statusRows = buildLocalStatusRows(); }
+  try { state.mailConfig = await api('/mail/config'); } catch { state.mailConfig = { configured:false, missing:['mail/config nicht erreichbar'] }; }
+  try { state.users = await api('/users'); } catch { state.users = []; }
+  const gate = $('companySelectionGate');
+  if(gate){ gate.hidden = true; gate.innerHTML = ''; }
+  setCoreWorkspaceVisible(true);
+  updateCompanyLabel();
+  renderUserInfo(true);
+  renderAll();
+}
+
+async function showCompanySelection(){
+  if(!state.me?.roles?.includes('system_admin')) return false;
+  resetCompanyData();
+  state.companyId = null;
+  setCoreWorkspaceVisible(false);
+  updateCompanyLabel();
+  const gate = $('companySelectionGate');
+  if(!gate) return false;
+  gate.hidden = false;
+  gate.innerHTML = '<section class="card"><h2>Firma auswählen</h2><p class="muted">Firmen werden geladen …</p></section>';
+  try{
+    const list = await api('/system/companies');
+    const companies = (Array.isArray(list) ? list : []).filter(c => c && c.active !== false);
+    gate.innerHTML = `<section class="card"><h2>Firma auswählen</h2><p class="muted">Wähle die Firma, in der du arbeiten möchtest. Erst danach werden Firmendaten geladen.</p><div class="company-login-grid">${companies.map(c=>`<button type="button" class="company-login-choice" data-company-id="${esc(c.id)}"><strong>${esc(c.name||c.id)}</strong><span>Firma öffnen</span></button>`).join('') || '<div class="notice warning">Keine aktive Firma verfügbar.</div>'}</div></section>`;
+    gate.querySelectorAll('[data-company-id]').forEach(button => button.addEventListener('click', async()=>{
+      state.companyId = String(button.dataset.companyId || '');
+      updateCompanyLabel(button.querySelector('strong')?.textContent || state.companyId);
+      try { await loadCompanyData(); } catch(err) { state.companyId=null; renderServiceUnavailable(err.message||err); }
+    }));
+    return true;
+  }catch(err){
+    renderServiceUnavailable(err.message||err);
+    return false;
+  }
+}
+
+async function leaveCompanyContext(){
+  if(!state.me?.roles?.includes('system_admin')) return false;
+  resetCompanyData();
+  state.companyId = null;
+  return showCompanySelection();
+}
+
+async function loadData(){
+  try{
+    state.me = await api('/me');
+    renderUserInfo(true);
+    if(state.me?.roles?.includes('system_admin') && (state.me?.requiresCompanySelection || !state.me?.companyId)){
+      await showCompanySelection();
+      return;
+    }
+    state.companyId = state.me?.companyId || null;
+    if(!state.companyId) throw new Error('Keine Firma für diesen Benutzer zugeordnet.');
+    updateCompanyLabel(state.me?.companyName || state.companyId);
+    await loadCompanyData();
+  }catch(err){
+    if(isAuthenticationError(err)) renderAuthenticationRequired(err.message||err);
+    else renderServiceUnavailable(err.message||err);
+  }
+}
+
+function renderUserInfo(ok=true){
+  const el = $('userInfo');
+  if(!el) return;
+  if(!ok || !state.me) { el.textContent = 'Nicht angemeldet'; return; }
+  el.innerHTML = `${esc(state.me.displayName || state.me.email || 'Benutzer')} · ${esc(state.companyId || 'Keine Firma ausgewählt')} · ${(state.me.roles||[]).map(r=>`<span class="role-pill">${esc(r)}</span>`).join('')}`;
+}
+'''
+          s2,n=re.subn(pattern,replacement,s,count=1,flags=re.S)
+          assert n==1, f'legacy load/auth block replacement count={n}'
+          s=s2
+          app.write_text(s)
+          PY
+      - name: Patch central page shell
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('frontend/index.html')
+          s=p.read_text()
+          replacements=[
+            ('<title>Unterweisungsmanager Online · v0.35.5</title>', '<title>Unterweisungsmanager Online · v0.35.6</title>'),
+            ('  <link rel="stylesheet" href="/professional-suite-v35.css">', '  <link rel="stylesheet" href="/professional-suite-v35.css">\n  <link rel="stylesheet" href="/login-gate-v44.css">'),
+            ('<body>', '<body class="auth-pending">'),
+            ('      <a class="btn ghost login-action" href="/.auth/login/aad">Anmelden</a>\n      <a class="btn ghost logout-action" href="/.auth/logout">Abmelden</a>', '      <button id="companySwitchAction" class="btn ghost" type="button" hidden>Firma wechseln</button>\n      <a class="btn ghost logout-action" href="/.auth/logout">Abmelden</a>'),
+            ('      <span>Essentra aktiv</span>', '      <span id="activeCompanyLabel">Keine Firma ausgewählt</span>'),
+            ('      <span>Version <span id="appVersion">v0.35.5</span></span>', '      <span>Version <span id="appVersion">v0.35.6</span></span>'),
+            ('    <nav class="tabs primary-tabs">', '    <section id="companySelectionGate" class="company-selection-gate">\n      <div class="card auth-pending-card"><h2>Anmeldung wird geprüft …</h2><p class="muted">Firmendaten werden erst nach erfolgreicher Anmeldung geladen.</p></div>\n    </section>\n\n    <nav id="portalNavigation" class="tabs primary-tabs" hidden>'),
+            ('  <script src="/config.js"></script>\n  <script src="/app.js"></script>', '  <script src="/config.js"></script>\n  <script src="/auth-login-v42.js"></script>\n  <script src="/app.js"></script>')
+          ]
+          for old,new in replacements:
+            assert s.count(old)==1, f'index replacement missing/ambiguous: {old[:60]}'
+            s=s.replace(old,new)
+          p.write_text(s)
+          PY
+          cat > frontend/login-gate-v44.css <<'EOF'
+          .company-selection-gate{max-width:1180px;margin:42px auto;padding:0 20px}
+          .auth-pending-card{text-align:center;padding:34px}
+          .dual-login-shell{max-width:1040px;margin:0 auto}
+          .dual-login-head{text-align:center;margin-bottom:20px}
+          .dual-login-head h2{font-size:2rem;margin:8px 0}
+          .dual-login-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}
+          .dual-login-card{padding:24px}
+          .dual-login-card h3{margin-top:0;font-size:1.25rem}
+          .dual-login-card .field{margin:14px 0}
+          .dual-login-card input{width:100%;box-sizing:border-box}
+          .portal-badge{display:inline-flex;padding:6px 11px;border-radius:999px;font-weight:700;background:#e8f5fa;color:#0b6279}
+          .employee-login-error{margin-top:12px}
+          .company-login-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-top:20px}
+          .company-login-choice{display:flex;flex-direction:column;align-items:flex-start;gap:8px;min-height:110px;padding:20px;border:1px solid #d5e2e8;border-radius:16px;background:#fff;text-align:left;cursor:pointer}
+          .company-login-choice:hover{box-shadow:0 10px 28px rgba(27,74,94,.12);transform:translateY(-1px)}
+          body.auth-pending .logout-action,body.auth-pending #companySwitchAction{display:none!important}
+          @media(max-width:760px){.dual-login-grid{grid-template-columns:1fr}.company-selection-gate{margin:22px auto;padding:0 12px}}
+          EOF
+      - name: Bind company switch safely
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('frontend/app.js')
+          s=p.read_text()
+          marker='loadData();\n'
+          inject="document.getElementById('companySwitchAction')?.addEventListener('click', leaveCompanyContext);\nloadData();\n"
+          assert s.count(marker)>=1, 'loadData invocation missing'
+          idx=s.find(marker)
+          s=s[:idx]+inject+s[idx+len(marker):]
+          p.write_text(s)
+          PY
+      - name: Remove temporary diagnostic workflow
+        run: rm -f .github/workflows/hotfix-login-diagnostic.yml
+      - name: Install dependencies and verify
+        run: |
+          npm install
+          npm install --prefix api --omit=dev
+          npm test
+      - name: Commit verified hotfix
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add frontend/index.html frontend/app.js frontend/auth-login-v42.js frontend/login-gate-v44.css api/src/lib/auth.js api/src/lib/passwordAuth.js api/src/lib/runtime-settings.js api/src/lib/db.js api/src/functions/passwordAuth.js api/src/functions/me.js scripts/prepare-managed-api-settings.js .github/workflows/azure-static-web-apps.yml .github/workflows/hotfix-login-diagnostic.yml
+          git diff --cached --check
+          git commit -m 'fix(login): require central authentication before company data'
+          git push origin HEAD:hotfix-login-gate
