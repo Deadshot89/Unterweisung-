@@ -20,6 +20,11 @@ test('company-admin provisioning is a narrow transaction and never runs migratio
   assert.match(script, /active\s*=\s*1/i, 'Die erfolgreiche Verifikation muss genau aktive Benutzer prüfen.');
   assert.match(script, /rollback/i, 'Fehler müssen einen Rollback auslösen.');
 
+  assert.match(script, /createCompanyIfMissing/, 'Ein fehlender Mandant darf nur durch eine explizite Request-Freigabe angelegt werden.');
+  assert.match(script, /request\.companyId|companyIdRequested/, 'Die neu anzulegende Firma braucht eine explizite stabile companyId.');
+  assert.match(script, /INSERT INTO Companies|MERGE Companies/i, 'Der eng begrenzte Weg muss den fehlenden Mandanten ohne Seed anlegen können.');
+  assert.match(script, /CompanySettings/, 'Für einen neu angelegten Mandanten müssen minimale Basiseinstellungen erzeugt werden.');
+
   assert.match(workflow, /company\/\*\*/, 'Der Workflow darf nur auf Firmenbranches reagieren.');
   assert.match(workflow, /operations\/company-admin-provision-request\.json/, 'Nur eine explizite Request-Datei darf den Lauf auslösen.');
   assert.match(workflow, /SQL_CONNECTION_STRING/, 'SQL-Zugang muss ausschließlich über das Repository-Secret eingebunden werden.');
