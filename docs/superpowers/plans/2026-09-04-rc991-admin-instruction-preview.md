@@ -4,7 +4,7 @@
 
 **Goal:** Make the Admin/HSE “Öffnen” action launch a real learner-style read-only instruction preview without creating or mutating training, test, completion, or proof state.
 
-**Architecture:** Keep `frontend/learning-experience-v38.js` as the pure presentation layer, add preview orchestration to `frontend/learning-admin-v38.js`, and change the actual “Öffnen” button at its source in `frontend/instruction-type-management-v23.js`. The preview reads company-scoped learning steps, protected image download URLs, and test questions using existing GET endpoints; it must never call `employee-training` or any write endpoint.
+**Architecture:** Keep `frontend/learning-experience-v38.js` as the pure presentation layer, add preview orchestration to `frontend/learning-admin-v38.js`, and change the actual “Öffnen” button at its source in `frontend/instruction-type-management-v23.js`. The preview reads company-scoped learning steps, protected image/document download URLs, and test questions using existing GET endpoints; it must never call `employee-training` or any write endpoint.
 
 **Tech Stack:** Vanilla browser JavaScript, existing `api()` helper, Azure Static Web Apps frontend, Node `node:test` contract tests.
 
@@ -17,7 +17,8 @@
 - Admin preview is available only to `system_admin`, `company_admin`, and `hse`.
 - Preview data must remain company-scoped through the existing server-authorized APIs.
 - The preview must not create an employee training attempt, update `currentStep`, submit answers, create a completion, create a proof, or mark an instruction complete.
-- Images must be resolved through `/api/files/{id}/download`; raw Azure Blob URLs must not be introduced.
+- Images must be resolved through `/api/files/{id}/download`; the original instruction document must use `/api/templates/{id}/download`.
+- Raw Azure Blob URLs must not be introduced.
 - Missing files must use the existing friendly `blob_missing` error behavior.
 - No migration, seed, import, or automatic data repair belongs to this block.
 
@@ -25,7 +26,7 @@
 
 ## File Structure
 
-- Modify `frontend/learning-admin-v38.js`: own Admin/HSE preview loading, protected image resolution, rendering, and modal lifecycle.
+- Modify `frontend/learning-admin-v38.js`: own Admin/HSE preview loading, protected image/document resolution, rendering, and modal lifecycle.
 - Modify `frontend/instruction-type-management-v23.js`: replace the legacy selection-only “Öffnen” action with the preview wrapper at the actual table-render source.
 - Reuse `frontend/learning-experience-v38.js`: pure renderers `renderLearningStep()` and `renderQuestionList()`; no network or mutation logic is added here.
 - Modify/test `tests/learning-admin-v38.test.js`: inspect both the preview module and the table-render source so the contract matches the real file boundary.
@@ -49,7 +50,7 @@ Expected: the first two tests pass and `admin table Open action launches a read-
 
 - [ ] **Step 2: Correct the test so it checks the real table-render file instead of forcing table markup into the preview module**
 
-Use these source variables in the preview test:
+Use these source variables:
 ```js
 const ui=read('frontend/learning-admin-v38.js');
 const workspace=read('frontend/instruction-type-management-v23.js');
@@ -60,11 +61,12 @@ Keep the preview requirements on `ui`:
 assert.match(ui,/v38OpenInstructionPreview/,'Eine echte Admin-Unterweisungsvorschau fehlt.');
 assert.match(ui,/\/learning-steps\?instructionTypeId=/);
 assert.match(ui,/\/files\/.*\/download/);
+assert.match(ui,/\/templates\/.*\/download/,'Die Originalunterlage muss geschützt geladen werden.');
 assert.match(ui,/renderer\.renderLearningStep/);
 assert.match(ui,/renderer\.renderQuestionList/);
 assert.match(ui,/Nur Vorschau|Vorschau.*kein.*Abschluss|keinen.*Lernfortschritt/is);
 const previewStart=ui.indexOf('async function v38OpenInstructionPreview');
-const previewSlice=previewStart>=0?ui.slice(previewStart,previewStart+8000):'';
+const previewSlice=previewStart>=0?ui.slice(previewStart,previewStart+9000):'';
 assert.doesNotMatch(previewSlice,/employee-training|attemptId|currentStep\s*:|method\s*:\s*['"](?:POST|PUT|PATCH|DELETE)['"]/i);
 ```
 
@@ -97,7 +99,7 @@ git commit -m "test(rc991): align admin preview contract with real table source"
 
 **Interfaces:**
 - Consumes: `api(path, options)`, `currentType(typeId)`, `canEditRichLearning()`, `globalThis.UMLearningExperience`.
-- Produces: `v38OpenInstructionPreview(typeId)`, `v38CloseInstructionPreview()`, `v38OpenInstructionFromTable(typeId)`.
+- Produces: `v38OpenInstructionPreview(typeId)`, `v38CloseInstructionPreview()`, `v38OpenInstructionFromTable(typeId)`, `v38OpenPreviewOriginal(templateId)`.
 
 - [ ] **Step 1: Add a protected-image resolver that performs only GET behavior**
 
@@ -115,7 +117,21 @@ async function v38PreviewStep(step){
 }
 ```
 
-- [ ] **Step 2: Add the read-only preview orchestration**
+- [ ] **Step 2: Add the protected original-document action**
+
+```js
+async function v38OpenPreviewOriginal(templateId){
+  if(!templateId)return;
+  try{
+    const file=await api('/templates/'+encodeURIComponent(templateId)+'/download');
+    window.open(file.url,'_blank','noopener');
+  }catch(error){
+    alert('Originalunterlage konnte nicht geöffnet werden: '+String(error.message||error));
+  }
+}
+```
+
+- [ ] **Step 3: Add the read-only preview orchestration**
 
 ```js
 async function v38OpenInstructionPreview(typeId){
@@ -136,9 +152,12 @@ async function v38OpenInstructionPreview(typeId){
     const testHtml=questions.length
       ? renderer.renderQuestionList({questions,passPercent:Number(instruction.passPercent||80),namePrefix:'v38PreviewQuestion'})
       : '<p class="muted">Für diese Unterweisung sind keine Testfragen hinterlegt.</p>';
+    const originalHtml=instruction.templateId
+      ? `<button class="ghost" type="button" onclick="v38OpenPreviewOriginal('${escV(instruction.templateId)}')">Originalunterlage öffnen</button>`
+      : '';
 
     document.getElementById('v38InstructionPreviewBackdrop')?.remove();
-    document.body.insertAdjacentHTML('beforeend',`<div id="v38InstructionPreviewBackdrop" class="learning-modal-backdrop"><div class="learning-modal" role="dialog" aria-modal="true"><div class="learning-modal-head"><div><span class="portal-badge">Nur Vorschau</span><h2>${escV(instruction.name||'Unterweisung')}</h2><p class="muted">Diese Admin-Vorschau erzeugt keinen Lernfortschritt, keinen Testabschluss und keinen Nachweis.</p></div><button class="ghost" type="button" onclick="v38CloseInstructionPreview()">Schließen</button></div>${learningHtml}${testHtml}</div></div>`);
+    document.body.insertAdjacentHTML('beforeend',`<div id="v38InstructionPreviewBackdrop" class="learning-modal-backdrop"><div class="learning-modal" role="dialog" aria-modal="true"><div class="learning-modal-head"><div><span class="portal-badge">Nur Vorschau</span><h2>${escV(instruction.name||'Unterweisung')}</h2><p class="muted">${escV(instruction.category||'Allgemein')} · ${Number(instruction.intervalMonths||12)} Monate</p><p class="muted">Diese Admin-Vorschau erzeugt keinen Lernfortschritt, keinen Testabschluss und keinen Nachweis.</p></div><button class="ghost" type="button" onclick="v38CloseInstructionPreview()">Schließen</button></div><div class="learning-actions"><div class="learning-actions-group">${originalHtml}</div></div>${learningHtml}${testHtml}</div></div>`);
   }catch(error){
     alert('Unterweisungsvorschau konnte nicht geöffnet werden: '+String(error.message||error));
   }
@@ -156,18 +175,19 @@ function v38OpenInstructionFromTable(typeId){
 
 The preview path must contain no training write calls and no write method options.
 
-- [ ] **Step 3: Export only the new focused functions alongside the existing exports**
+- [ ] **Step 4: Export only the new focused functions alongside the existing exports**
 
 Extend the existing `Object.assign(window,{...})` with:
 ```js
 v38OpenInstructionPreview,
 v38CloseInstructionPreview,
-v38OpenInstructionFromTable
+v38OpenInstructionFromTable,
+v38OpenPreviewOriginal
 ```
 
 Do not create a second module or override `instructionTypeTable()` from `learning-admin-v38.js`.
 
-- [ ] **Step 4: Run syntax and the focused preview test**
+- [ ] **Step 5: Run syntax and the focused preview test**
 
 ```bash
 node --check frontend/learning-admin-v38.js
@@ -176,7 +196,7 @@ node --test tests/learning-admin-v38.test.js
 
 Expected: preview-specific assertions pass; the table-action assertion remains RED until Task 3.
 
-- [ ] **Step 5: Commit the preview implementation**
+- [ ] **Step 6: Commit the preview implementation**
 
 ```bash
 git add frontend/learning-admin-v38.js tests/learning-admin-v38.test.js
