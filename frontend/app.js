@@ -150,7 +150,7 @@ async function loadData(){
     updateCompanyLabel(state.me?.companyName || state.companyId);
     await loadCompanyData();
   }catch(err){
-    if(isAuthenticationError(err)) renderAuthenticationRequired(err.message||err);
+    if(!state.me || isAuthenticationError(err)) renderAuthenticationRequired(err.message||err);
     else renderServiceUnavailable(err.message||err);
   }
 }

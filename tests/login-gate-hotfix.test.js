@@ -15,6 +15,25 @@ test('anonymous startup is fail-closed and never selects or seeds Essentra', () 
   assert.doesNotMatch(index, />Essentra aktiv</, 'The anonymous shell must not present Essentra as active');
 });
 
+test('auth-pending state hides the complete application shell even after professional styling applies', () => {
+  const css = read('frontend/login-gate-v44.css');
+  for (const selector of ['.system-strip', '.primary-tabs', '.view', '.app-footer-v35']) {
+    const escaped = selector.replace('.', '\\.');
+    assert.match(css, new RegExp(`body\\.auth-pending[^\\{]*${escaped}[^\\{]*\\{[^}]*display\\s*:\\s*none\\s*!important`, 's'), `${selector} must remain invisible before authentication`);
+  }
+  assert.match(css, /body\.auth-pending\s+main\.pro-shell-grid\s*\{[^}]*display\s*:\s*block\s*!important/s, 'Login mode must not keep the authenticated two-column workspace grid');
+  assert.match(css, /body\.auth-pending\s+#companySelectionGate\s*\{[^}]*display\s*:\s*block\s*!important/s, 'Login gate must remain visible in auth-pending mode');
+});
+
+test('failed initial auth lookup renders login; only post-login failures may show service unavailable', () => {
+  const app = read('frontend/app.js');
+  const match = app.match(/async function loadData\(\)\{([\s\S]*?)\n\}/);
+  assert.ok(match, 'loadData function missing');
+  const loadData = match[1];
+  assert.match(loadData, /if\s*\(\s*!state\.me\s*\|\|\s*isAuthenticationError\(err\)\s*\)\s*renderAuthenticationRequired\(/, 'A failed initial /me lookup must fail closed to the login shell');
+  assert.match(loadData, /else\s+renderServiceUnavailable\(/, 'A backend failure after successful authentication may still show the service-unavailable state');
+});
+
 test('central login shell offers Microsoft and password login on the same website', () => {
   assert.ok(existsSync('frontend/auth-login-v42.js'), 'Shared login shell is missing');
   const login = read('frontend/auth-login-v42.js');

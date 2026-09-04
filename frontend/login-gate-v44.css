@@ -14,4 +14,7 @@
 .company-login-choice{display:flex;flex-direction:column;align-items:flex-start;gap:8px;min-height:110px;padding:20px;border:1px solid #d5e2e8;border-radius:16px;background:#fff;text-align:left;cursor:pointer}
 .company-login-choice:hover{box-shadow:0 10px 28px rgba(27,74,94,.12);transform:translateY(-1px)}
 body.auth-pending .logout-action,body.auth-pending #companySwitchAction{display:none!important}
+body.auth-pending .system-strip,body.auth-pending .primary-tabs,body.auth-pending .view,body.auth-pending .app-footer-v35{display:none!important}
+body.auth-pending main.pro-shell-grid{display:block!important;max-width:1180px}
+body.auth-pending #companySelectionGate{display:block!important}
 @media(max-width:760px){.dual-login-grid{grid-template-columns:1fr}.company-selection-gate{margin:22px auto;padding:0 12px}}
