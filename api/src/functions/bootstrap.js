@@ -3,19 +3,37 @@ import { getPool, sql } from '../lib/db.js';
 import { json, serverError } from '../lib/http.js';
 import { getAuthorizedContext } from '../lib/auth.js';
 import { resolveEmployeeAccess, bindEmployeeScope } from '../lib/employeeAccess.js';
+import { learningContentSchemaReady, parseKeyPoints } from '../lib/learningContent.js';
 
 async function instructionTypes(pool, companyId) {
+  const rich = await learningContentSchemaReady(pool);
+  let extended = true;
+  let result;
   try {
-    return await pool.request().input('companyId', sql.NVarChar(80), companyId)
-      .query(`SELECT id,name,category,intervalMonths,description,templateId,active,deliveryMode,testRequired,passPercent
+    result = await pool.request().input('companyId', sql.NVarChar(80), companyId)
+      .query(`SELECT id,name,category,intervalMonths,description,templateId,active,deliveryMode,testRequired,passPercent${rich?',learningGoal,learningIntro,keyPointsJson':''}
               FROM InstructionTypes WHERE companyId=@companyId ORDER BY category,name`);
   } catch (err) {
     if (!/Invalid column name 'deliveryMode'|Invalid column name 'testRequired'|Invalid column name 'passPercent'/i.test(String(err.message || err))) throw err;
-    const fallback = await pool.request().input('companyId', sql.NVarChar(80), companyId)
-      .query('SELECT id,name,category,intervalMonths,description,templateId,active FROM InstructionTypes WHERE companyId=@companyId ORDER BY category,name');
-    fallback.recordset = fallback.recordset.map(row => ({ ...row, deliveryMode: 'practical', testRequired: false, passPercent: 80 }));
-    return fallback;
+    extended = false;
+    result = await pool.request().input('companyId', sql.NVarChar(80), companyId)
+      .query(`SELECT id,name,category,intervalMonths,description,templateId,active${rich?',learningGoal,learningIntro,keyPointsJson':''}
+              FROM InstructionTypes WHERE companyId=@companyId ORDER BY category,name`);
   }
+  result.recordset = result.recordset.map(row => {
+    const mapped = {
+      ...row,
+      deliveryMode: extended ? (row.deliveryMode || 'practical') : 'practical',
+      testRequired: extended ? !!row.testRequired : false,
+      passPercent: extended ? Number(row.passPercent || 80) : 80,
+      learningGoal: rich ? String(row.learningGoal || '') : '',
+      learningIntro: rich ? String(row.learningIntro || '') : '',
+      keyPoints: rich ? parseKeyPoints(row.keyPointsJson) : []
+    };
+    delete mapped.keyPointsJson;
+    return mapped;
+  });
+  return result;
 }
 
 app.http('bootstrap', {
