@@ -32,7 +32,10 @@ jobs:
           npm install
           npm install --prefix api --omit=dev
       - name: Verify complete hotfix
-        run: npm test
+        run: |
+          node --check frontend/app.js
+          node --check frontend/auth-login-v42.js
+          npm test
       - name: Commit verified implementation
         run: |
           git config user.name 'github-actions[bot]'
