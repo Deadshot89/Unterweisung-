@@ -261,7 +261,7 @@ function instructionTypeTable(search='', editable=false, preparedRows=null){
       <td>${tpl ? `<b>${esc(tpl.title)}</b>${tpl.fileName ? `<br><span class="muted instruction-file-name">${esc(tpl.fileName)}</span>` : ''}` : '<span class="badge warn">Keine Unterlage</span>'}</td>
       <td>${qCount ? `<span class="badge ok">${qCount} aktiv</span>` : '<span class="badge warn">Keine aktiven Fragen</span>'}</td>
       <td>${t.active!==false?'<span class="badge ok">Aktiv</span>':'<span class="badge warn">Inaktiv</span>'}</td>
-      <td class="actions-cell instruction-row-action"><button class="small" type="button" onclick="v38OpenInstructionFromTable('${esc(t.id)}')">Öffnen</button></td>
+      <td class="actions-cell instruction-row-action"><button class="small" data-instruction-action="selectInstructionWorkspaceItem" data-instruction-id="${esc(t.id)}">Öffnen</button></td>
     </tr>`;
   }).join('')}</tbody></table></div><p class="muted instruction-table-count">${rows.length} Unterweisungstypen angezeigt.</p>`;
 }
