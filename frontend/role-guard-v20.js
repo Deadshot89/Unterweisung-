@@ -71,8 +71,14 @@ function accessDeniedHtml(view){
     <div class="notice dangerbox">Dieser Bereich ist für deine aktuelle Rolle nicht freigeschaltet.</div>
     <p><b>Deine Rolle:</b> ${esc(roleSummary())}</p>
     <p><b>Benötigt:</b> ${esc(required)}</p>
-    <button class="primary" onclick="setView('${firstAllowedView()}')">Zur erlaubten Startseite</button>
+    <button class="primary" type="button" data-role-guard-action="back" data-role-guard-view="${esc(firstAllowedView())}">Zur erlaubten Startseite</button>
   </div>`;
+}
+function bindAccessDeniedActions(target){
+  target?.querySelector('[data-role-guard-action="back"]')?.addEventListener('click', event => {
+    const nextView = event.currentTarget?.dataset?.roleGuardView || firstAllowedView();
+    setView(nextView);
+  });
 }
 
 (function(){
@@ -83,7 +89,10 @@ function accessDeniedHtml(view){
         document.querySelectorAll('#portalNavigation button[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===id));
         document.querySelectorAll('.view').forEach(v=>v.classList.toggle('active',v.id===id));
         const target = $(id);
-        if(target) target.innerHTML = accessDeniedHtml(id);
+        if(target){
+          target.innerHTML = accessDeniedHtml(id);
+          bindAccessDeniedActions(target);
+        }
         applyRoleVisibility();
         return;
       }
