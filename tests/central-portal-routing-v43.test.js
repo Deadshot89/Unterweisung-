@@ -31,3 +31,17 @@ test('index keeps one neutral internal shell instead of a baked-in admin website
   assert.doesNotMatch(html, /<nav[^>]*primary-tabs[^>]*>[\s\S]*data-view="companies"/);
   assert.equal((html.match(/id="portalNavigation"/g)||[]).length,1);
 });
+
+test('application resolves the portal mode immediately after /api/me and before company data', () => {
+  const app=read('frontend/app.js');
+  assert.match(app, /portalMode:\s*['"]auth-pending['"]/);
+  assert.match(app, /function\s+resolveCurrentPortalMode\(\)/);
+  assert.match(app, /UMPortalShell\.resolvePortalMode\(state\.me,\s*state\.companyId\)/);
+  assert.match(app, /function\s+applyCurrentPortalMode\(\)/);
+  assert.match(app, /UMPortalShell\.applyPortalMode\(state\.portalMode,\s*\{onNavigate:setView\}\)/);
+  assert.match(app, /const\s+mode\s*=\s*applyCurrentPortalMode\(\)/);
+  assert.match(app, /mode\s*===\s*['"]company-selection['"]/);
+  assert.match(app, /mode\s*===\s*['"]denied['"]/);
+  assert.match(app, /function\s+renderPortalAccessDenied\(\)/);
+  assert.doesNotMatch(app, /document\.querySelectorAll\(['"]\.tabs button['"]\)\.forEach\(b=>b\.addEventListener/);
+});
