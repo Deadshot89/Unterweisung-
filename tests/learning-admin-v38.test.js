@@ -21,3 +21,24 @@ test('rich editor remains restricted to system admin, company admin and HSE',()=
   for(const role of ['system_admin','company_admin','hse']) assert.match(ui,new RegExp(role));
   assert.doesNotMatch(ui,/\['system_admin','company_admin','hse','line_manager'\]/);
 });
+
+test('admin table Open action launches a read-only learner-style instruction preview',()=>{
+  const ui=read('frontend/learning-admin-v38.js');
+  assert.match(ui,/v38OpenInstructionPreview/,'Eine echte Admin-Unterweisungsvorschau fehlt.');
+  assert.match(ui,/instruction-row-action[\s\S]{0,220}selectInstructionWorkspaceItem/,
+    'Der Tabellenknopf Öffnen muss gezielt von der Admin-Vorschau übernommen werden.');
+  assert.match(ui,/\/learning-steps\?instructionTypeId=/,
+    'Die Vorschau muss die vorhandenen Lernschritte der ausgewählten Unterweisung laden.');
+  assert.match(ui,/\/files\/.*\/download/,
+    'Vorhandene Lernbilder müssen über den geschützten Datei-Download geladen werden.');
+  assert.match(ui,/renderer\.renderLearningStep/,
+    'Die Vorschau muss dieselbe professionelle Lernschritt-Darstellung wie Mitarbeitende verwenden.');
+  assert.match(ui,/renderer\.renderQuestionList/,
+    'Testfragen müssen in derselben professionellen Darstellung sichtbar sein.');
+  assert.match(ui,/Nur Vorschau|Vorschau.*kein.*Abschluss|keinen.*Lernfortschritt/is,
+    'Die Oberfläche muss deutlich machen, dass die Admin-Vorschau keinen Abschluss erzeugt.');
+  const previewStart=ui.indexOf('async function v38OpenInstructionPreview');
+  const previewSlice=previewStart>=0?ui.slice(previewStart,previewStart+6500):'';
+  assert.doesNotMatch(previewSlice,/employee-training|attemptId|currentStep\s*:/,
+    'Die Admin-Vorschau darf keinen Mitarbeiter-Lernversuch oder Lernfortschritt verwenden.');
+});
