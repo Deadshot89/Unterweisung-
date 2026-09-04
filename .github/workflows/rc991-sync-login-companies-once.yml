@@ -121,8 +121,8 @@ jobs:
             node --check frontend/auth-login-v42.js
             node --check frontend/app.js
             node --check frontend/employee-portal-v37.js
-            npm ci
-            npm ci --omit=dev --prefix api
+            npm install --no-package-lock
+            npm install --omit=dev --prefix api --no-package-lock
             npm test
 
             git status --short
