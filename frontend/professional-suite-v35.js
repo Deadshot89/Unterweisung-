@@ -1,7 +1,7 @@
-// v0.39 Major Design Refresh.
+// v0.35.2 Major Design Refresh.
 // Release-Version ist die einzige sichtbare Versionsquelle; Firmenname ist dynamisch.
 
-const PROFESSIONAL_SUITE_VERSION = 'v0.39';
+const PROFESSIONAL_SUITE_VERSION = 'v0.35.2';
 const APP_RELEASE_VERSION = 'v0.36.3';
 
 const NAV_GROUPS = [
