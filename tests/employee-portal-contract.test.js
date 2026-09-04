@@ -19,6 +19,23 @@ test('employee portal exposes the approved work buckets and actions', () => {
   assert.match(css, /learning-image-modal/);
 });
 
+test('employee and manager experience is selected only by the central portal mode', () => {
+  const portal = read('frontend/employee-portal-v37.js');
+  assert.match(portal, /state\.portalMode\s*===\s*['"]employee-portal['"]/);
+  assert.match(portal, /state\.portalMode\s*===\s*['"]employee-manager-portal['"]/);
+});
+
+test('employee portal and learning caches expose explicit company-switch resets', () => {
+  const portal = read('frontend/employee-portal-v37.js');
+  const learning = read('frontend/employee-learning-v38.js');
+  assert.match(portal, /function\s+resetEmployeePortalState\(\)/);
+  assert.match(portal, /portalState\.adminCache\.clear\(\)/);
+  assert.match(portal, /window\.resetEmployeePortalState\s*=\s*resetEmployeePortalState/);
+  assert.match(learning, /function\s+resetEmployeeLearningState\(\)/);
+  assert.match(learning, /portalState\.imageUrls\.clear\(\)/);
+  assert.match(learning, /resetEmployeeLearningState/);
+});
+
 test('employee learning uses a focused shared-renderer module for steps, tests and results', () => {
   assert.ok(existsSync(url('frontend/employee-learning-v38.js')), 'employee-learning-v38.js fehlt');
   const html = read('frontend/index.html');
