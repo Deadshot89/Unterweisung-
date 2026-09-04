@@ -1,8 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 
-const read = path => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
+const url = path => new URL(`../${path}`, import.meta.url);
+const read = path => readFileSync(url(path), 'utf8');
 
 test('employee portal exposes the approved work buckets and actions', () => {
   const html = read('frontend/index.html');
@@ -18,27 +19,31 @@ test('employee portal exposes the approved work buckets and actions', () => {
   assert.match(css, /learning-image-modal/);
 });
 
-test('employee learning uses the shared professional renderer for steps, tests and results', () => {
-  const portal = read('frontend/employee-portal-v37.js');
-  assert.match(portal, /UMLearningExperience\.renderLearningStep/);
-  assert.match(portal, /UMLearningExperience\.renderQuestionList/);
-  assert.match(portal, /UMLearningExperience\.renderResult/);
-  assert.match(portal, /learningGoal/);
-  assert.match(portal, /learningIntro/);
-  assert.match(portal, /keyPoints/);
-  assert.match(portal, /imageCaption/);
-  assert.match(portal, /calloutTitle/);
-  assert.match(portal, /calloutText/);
-  assert.doesNotMatch(portal, /Das solltest du mitnehmen/);
+test('employee learning uses a focused shared-renderer module for steps, tests and results', () => {
+  assert.ok(existsSync(url('frontend/employee-learning-v38.js')), 'employee-learning-v38.js fehlt');
+  const html = read('frontend/index.html');
+  const learning = read('frontend/employee-learning-v38.js');
+  assert.match(html, /employee-portal-v37\.js[\s\S]*employee-learning-v38\.js/);
+  assert.match(learning, /UMLearningExperience\.renderLearningStep/);
+  assert.match(learning, /UMLearningExperience\.renderQuestionList/);
+  assert.match(learning, /UMLearningExperience\.renderResult/);
+  assert.match(learning, /learningGoal/);
+  assert.match(learning, /learningIntro/);
+  assert.match(learning, /keyPoints/);
+  assert.match(learning, /imageCaption/);
+  assert.match(learning, /calloutTitle/);
+  assert.match(learning, /calloutText/);
+  assert.doesNotMatch(learning, /Das solltest du mitnehmen/);
 });
 
 test('employee learning keeps server-owned progression and answer submission contracts', () => {
-  const portal = read('frontend/employee-portal-v37.js');
-  assert.match(portal, /attemptId\s*:\s*data\.attemptId/);
-  assert.match(portal, /currentStep\s*:\s*portalState\.stepIndex/);
-  assert.match(portal, /namePrefix\s*:\s*['"]portalQuestion['"]/);
-  assert.match(portal, /questionId\s*:\s*q\.id/);
-  assert.match(portal, /answerIndex/);
+  assert.ok(existsSync(url('frontend/employee-learning-v38.js')), 'employee-learning-v38.js fehlt');
+  const learning = read('frontend/employee-learning-v38.js');
+  assert.match(learning, /attemptId\s*:\s*data\.attemptId/);
+  assert.match(learning, /currentStep\s*:\s*portalState\.stepIndex/);
+  assert.match(learning, /namePrefix\s*:\s*['"]portalQuestion['"]/);
+  assert.match(learning, /questionId\s*:\s*q\.id/);
+  assert.match(learning, /answerIndex/);
 });
 
 test('login page offers Microsoft and email/password without changing role semantics', () => {
