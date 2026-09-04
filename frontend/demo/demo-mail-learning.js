@@ -6,11 +6,22 @@ const STORAGE_KEY = 'um-company-showcase-state-v1';
 const store = createEnhancedDemoStore(DEMO_DATA, globalThis.localStorage);
 let externalSession = null;
 let decorating = false;
+let lastInternalInstructionId = null;
 
 const esc = (value = '') => String(value ?? '').replace(/[&<>"']/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[ch]));
 const employeeById = id => store.getState().employees.find(item => item.id === id);
 const instructionById = id => store.getState().instructionTypes.find(item => item.id === id);
 const modalRoot = () => document.getElementById('demoModalRoot');
+const sharedStep = model => globalThis.UMLearningExperience.renderLearningStep(model);
+const sharedQuestions = model => globalThis.UMLearningExperience.renderQuestionList(model);
+const sharedResult = model => globalThis.UMLearningExperience.renderResult(model);
+
+function requireLearningCore() {
+  if (!globalThis.UMLearningExperience?.renderLearningStep || !globalThis.UMLearningExperience?.renderQuestionList || !globalThis.UMLearningExperience?.renderResult) {
+    throw new Error('Die gemeinsame Lernoberfläche konnte nicht geladen werden.');
+  }
+  return globalThis.UMLearningExperience;
+}
 
 function persistState() {
   globalThis.localStorage?.setItem?.(STORAGE_KEY, JSON.stringify(store.getState()));
@@ -21,6 +32,27 @@ function visiblePlans() {
   return store.getState().plannedTrainings.filter(plan => plan.status === 'planned' && (
     session.role === 'company_admin' || plan.responsibleId === session.employeeId || plan.employeeId === session.employeeId
   ));
+}
+
+function buildInstructionModel(instruction) {
+  return {
+    name: instruction?.name || '',
+    description: instruction?.description || '',
+    learningGoal: instruction?.learningGoal || instruction?.description || '',
+    learningIntro: instruction?.learningIntro || instruction?.intro || '',
+    keyPoints: Array.isArray(instruction?.keyPoints) ? instruction.keyPoints : []
+  };
+}
+
+function buildStepModel(step) {
+  return {
+    title: step?.title || '',
+    body: step?.body || step?.text || '',
+    imageUrl: step?.imageUrl || step?.image || '',
+    imageCaption: step?.imageCaption || '',
+    calloutTitle: step?.calloutTitle || '',
+    calloutText: step?.calloutText || ''
+  };
 }
 
 function decorateContent() {
@@ -89,67 +121,85 @@ function decorateScheduleDialog() {
   body.appendChild(option);
 }
 
-function decorateLearningModal() {
-  const root = modalRoot();
-  const modal = root?.querySelector('.learning-modal');
-  const layout = modal?.querySelector('.learning-layout');
-  const visual = layout?.querySelector('.learning-visual');
-  const copy = layout?.querySelector('.learning-copy');
-  if (!modal || !layout || !visual || !copy || layout.dataset.professional === 'true') return;
+function decorateInternalLearningStep() {
+  const modal = modalRoot()?.querySelector('.learning-modal');
+  const legacyLayout = modal?.querySelector('.learning-layout');
+  const body = modal?.querySelector('.modal-body');
+  if (!modal || !legacyLayout || !body || body.dataset.sharedLearning === 'true') return;
 
+  requireLearningCore();
   const instructionName = modal.querySelector('.modal-head h2')?.textContent?.trim();
-  const stepTitle = copy.querySelector('h3')?.textContent?.trim();
+  const stepTitle = legacyLayout.querySelector('.learning-copy h3')?.textContent?.trim();
   const instruction = store.getState().instructionTypes.find(item => item.name === instructionName);
-  const step = store.getState().learningSteps.find(item => item.instructionId === instruction?.id && item.title === stepTitle);
+  const steps = store.getState().learningSteps.filter(item => item.instructionId === instruction?.id).sort((a,b) => a.order - b.order);
+  const index = Math.max(0, steps.findIndex(item => item.title === stepTitle));
+  const step = steps[index];
   if (!instruction || !step) return;
 
-  layout.dataset.professional = 'true';
-  layout.classList.add('professional-learning-layout');
-  visual.classList.add('learning-stage');
+  lastInternalInstructionId = instruction.id;
+  const assignment = store.getState().assignments.find(item => item.employeeId === store.getSession().employeeId && item.instructionId === instruction.id);
+  const completedSteps = Math.max(Number(assignment?.progress || 0), index);
+  const progress = Math.min(100, Math.round((completedSteps / Math.max(1, steps.length)) * 100));
+  body.dataset.sharedLearning = 'true';
+  body.innerHTML = `<div class="demo-learning-progress" aria-label="Lernfortschritt"><span style="width:${progress}%"></span></div>${sharedStep({instruction:buildInstructionModel(instruction),step:buildStepModel(step),index,total:steps.length})}<div class="demo-learning-toolbar"><span>Lernziel · Praxisbezug · Wichtige Merkpunkte</span><button type="button" class="btn secondary small" data-demo-zoom="${esc(step.image || '')}">Bild vergrößern</button></div>`;
+}
 
-  const progress = modal.querySelector('.progress-track');
-  if (progress && !modal.querySelector('.learning-goal')) {
-    const context = document.createElement('section');
-    context.className = 'learning-goal';
-    context.innerHTML = `<div class="learning-goal-label">Lernziel</div><strong>${esc(instruction.learningGoal || instruction.description)}</strong>${instruction.intro ? `<p>${esc(instruction.intro)}</p>` : ''}`;
-    progress.after(context);
+function wireSharedQuestionInputs(form, questions, prefix) {
+  for (const question of questions) {
+    const expected = `${prefix}_${question.id}`;
+    form.querySelectorAll(`input[name="${expected}"]`).forEach(input => {
+      input.name = question.id;
+      input.required = true;
+    });
   }
+  const update = () => {
+    const answered = new Set([...form.querySelectorAll('input[type="radio"]:checked')].map(input => input.name)).size;
+    const bar = form.querySelector('.um-test-progress span');
+    if (bar) bar.style.width = `${Math.round((answered / Math.max(1, questions.length)) * 100)}%`;
+  };
+  form.addEventListener('change', update);
+  update();
+}
 
-  if (!visual.querySelector('.learning-stage-label')) {
-    const label = document.createElement('div');
-    label.className = 'learning-stage-label';
-    label.textContent = 'Lernsituation · Praxisbezug';
-    visual.prepend(label);
-  }
-  const img = visual.querySelector('img');
-  if (img && step.imageCaption) img.alt = step.imageCaption;
-  if (step.imageCaption && !visual.querySelector('.learning-image-caption')) {
-    const caption = document.createElement('div');
-    caption.className = 'learning-image-caption';
-    caption.innerHTML = `<span>Praxisbezug</span><p>${esc(step.imageCaption)}</p>`;
-    visual.appendChild(caption);
-  }
+function decorateInternalTest() {
+  const form = document.getElementById('demoTrainingTest');
+  const modal = form?.closest('.learning-modal');
+  const body = form?.querySelector('.modal-body');
+  if (!form || !modal || !body || form.dataset.sharedLearning === 'true') return;
 
-  const text = copy.querySelector('p');
-  if (text) text.classList.add('learning-lead');
-  if (step.calloutTitle && step.calloutText && !copy.querySelector('.learning-callout')) {
-    const callout = document.createElement('aside');
-    callout.className = 'learning-callout';
-    callout.innerHTML = `<span>${esc(step.calloutTitle)}</span><p>${esc(step.calloutText)}</p>`;
-    text?.after(callout);
-  }
+  requireLearningCore();
+  const instructionName = modal.querySelector('.modal-head h2')?.textContent?.trim();
+  const instruction = store.getState().instructionTypes.find(item => item.name === instructionName) || instructionById(lastInternalInstructionId);
+  const definition = store.getState().tests.find(item => item.instructionId === instruction?.id);
+  if (!instruction || !definition) return;
 
-  if (Array.isArray(instruction.keyPoints) && instruction.keyPoints.length && !copy.querySelector('.learning-keypoints')) {
-    const keypoints = document.createElement('div');
-    keypoints.className = 'learning-keypoints';
-    keypoints.innerHTML = `<strong>Wichtige Merkpunkte</strong><ul>${instruction.keyPoints.map(point => `<li>${esc(point)}</li>`).join('')}</ul>`;
-    copy.appendChild(keypoints);
-  }
+  lastInternalInstructionId = instruction.id;
+  const questions = (definition.questions || []).map(question => ({ id:question.id, question:question.text, options:question.options || [] }));
+  form.dataset.sharedLearning = 'true';
+  body.innerHTML = sharedQuestions({questions,passPercent:instruction.passPercent || 80,namePrefix:'demoShared'});
+  wireSharedQuestionInputs(form, questions, 'demoShared');
+}
+
+function decorateInternalResult() {
+  const resultBox = modalRoot()?.querySelector('.result-box');
+  const modal = resultBox?.closest('.modal');
+  const body = modal?.querySelector('.modal-body');
+  if (!resultBox || !modal || !body || body.dataset.sharedResult === 'true') return;
+
+  requireLearningCore();
+  const passed = resultBox.classList.contains('pass');
+  const scoreText = resultBox.querySelector('div')?.textContent || '';
+  const score = Number.parseInt(scoreText, 10);
+  const instruction = instructionById(lastInternalInstructionId);
+  body.dataset.sharedResult = 'true';
+  body.innerHTML = sharedResult({passed,scorePercent:Number.isFinite(score) ? score : null,passPercent:instruction?.passPercent || 80});
 }
 
 function decorateModal() {
   decorateScheduleDialog();
-  decorateLearningModal();
+  decorateInternalLearningStep();
+  decorateInternalTest();
+  decorateInternalResult();
 }
 
 function openExternalInstructionDialog() {
@@ -188,37 +238,80 @@ function openExternalRecipient(invitationId) {
   const invitation = (state.externalInvitations || []).find(item => item.id === invitationId);
   if (!invitation) return showExtensionError('Externe Demo-Einladung wurde nicht gefunden.');
   const instruction = instructionById(invitation.instructionId);
-  const steps = state.learningSteps.filter(item => item.instructionId === instruction.id).sort((a,b) => a.order - b.order);
-  externalSession = { invitationId, instruction, steps, index: 0 };
+  const steps = state.learningSteps.filter(item => item.instructionId === instruction?.id).sort((a,b) => a.order - b.order);
+  externalSession = { invitationId, instruction, steps, index:0 };
   renderExternalStep();
 }
 
 function renderExternalStep() {
   if (!externalSession) return;
+  requireLearningCore();
   const { invitationId, instruction, steps, index } = externalSession;
   const invitation = (store.getState().externalInvitations || []).find(item => item.id === invitationId);
   const step = steps[index];
-  if (!step) return;
+  if (!step || !invitation) return;
   const root = modalRoot();
-  root.innerHTML = `<div class="modal-backdrop"><section class="modal external-learning-modal"><div class="modal-head"><div><span class="eyebrow">Externer Demo-Zugang · Kein Konto erforderlich</span><h2>${esc(instruction.name)}</h2></div><button class="btn ghost small" type="button" data-demo-close>Schließen</button></div><div class="modal-body"><div class="external-recipient"><span>Teilnehmer</span><strong>${esc(invitation.recipientName)}</strong><small>${esc(invitation.recipientEmail)}</small></div><section class="learning-goal"><div class="learning-goal-label">Lernziel</div><strong>${esc(instruction.learningGoal || instruction.description)}</strong><p>${esc(instruction.intro || '')}</p></section><div class="external-progress"><span style="width:${Math.round(((index + 1) / steps.length) * 100)}%"></span></div><div class="professional-learning-layout"><div class="learning-stage"><div class="learning-stage-label">Schritt ${index + 1} von ${steps.length} · Lernsituation</div><div class="external-learning-image"><img src="${esc(step.image)}" alt="${esc(step.imageCaption || step.title)}"></div><div class="learning-image-caption"><span>Praxisbezug</span><p>${esc(step.imageCaption || step.title)}</p></div></div><div class="learning-copy"><div class="eyebrow">Lerninhalt</div><h3>${esc(step.title)}</h3><p class="learning-lead">${esc(step.text)}</p>${step.calloutText ? `<aside class="learning-callout"><span>${esc(step.calloutTitle || 'Wichtig')}</span><p>${esc(step.calloutText)}</p></aside>` : ''}<div class="learning-keypoints"><strong>Wichtige Merkpunkte</strong><ul>${(instruction.keyPoints || []).map(point => `<li>${esc(point)}</li>`).join('')}</ul></div></div></div></div><div class="modal-actions"><button class="btn ghost" type="button" data-demo-external-prev ${index === 0 ? 'disabled' : ''}>Zurück</button><button class="btn primary" type="button" data-demo-external-next>${index === steps.length - 1 ? 'Demo-Unterweisung abschließen' : 'Weiter'}</button></div></section></div>`;
+  const progress = Math.round(((index + 1) / Math.max(1, steps.length)) * 100);
+  root.innerHTML = `<div class="modal-backdrop"><section class="modal external-learning-modal"><div class="modal-head"><div><span class="eyebrow">Externer Demo-Zugang · Kein Konto erforderlich</span><h2>${esc(instruction.name)}</h2></div><button class="btn ghost small" type="button" data-demo-close>Schließen</button></div><div class="modal-body"><div class="external-recipient"><span>Teilnehmer</span><strong>${esc(invitation.recipientName)}</strong><small>${esc(invitation.recipientEmail)}</small></div><div class="external-progress"><span style="width:${progress}%"></span></div>${sharedStep({instruction:buildInstructionModel(instruction),step:buildStepModel(step),index,total:steps.length})}<div class="demo-learning-toolbar"><span>Gemeinsamer Lernstandard</span><button type="button" class="btn secondary small" data-demo-zoom="${esc(step.image || '')}">Bild vergrößern</button></div></div><div class="modal-actions"><button class="btn ghost" type="button" data-demo-external-prev ${index === 0 ? 'disabled' : ''}>Zurück</button><button class="btn primary" type="button" data-demo-external-next>${index === steps.length - 1 ? (instruction.testRequired ? 'Zum Test' : 'Demo-Unterweisung abschließen') : 'Weiter'}</button></div></section></div>`;
 }
 
-function completeExternalPreview() {
-  const state = store.getState();
-  const invitation = (state.externalInvitations || []).find(item => item.id === externalSession?.invitationId);
-  if (invitation) {
-    invitation.status = 'demo_completed';
-    invitation.completedAt = state.meta.referenceDate;
-    persistState();
+function renderExternalTest() {
+  if (!externalSession) return;
+  requireLearningCore();
+  const { instruction, invitationId } = externalSession;
+  const invitation = (store.getState().externalInvitations || []).find(item => item.id === invitationId);
+  const definition = store.getState().tests.find(item => item.instructionId === instruction.id);
+  const questions = (definition?.questions || []).map(question => ({ id:question.id, question:question.text, options:question.options || [] }));
+  if (!questions.length) return renderExternalResult({passed:true,score:100});
+  const root = modalRoot();
+  root.innerHTML = `<div class="modal-backdrop"><section class="modal external-learning-modal"><div class="modal-head"><div><span class="eyebrow">Externer Demo-Zugang · Abschlusstest</span><h2>${esc(instruction.name)}</h2></div><button class="btn ghost small" type="button" data-demo-close>Schließen</button></div><form id="demoExternalTrainingTest"><div class="modal-body"><div class="external-recipient"><span>Teilnehmer</span><strong>${esc(invitation?.recipientName || '')}</strong><small>${esc(invitation?.recipientEmail || '')}</small></div>${sharedQuestions({questions,passPercent:instruction.passPercent || 80,namePrefix:'externalQuestion'})}</div><div class="modal-actions"><button class="btn ghost" type="button" data-demo-external-return>Zurück zum Inhalt</button><button class="btn primary" type="submit">Test auswerten</button></div></form></section></div>`;
+  const form = document.getElementById('demoExternalTrainingTest');
+  for (const question of questions) form?.querySelectorAll(`input[name="externalQuestion_${question.id}"]`).forEach(input => { input.required = true; });
+  form?.addEventListener('change', () => {
+    const answered = new Set([...form.querySelectorAll('input[type="radio"]:checked')].map(input => input.name)).size;
+    const bar = form.querySelector('.um-test-progress span');
+    if (bar) bar.style.width = `${Math.round((answered / Math.max(1, questions.length)) * 100)}%`;
+  });
+  form?.addEventListener('submit', event => {
+    event.preventDefault();
+    const fd = new FormData(form);
+    const sourceQuestions = definition.questions || [];
+    const correct = sourceQuestions.filter(question => Number(fd.get(`externalQuestion_${question.id}`)) === Number(question.correctOption)).length;
+    const score = Math.round((correct / Math.max(1, sourceQuestions.length)) * 100);
+    renderExternalResult({passed:score >= Number(instruction.passPercent || 80),score});
+  });
+}
+
+function renderExternalResult({passed,score}) {
+  if (!externalSession) return;
+  requireLearningCore();
+  const { instruction, invitationId } = externalSession;
+  if (passed) {
+    const invitation = (store.getState().externalInvitations || []).find(item => item.id === invitationId);
+    if (invitation) {
+      invitation.status = 'demo_completed';
+      invitation.completedAt = store.getState().meta.referenceDate;
+      persistState();
+    }
   }
   const root = modalRoot();
-  root.innerHTML = `<div class="modal-backdrop"><section class="modal"><div class="modal-head"><div><span class="eyebrow">Externe Unterweisung</span><h2>Demo erfolgreich abgeschlossen</h2></div><button class="btn ghost small" type="button" data-demo-close>Schließen</button></div><div class="modal-body"><div class="result-box pass"><div class="external-success-mark">✓</div><h3>Teilnahme simuliert</h3><p>Damit kann in einer Präsentation der komplette Weg von der Einladung bis zum externen Abschluss gezeigt werden – ohne Konto und ohne echten Mailversand.</p></div></div><div class="modal-actions"><button class="btn primary" type="button" data-demo-close>Zur Demo zurück</button></div></section></div>`;
-  externalSession = null;
+  root.innerHTML = `<div class="modal-backdrop"><section class="modal external-learning-modal"><div class="modal-head"><div><span class="eyebrow">Externe Unterweisung</span><h2>${esc(instruction.name)}</h2></div><button class="btn ghost small" type="button" data-demo-close>Schließen</button></div><div class="modal-body">${sharedResult({passed,scorePercent:score,passPercent:instruction.passPercent || 80})}</div><div class="modal-actions">${passed ? '<button class="btn primary" type="button" data-demo-close>Zur Demo zurück</button>' : '<button class="btn ghost" type="button" data-demo-external-return>Lerninhalte erneut ansehen</button><button class="btn primary" type="button" data-demo-external-retry-test>Test erneut versuchen</button>'}</div></section></div>`;
 }
 
 function showExtensionError(message) {
   const root = modalRoot();
   root.innerHTML = `<div class="modal-backdrop"><section class="modal"><div class="modal-head"><h2>Demo-Aktion nicht möglich</h2><button class="btn ghost small" type="button" data-demo-close>Schließen</button></div><div class="modal-body"><div class="demo-error-box">${esc(message)}</div></div><div class="modal-actions"><button class="btn primary" type="button" data-demo-close>Verstanden</button></div></section></div>`;
+}
+
+function openZoom(src) {
+  if (!src) return;
+  const overlay = document.createElement('div');
+  overlay.className = 'zoom-overlay';
+  overlay.innerHTML = `<button class="btn ghost zoom-close" type="button">Schließen</button><img src="${esc(src)}" alt="Vergrößerte Demo-Illustration">`;
+  const close = () => overlay.remove();
+  overlay.querySelector('button')?.addEventListener('click', close);
+  overlay.addEventListener('click', event => { if (event.target === overlay) close(); });
+  document.body.appendChild(overlay);
 }
 
 function handleClick(event) {
@@ -246,6 +339,12 @@ function handleClick(event) {
     openExternalRecipient(preview.dataset.demoExternalPreview);
     return;
   }
+  const zoom = event.target.closest('[data-demo-zoom]');
+  if (zoom) {
+    event.preventDefault();
+    openZoom(zoom.dataset.demoZoom);
+    return;
+  }
   if (event.target.closest('[data-demo-close]')) {
     event.preventDefault();
     modalRoot().innerHTML = '';
@@ -257,12 +356,23 @@ function handleClick(event) {
     renderExternalStep();
     return;
   }
+  if (event.target.closest('[data-demo-external-return]')) {
+    externalSession.index = Math.max(0, externalSession.steps.length - 1);
+    renderExternalStep();
+    return;
+  }
+  if (event.target.closest('[data-demo-external-retry-test]')) {
+    renderExternalTest();
+    return;
+  }
   if (event.target.closest('[data-demo-external-next]')) {
     if (externalSession.index < externalSession.steps.length - 1) {
       externalSession.index += 1;
       renderExternalStep();
+    } else if (externalSession.instruction.testRequired) {
+      renderExternalTest();
     } else {
-      completeExternalPreview();
+      renderExternalResult({passed:true,score:100});
     }
   }
 }
@@ -306,8 +416,8 @@ function initExtension() {
   });
   const app = document.getElementById('demoApp');
   const root = modalRoot();
-  if (app) observer.observe(app, { childList: true, subtree: true });
-  if (root) observer.observe(root, { childList: true, subtree: true });
+  if (app) observer.observe(app, { childList:true, subtree:true });
+  if (root) observer.observe(root, { childList:true, subtree:true });
   decorateContent();
   decorateModal();
   handleExternalHash();
