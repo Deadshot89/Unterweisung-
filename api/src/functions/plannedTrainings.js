@@ -95,6 +95,8 @@ app.http('plannedTrainings', {
         const result = await req.query(`SELECT p.id,p.instructionTypeId,t.name AS instructionName,p.plannedAt,p.durationMinutes,p.location,
                          p.lineManagerId,lm.name AS lineManagerName,p.status,p.createdAt,
                          COUNT(tp.id) AS participantCount,
+                         SUM(CASE WHEN tp.mailSentAt IS NOT NULL THEN 1 ELSE 0 END) AS mailSentCount,
+                         SUM(CASE WHEN tp.mailError IS NOT NULL THEN 1 ELSE 0 END) AS mailErrorCount,
                          STRING_AGG(CAST(tp.employeeId AS NVARCHAR(MAX)), ',') AS participantIds,
                          STRING_AGG(CAST(e.name AS NVARCHAR(MAX)), ', ') AS participantNames
                   FROM PlannedTrainings p JOIN InstructionTypes t ON t.id=p.instructionTypeId AND t.companyId=p.companyId
