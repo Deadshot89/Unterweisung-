@@ -1,8 +1,7 @@
-// v0.35.2 Major Design Refresh.
-// Performance-Hotfix: keine dauerhafte Body-Beobachtung mehr, keine Render-Schleife.
-// Keine API-Aenderung, keine Fachlogik-Aenderung.
+// v0.39 Major Design Refresh.
+// Release-Version ist die einzige sichtbare Versionsquelle; Firmenname ist dynamisch.
 
-const PROFESSIONAL_SUITE_VERSION = 'v0.35.2';
+const PROFESSIONAL_SUITE_VERSION = 'v0.39';
 const APP_RELEASE_VERSION = 'v0.36.3';
 
 const NAV_GROUPS = [
@@ -45,7 +44,8 @@ function updateNavigationGroups(){
   Array.from(nav.querySelectorAll('button[data-view]')).forEach(button=>{if(!orderedButtons.includes(button))nav.appendChild(button);});nav.dataset.groupedVersion=PROFESSIONAL_SUITE_VERSION;
 }
 function applyProfessionalShell(){document.body.classList.add('app-shell-v35');const main=document.querySelector('main');if(main)main.classList.add('pro-shell-grid');updateNavigationGroups();setProfessionalVersion();}
-function ensureProfessionalFooter(){const main=document.querySelector('main');if(!main)return;let footer=document.getElementById('appFooterV35');const footerHtml=`<span>Unterweisungsmanager · Essentra Arbeitsstand</span><span class="suite-chip">Betriebsbereit · ${APP_RELEASE_VERSION}</span>`;if(!footer){footer=document.createElement('footer');footer.id='appFooterV35';footer.className='app-footer-v35';main.appendChild(footer);}if(footer.innerHTML!==footerHtml)footer.innerHTML=footerHtml;}
+function professionalCompanyLabel(){return typeof designCompanyName==='function'?designCompanyName():(state?.me?.companyName||state?.companyId||'Keine Firma ausgewählt');}
+function ensureProfessionalFooter(){const main=document.querySelector('main');if(!main)return;let footer=document.getElementById('appFooterV35');const footerHtml=`<span>Unterweisungsmanager · ${esc(professionalCompanyLabel())}</span><span class="suite-chip">Betriebsbereit · ${APP_RELEASE_VERSION}</span>`;if(!footer){footer=document.createElement('footer');footer.id='appFooterV35';footer.className='app-footer-v35';main.appendChild(footer);}if(footer.innerHTML!==footerHtml)footer.innerHTML=footerHtml;}
 function markCurrentWorkspace(){const active=document.querySelector('.view.active');if(!active)return;const current=active.id||'dashboard';if(document.body.dataset.currentView!==current)document.body.dataset.currentView=current;}
 function applyProfessionalSuite(){if(professionalSuiteApplying)return;professionalSuiteApplying=true;try{applyProfessionalShell();ensureProfessionalFooter();markCurrentWorkspace();if(typeof applyTableFormPolish==='function')applyTableFormPolish();if(typeof applyViewHeaders==='function')applyViewHeaders();if(typeof applyDesignPolish==='function')applyDesignPolish();setProfessionalVersion();}finally{professionalSuiteApplying=false;}}
 function scheduleProfessionalSuite(){if(professionalSuiteScheduled)return;professionalSuiteScheduled=true;window.requestAnimationFrame(()=>{professionalSuiteScheduled=false;applyProfessionalSuite();});}
