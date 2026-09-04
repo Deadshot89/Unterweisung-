@@ -1,7 +1,8 @@
 const $ = (id) => document.getElementById(id);
 const API_BASE_URL = String(window.UM_API_BASE_URL || '').replace(/\/$/, '');
+// Legacy default remains available to older helper modules, but is never used to select a tenant automatically.
 const DEFAULT_COMPANY_ID = window.UM_DEFAULT_COMPANY_ID || 'company-essentra';
-const state = { data: null, source: 'loading', statusRows: [], apiAvailable: false, mailConfig: null, me: null, companyId: DEFAULT_COMPANY_ID, users: [], operations: null, backups: [], healthHistory: [], securityEvents: [], auditEvents: [] };
+const state = { data: null, source: 'loading', statusRows: [], apiAvailable: false, mailConfig: null, me: null, companyId: null, users: [], testQuestions: [], operations: null, backups: [], healthHistory: [], securityEvents: [], auditEvents: [] };
 
 function esc(s=''){return String(s ?? '').replace(/[&<>\"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[c]))}
 function fmtDate(d){return d ? new Date(d).toLocaleDateString('de-DE') : '—'}
@@ -15,45 +16,100 @@ function apiUrl(path){
 }
 
 async function api(path, options={}){
-  const headers = {'Content-Type':'application/json','x-company-id': state.companyId || DEFAULT_COMPANY_ID, ...(options.headers||{})};
+  const headers = {'Content-Type':'application/json', ...(options.headers||{})};
+  if(state.companyId && !headers['x-company-id']) headers['x-company-id'] = state.companyId;
   const res = await fetch(apiUrl('/api' + path), {...options, headers, mode:'cors'});
   if(!res.ok) throw new Error(await res.text());
   return res.json();
 }
 
+function requiresCompanySelection(){
+  return Boolean(state.me?.roles?.includes('system_admin') && (state.me?.requiresCompanySelection || !state.companyId));
+}
+
+function setCoreWorkspaceVisible(visible){
+  const nav = document.querySelector('.primary-tabs');
+  if(nav) nav.hidden = !visible;
+  document.querySelectorAll('.view').forEach(view => { view.hidden = !visible; });
+}
+
+function renderAuthenticationRequired(message=''){
+  state.apiAvailable = false;
+  state.data = null;
+  state.statusRows = [];
+  state.users = [];
+  state.companyId = null;
+  setCoreWorkspaceVisible(false);
+  const gate = $('companySelectionGate');
+  if(gate){
+    gate.hidden = false;
+    gate.innerHTML = `<section class="card login-box"><h2>Anmeldung erforderlich</h2><p>Bitte melde dich an, bevor Firmendaten geladen werden.</p>${message?`<p class="muted">${esc(message)}</p>`:''}<div class="toolbar"><a class="btn primary" href="/.auth/login/aad">Mit Microsoft anmelden</a><a class="btn ghost" href="/.auth/logout">Sitzung abmelden</a></div></section>`;
+  }
+  renderUserInfo(false);
+  if(typeof updateCompanyShell === 'function') updateCompanyShell(null);
+}
+
+function renderServiceUnavailable(message=''){
+  state.apiAvailable = false;
+  state.data = null;
+  state.statusRows = [];
+  state.users = [];
+  setCoreWorkspaceVisible(false);
+  const gate = $('companySelectionGate');
+  if(gate){
+    gate.hidden = false;
+    gate.innerHTML = `<section class="card login-box"><h2>Dienst vorübergehend nicht erreichbar</h2><p>Es werden keine Offline- oder fremden Firmendaten eingeblendet. Bitte versuche es erneut.</p>${message?`<p class="muted">${esc(message)}</p>`:''}<div class="toolbar"><button class="btn primary" type="button" id="retryApplicationLoad">Erneut laden</button><a class="btn ghost" href="/.auth/logout">Abmelden</a></div></section>`;
+    $('retryApplicationLoad')?.addEventListener('click', loadData);
+  }
+  renderUserInfo(Boolean(state.me));
+}
+
+function isAuthenticationError(message=''){
+  const msg = String(message || '').toLowerCase();
+  return msg.includes('401') || msg.includes('403') || msg.includes('nicht angemeldet') || msg.includes('not authenticated') || msg.includes('freigeschaltet');
+}
+
+async function loadCompanyData(){
+  if(!state.companyId) throw new Error('Bitte zuerst eine Firma auswählen.');
+  state.data = await api('/bootstrap');
+  state.apiAvailable = true;
+  state.source = 'api';
+  try { state.statusRows = await api('/instruction-status'); } catch { state.statusRows = buildLocalStatusRows(); }
+  try { state.mailConfig = await api('/mail/config'); } catch { state.mailConfig = { configured:false, missing:['mail/config nicht erreichbar'] }; }
+  try { state.users = await api('/users'); } catch { state.users = []; }
+  const gate = $('companySelectionGate');
+  if(gate){ gate.hidden = true; gate.innerHTML = ''; }
+  setCoreWorkspaceVisible(true);
+  if(typeof updateCompanyShell === 'function') updateCompanyShell();
+  renderAll();
+}
+
 async function loadData(){
   try{
     state.me = await api('/me');
-    state.companyId = state.me.companyId || state.companyId;
-    renderUserInfo();
-    state.data = await api('/bootstrap');
-    state.apiAvailable = true;
-    state.source = 'api';
-    try { state.statusRows = await api('/instruction-status'); } catch { state.statusRows = buildLocalStatusRows(); }
-    try { state.mailConfig = await api('/mail/config'); } catch { state.mailConfig = { configured:false, missing:['mail/config nicht erreichbar'] }; }
-    try { state.users = await api('/users'); } catch { state.users = []; }
-  }catch(err){
-    const msg = String(err.message || err);
-    if(msg.includes('401') || msg.includes('403') || msg.includes('Nicht angemeldet') || msg.includes('freigeschaltet')){
-      document.querySelector('main').innerHTML = `<section class="card login-box"><h2>Anmeldung erforderlich</h2><p>Bitte mit Microsoft/Entra anmelden. Falls du bereits angemeldet bist, muss dein Benutzer unter <b>Benutzer/Rechte</b> für die Firma freigeschaltet sein.</p><p class="muted">Fehler: ${esc(msg)}</p><a class="btn primary" href="/.auth/login/aad">Mit Microsoft anmelden</a></section>`;
-      renderUserInfo(false);
+    if(state.me?.companyId) state.companyId = state.me.companyId;
+    renderUserInfo(true);
+
+    if(requiresCompanySelection()){
+      state.companyId = null;
+      if(typeof showCompanySelection === 'function') await showCompanySelection();
+      else renderServiceUnavailable('Firmenauswahl ist noch nicht geladen.');
       return;
     }
-    const res = await fetch('/seed/essentra-startdata.json');
-    state.data = await res.json();
-    state.apiAvailable = false;
-    state.source = 'seed';
-    state.statusRows = buildLocalStatusRows();
-    renderUserInfo(false);
+
+    await loadCompanyData();
+  }catch(err){
+    const msg = String(err.message || err);
+    if(isAuthenticationError(msg)) renderAuthenticationRequired(msg);
+    else renderServiceUnavailable(msg);
   }
-  renderAll();
 }
 
 function renderUserInfo(ok=true){
   const el = $('userInfo');
   if(!el) return;
-  if(!ok || !state.me) { el.textContent = 'Nicht angemeldet / Seed-Fallback'; return; }
-  el.innerHTML = `${esc(state.me.displayName || state.me.email || 'Benutzer')} · ${esc(state.me.companyId)} · ${(state.me.roles||[]).map(r=>`<span class="role-pill">${esc(r)}</span>`).join('')}`;
+  if(!ok || !state.me) { el.textContent = 'Nicht angemeldet'; return; }
+  el.innerHTML = `${esc(state.me.displayName || state.me.email || 'Benutzer')} · ${esc(state.me.companyName || state.companyId || 'Keine Firma ausgewählt')} · ${(state.me.roles||[]).map(r=>`<span class="role-pill">${esc(r)}</span>`).join('')}`;
 }
 
 function setView(id){
@@ -118,7 +174,7 @@ function render(id){({dashboard:renderDashboard,companies:renderCompanies,employ
 function renderDashboard(){
   const s=stats();
   $('dashboard').innerHTML=`<div class="grid">
-    <div class="card kpi"><div class="label">Datenquelle</div><div class="value blue">${state.source.toUpperCase()}</div><div class="muted">${state.apiAvailable?'Azure API verbunden':'Seed-Fallback'}</div></div>
+    <div class="card kpi"><div class="label">Datenquelle</div><div class="value blue">${state.source.toUpperCase()}</div><div class="muted">${state.apiAvailable?'Azure API verbunden':'Daten nicht verfügbar'}</div></div>
     <div class="card kpi"><div class="label">Firmen</div><div class="value blue">${companies().length}</div></div>
     <div class="card kpi"><div class="label">Mitarbeiter</div><div class="value blue">${employees().length}</div></div>
     <div class="card kpi"><div class="label">Unterweisungstypen</div><div class="value blue">${types().length}</div></div>
@@ -127,7 +183,6 @@ function renderDashboard(){
     <div class="card kpi"><div class="label">Bald fällig</div><div class="value yellow">${(s.soon||0)+(s.critical||0)}</div></div>
     <div class="card kpi"><div class="label">Abgelaufen</div><div class="value red">${s.expired||0}</div></div>
     <div class="card kpi"><div class="label">Fehlend</div><div class="value yellow">${s.missing||0}</div></div>
-    <div class="card"><h2>Online-Version v0.11</h2><p>Diese Version ist mit der separaten Azure Function API verbunden. SQL und Blob Storage laufen online; Entra-Login/Rollen werden als nächster Sicherheitsblock sauber angebunden.</p></div>
   </div>`;
 }
 function renderCompanies(){
@@ -152,7 +207,7 @@ function renderStatus(){
   const fType=$('typeFilter')?.value||'';
   let rows=(state.statusRows.length?state.statusRows:buildLocalStatusRows()).filter(r=>(!fStatus||r.status===fStatus)&&(!fType||r.typeId===fType));
   if(fSearch) rows=rows.filter(r=>[r.employeeName,r.email,r.department,r.lineManagerName,r.instructionName,r.category].join(' ').toLowerCase().includes(fSearch.toLowerCase()));
-  $('status').innerHTML=`<div class="card"><div class="toolbar"><h2>Unterweisungsstatus</h2><div class="filters"><input id="statusSearch" placeholder="Mitarbeiter, Bereich, Line Manager" value="${esc(fSearch)}"><select id="statusFilter"><option value="">Alle Status</option>${['missing','expired','critical','soon','valid','not_required'].map(s=>`<option value="${s}" ${fStatus===s?'selected':''}>${s}</option>`).join('')}</select><select id="typeFilter"><option value="">Alle Unterweisungen</option>${types().map(t=>`<option value="${t.id}" ${fType===t.id?'selected':''}>${esc(t.name)}</option>`).join('')}</select></div></div><div class="table-wrap"><table><thead><tr><th>Mitarbeiter</th><th>Unterweisung</th><th>Bereich</th><th>Line Manager</th><th>Letztes Datum</th><th>Fällig bis</th><th>Status</th><th>Nachweis</th><th>Aktion</th></tr></thead><tbody>${rows.slice(0,800).map(r=>`<tr><td><b>${esc(r.employeeName)}</b><br><span class="muted">${esc(r.email||'')}</span></td><td>${esc(r.instructionName)}</td><td>${esc(r.category)}</td><td>${esc(r.lineManagerName||'—')}</td><td>${fmtDate(r.conductedAt)}</td><td>${fmtDate(r.validUntil)}</td><td>${badge(r.status)}</td><td>${proofCell(r)}</td><td>${statusActions(r)}</td></tr>`).join('')}</tbody></table></div><p class="muted">${rows.length} Einträge. API-Quelle: ${state.apiAvailable?'online':'Seed-Fallback'}</p></div>`;
+  $('status').innerHTML=`<div class="card"><div class="toolbar"><h2>Unterweisungsstatus</h2><div class="filters"><input id="statusSearch" placeholder="Mitarbeiter, Bereich, Line Manager" value="${esc(fSearch)}"><select id="statusFilter"><option value="">Alle Status</option>${['missing','expired','critical','soon','valid','not_required'].map(s=>`<option value="${s}" ${fStatus===s?'selected':''}>${s}</option>`).join('')}</select><select id="typeFilter"><option value="">Alle Unterweisungen</option>${types().map(t=>`<option value="${t.id}" ${fType===t.id?'selected':''}>${esc(t.name)}</option>`).join('')}</select></div></div><div class="table-wrap"><table><thead><tr><th>Mitarbeiter</th><th>Unterweisung</th><th>Bereich</th><th>Line Manager</th><th>Letztes Datum</th><th>Fällig bis</th><th>Status</th><th>Nachweis</th><th>Aktion</th></tr></thead><tbody>${rows.slice(0,800).map(r=>`<tr><td><b>${esc(r.employeeName)}</b><br><span class="muted">${esc(r.email||'')}</span></td><td>${esc(r.instructionName)}</td><td>${esc(r.category)}</td><td>${esc(r.lineManagerName||'—')}</td><td>${fmtDate(r.conductedAt)}</td><td>${fmtDate(r.validUntil)}</td><td>${badge(r.status)}</td><td>${proofCell(r)}</td><td>${statusActions(r)}</td></tr>`).join('')}</tbody></table></div><p class="muted">${rows.length} Einträge. API-Quelle: ${state.apiAvailable?'online':'nicht verbunden'}</p></div>`;
   ['statusSearch','statusFilter','typeFilter'].forEach(id=>$(id).addEventListener('input',renderStatus));
 }
 
@@ -172,7 +227,7 @@ function fileToBase64(file){
   });
 }
 async function uploadProofForRecord(recordId, groupId=''){
-  if(!state.apiAvailable){alert('Seed-Fallback: Nachweis-Upload braucht API/Azure Blob Storage.'); return;}
+  if(!state.apiAvailable){alert('API nicht verbunden: Nachweis-Upload braucht Azure Blob Storage.'); return;}
   const input=document.createElement('input');
   input.type='file';
   input.accept='application/pdf,image/jpeg,image/png,image/webp';
@@ -195,7 +250,7 @@ function statusActions(r){
   return `<button class="small" onclick="markNotRequired('${esc(r.employeeId)}','${esc(r.typeId)}')">Nicht erforderlich</button> <button class="small primary" onclick="conductOne('${esc(r.employeeId)}','${esc(r.typeId)}')">Durchführen</button>`;
 }
 async function markNotRequired(employeeId,typeId){
-  if(!state.apiAvailable){alert('Seed-Fallback: Dafür muss die API/Azure SQL laufen.'); return;}
+  if(!state.apiAvailable){alert('API nicht verbunden: Dafür muss Azure SQL erreichbar sein.'); return;}
   await api('/exclusions',{method:'POST',body:JSON.stringify({employeeId,instructionTypeId:typeId,reason:'Nicht erforderlich'})});
   await loadData(); setView('status');
 }
@@ -204,7 +259,7 @@ async function removeExclusion(id){
   await api('/exclusions/'+id,{method:'DELETE'}); await loadData(); setView('status');
 }
 async function conductOne(employeeId,typeId){
-  if(!state.apiAvailable){alert('Seed-Fallback: Durchführung wird erst mit API/Azure SQL gespeichert.'); return;}
+  if(!state.apiAvailable){alert('API nicht verbunden: Durchführung kann nicht gespeichert werden.'); return;}
   const durationMinutes = Number(prompt('Dauer in Minuten?', '30') || 30);
   await api('/records',{method:'POST',body:JSON.stringify({employeeId,typeId,conductedAt:new Date().toISOString(),durationMinutes})});
   await loadData(); setView('status');
@@ -218,7 +273,7 @@ function plannedTable(){
   return `<div class="table-wrap"><table><thead><tr><th>Datum</th><th>Unterweisung</th><th>Ort</th><th>Dauer</th><th>Status</th><th>Mail</th></tr></thead><tbody>${rows.map(p=>`<tr><td>${fmtDate(p.plannedAt)}</td><td>${esc(type(p.instructionTypeId).name||p.instructionName)}</td><td>${esc(p.location||'—')}</td><td>${esc(p.durationMinutes||'—')} Min.</td><td>${esc(p.status)}</td><td><button class="small" onclick="sendPlannedMail('${esc(p.id)}')">Outlook senden</button></td></tr>`).join('')}</tbody></table></div>`;
 }
 async function createPlannedTraining(){
-  if(!state.apiAvailable){alert('Seed-Fallback: Planung wird erst mit API/Azure SQL gespeichert.'); return;}
+  if(!state.apiAvailable){alert('API nicht verbunden: Planung kann nicht gespeichert werden.'); return;}
   const instructionTypeId=$('planType').value;
   const plannedAt=$('planAt').value;
   if(!plannedAt){alert('Bitte Datum/Zeit eintragen.'); return;}
@@ -253,12 +308,16 @@ function badgeInvitation(status){
   const m=map[status]||['info',status||'—']; return `<span class="badge ${m[0]}">${m[1]}</span>`;
 }
 async function openFile(id){
-  if(!state.apiAvailable){alert('Dateien werden erst mit API/Azure Blob geöffnet.'); return;}
-  const f=await api('/files/'+encodeURIComponent(id)+'/download');
-  window.open(f.url,'_blank','noopener');
+  if(!state.apiAvailable){alert('Dateien können ohne verbundene API nicht geöffnet werden.'); return;}
+  try{
+    const f=await api('/files/'+encodeURIComponent(id)+'/download');
+    window.open(f.url,'_blank','noopener');
+  }catch(err){
+    alert('Datei konnte nicht geöffnet werden: '+(err.message||err));
+  }
 }
 async function createInvitation(){
-  if(!state.apiAvailable){alert('Seed-Fallback: Externe Links brauchen API/Azure SQL.'); return;}
+  if(!state.apiAvailable){alert('API nicht verbunden: Externe Links können nicht erstellt werden.'); return;}
   const email=$('inviteEmail').value.trim(); if(!email){alert('E-Mail fehlt.'); return;}
   const result=await api('/invitations',{method:'POST',body:JSON.stringify({email,recipientName:$('inviteName').value.trim(),instructionTypeId:$('inviteType').value,language:$('inviteLang').value,validDays:Number($('inviteDays').value||14),passPercent:Number($('invitePass').value||80),testRequired:$('inviteTest').value==='1',sendMail:$('inviteSendMail').value==='1'})});
   $('inviteResult').value=(result.mail?.sent?'Mail gesendet.\n':'')+result.url+(result.mail?.error?'\nMailfehler: '+result.mail.error:'');
@@ -283,7 +342,6 @@ async function sendPlannedMail(id){
   alert('Outlook-Mail gesendet an '+(result.recipients||0)+' Empfänger.');
   await loadData(); setView('planning');
 }
-
 
 function renderUsers(){
   const rows = state.users || [];
@@ -316,8 +374,10 @@ async function createUser(){
 function renderSecurity(){
   $('security').innerHTML=`<div class="card"><h2>Sicherheitsstatus v0.6</h2><ul><li>Mandanten-Konzept über <code>companyId</code> in allen Fach-Endpunkten.</li><li>Rollenprüfung für System Admin/Firmen Admin/HSE/Line Manager/Mitarbeiter produktiv vorbereitet.</li><li>Audit-Log bei Änderungen vorbereitet.</li><li>Statusmatrix trennt Pflicht, fällig, abgelaufen und nicht erforderlich.</li><li>Externe Links verwenden Token-Hash statt Klartext-Token in SQL.</li><li>Microsoft Graph Mailversand ist vorbereitet: Einladung, Erinnerung, geplanter Gruppentermin mit ICS. Microsoft Entra Login und DB-Freischaltung sind vorbereitet. Nachweis-Upload ist gehärtet: Dateityp-/Größenprüfung, privater Blob-Speicher, Scanstatus, Downloadrechte und Audit-Log. Backup-/Restore-Konsole und Admin-Betriebsmonitoring sind eingebaut: Healthcheck, Backup-Export, Restore-Prüfung, Security-/Audit-Events.</li></ul></div>`;
 }
-loadData();
 
+function startApplication(){ loadData(); }
+if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', startApplication, {once:true});
+else queueMicrotask(startApplication);
 
 // Betrieb / Backup / Monitoring v0.8
 async function loadOperations(){
@@ -384,7 +444,7 @@ function renderOperations(){
   const el=$('operations');
   el.innerHTML=`<div class="card"><h2>Betrieb/Backup</h2><p class="muted">Lade Betriebsdaten ...</p></div>`;
   if(!state.apiAvailable){
-    el.innerHTML=`<div class="card"><h2>Betrieb/Backup</h2><div class="notice warning">Diese Ansicht braucht die Azure API. Im Seed-Fallback sind keine echten Backups oder Betriebsdaten verfügbar.</div></div>`;
+    el.innerHTML=`<div class="card"><h2>Betrieb/Backup</h2><div class="notice warning">Diese Ansicht braucht die Azure API. Es werden keine Offline-Daten als Ersatz angezeigt.</div></div>`;
     return;
   }
   loadOperations().then(()=>{
