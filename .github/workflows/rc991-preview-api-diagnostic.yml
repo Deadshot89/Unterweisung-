@@ -1,0 +1,30 @@
+name: RC991 Preview API Diagnostic
+
+on:
+  push:
+    branches:
+      - rc991-unified-learning-portal
+    paths:
+      - .github/workflows/rc991-preview-api-diagnostic.yml
+
+permissions:
+  contents: read
+
+jobs:
+  probe-preview:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Probe preview endpoints
+        env:
+          BASE_URL: https://delightful-sky-05dbf7603-5.westeurope.7.azurestaticapps.net
+        run: |
+          set -u
+          for path in / /.auth/me /api/health /api/me; do
+            echo "=== $path ==="
+            curl -sS -D /tmp/headers -o /tmp/body --max-time 30 "$BASE_URL$path" || true
+            head -n 20 /tmp/headers || true
+            echo "--- body ---"
+            head -c 2000 /tmp/body || true
+            echo
+            echo
+          done
