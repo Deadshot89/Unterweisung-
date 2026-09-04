@@ -1,0 +1,76 @@
+name: RC991 Role Guard CSP Recovery
+
+on:
+  push:
+    branches:
+      - rc991-unified-learning-portal
+    paths:
+      - .github/workflows/rc991-role-guard-csp-recovery.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch-test-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: rc991-unified-learning-portal
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Apply exact CSP-safe recovery patch
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const path='frontend/role-guard-v20.js';
+          let s=fs.readFileSync(path,'utf8');
+          const replaceOnce=(oldText,newText,label)=>{
+            const first=s.indexOf(oldText);
+            if(first<0) throw new Error(`${label}: old block not found`);
+            if(s.indexOf(oldText,first+1)>=0) throw new Error(`${label}: old block occurs more than once`);
+            s=s.slice(0,first)+newText+s.slice(first+oldText.length);
+          };
+
+          replaceOnce(
+            `    <button class="primary" onclick="setView('${'${firstAllowedView()}'}')">Zur erlaubten Startseite</button>`,
+            `    <button class="primary" type="button" data-role-guard-action="back" data-role-guard-view="${'${esc(firstAllowedView())}'}">Zur erlaubten Startseite</button>`,
+            'denied recovery button'
+          );
+
+          replaceOnce(
+            `function accessDeniedHtml(view){\n  const required = (ROLE_VIEW_RULES[view] || ['system_admin']).map(r => ROLE_LABELS[r] || r).join(', ');\n  return \`<div class="card span-12"><h2>Zugriff nicht freigegeben</h2>\n    <div class="notice dangerbox">Dieser Bereich ist für deine aktuelle Rolle nicht freigeschaltet.</div>\n    <p><b>Deine Rolle:</b> ${'${esc(roleSummary())}'}</p>\n    <p><b>Benötigt:</b> ${'${esc(required)}'}</p>\n    <button class="primary" type="button" data-role-guard-action="back" data-role-guard-view="${'${esc(firstAllowedView())}'}">Zur erlaubten Startseite</button>\n  </div>\`;\n}\n`,
+            `function accessDeniedHtml(view){\n  const required = (ROLE_VIEW_RULES[view] || ['system_admin']).map(r => ROLE_LABELS[r] || r).join(', ');\n  return \`<div class="card span-12"><h2>Zugriff nicht freigegeben</h2>\n    <div class="notice dangerbox">Dieser Bereich ist für deine aktuelle Rolle nicht freigeschaltet.</div>\n    <p><b>Deine Rolle:</b> ${'${esc(roleSummary())}'}</p>\n    <p><b>Benötigt:</b> ${'${esc(required)}'}</p>\n    <button class="primary" type="button" data-role-guard-action="back" data-role-guard-view="${'${esc(firstAllowedView())}'}">Zur erlaubten Startseite</button>\n  </div>\`;\n}\nfunction bindAccessDeniedActions(target){\n  target?.querySelector('[data-role-guard-action="back"]')?.addEventListener('click', event => {\n    const nextView = event.currentTarget?.dataset?.roleGuardView || firstAllowedView();\n    setView(nextView);\n  });\n}\n`,
+            'denied recovery binder'
+          );
+
+          replaceOnce(
+            `        const target = $(id);\n        if(target) target.innerHTML = accessDeniedHtml(id);\n        applyRoleVisibility();`,
+            `        const target = $(id);\n        if(target){\n          target.innerHTML = accessDeniedHtml(id);\n          bindAccessDeniedActions(target);\n        }\n        applyRoleVisibility();`,
+            'denied recovery binding call'
+          );
+
+          fs.writeFileSync(path,s);
+          NODE
+      - name: Install dependencies
+        run: |
+          npm install
+          npm install --prefix api --omit=dev
+      - name: Run focused CSP and portal contracts
+        run: node --test tests/central-portal-routing-v43.test.js
+      - name: Run role-guard static contract
+        run: node scripts/check-role-guard.js
+      - name: Run syntax check
+        run: node --check frontend/role-guard-v20.js
+      - name: Run complete regression suite before commit
+        run: npm test
+      - name: Commit verified CSP recovery
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add frontend/role-guard-v20.js
+          git diff --cached --check
+          git commit -m "fix(rc991): bind role-guard recovery without inline CSP handler"
+          git push origin HEAD:rc991-unified-learning-portal
