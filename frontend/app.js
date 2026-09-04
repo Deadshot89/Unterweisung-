@@ -51,10 +51,7 @@ function renderAuthenticationRequired(message=''){
   state.companyId = null;
   setCoreWorkspaceVisible(false);
   const gate = $('companySelectionGate');
-  if(gate){
-    gate.hidden = false;
-    gate.innerHTML = `<section class="card login-box"><h2>Anmeldung erforderlich</h2><p>Bitte melde dich an, bevor Firmendaten geladen werden.</p>${message?`<p class="muted">${esc(message)}</p>`:''}<div class="toolbar"><a class="btn primary" href="/.auth/login/aad">Mit Microsoft anmelden</a><a class="btn ghost" href="/.auth/logout">Sitzung abmelden</a></div></section>`;
-  }
+  if(gate) UMAuthLogin.render({target:gate,message});
   renderUserInfo(false);
   if(typeof updateCompanyShell === 'function') updateCompanyShell(null);
 }
@@ -68,7 +65,7 @@ function renderServiceUnavailable(message=''){
   const gate = $('companySelectionGate');
   if(gate){
     gate.hidden = false;
-    gate.innerHTML = `<section class="card login-box"><h2>Dienst vorübergehend nicht erreichbar</h2><p>Es werden keine Offline- oder fremden Firmendaten eingeblendet. Bitte versuche es erneut.</p>${message?`<p class="muted">${esc(message)}</p>`:''}<div class="toolbar"><button class="btn primary" type="button" id="retryApplicationLoad">Erneut laden</button><a class="btn ghost" href="/.auth/logout">Abmelden</a></div></section>`;
+    gate.innerHTML = `<section class="card login-box"><h2>Dienst vorübergehend nicht erreichbar</h2><p>Es werden keine Offline- oder fremden Firmendaten eingeblendet. Bitte versuche es erneut.</p>${message?`<p class="muted">${esc(message)}</p>`:''}<div class="toolbar"><button class="btn primary" type="button" id="retryApplicationLoad">Erneut laden</button><a class="btn ghost logout-action" href="/.auth/logout">Abmelden</a></div></section>`;
     $('retryApplicationLoad')?.addEventListener('click', loadData);
   }
   renderUserInfo(Boolean(state.me));
