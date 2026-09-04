@@ -38,7 +38,10 @@ function updateCompanyShell(company = selectedCompany()){
   if(label) label.textContent = company?.name || state.me?.companyName || (state.companyId || 'Keine Firma ausgewählt');
 
   const switchButton = document.getElementById('companySwitchAction');
-  if(switchButton) switchButton.hidden = !(isSystemAdminContext() && Boolean(state.companyId));
+  if(switchButton){
+    switchButton.textContent = 'Firma wechseln';
+    switchButton.hidden = !(isSystemAdminContext() && Boolean(state.companyId));
+  }
 
   if(typeof renderProfessionalUserInfo === 'function') renderProfessionalUserInfo(Boolean(state.me));
   if(typeof scheduleProfessionalSuite === 'function') scheduleProfessionalSuite();
