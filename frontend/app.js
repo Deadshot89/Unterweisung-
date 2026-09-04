@@ -2,7 +2,7 @@ const $ = (id) => document.getElementById(id);
 const API_BASE_URL = String(window.UM_API_BASE_URL || '').replace(/\/$/, '');
 // Legacy default remains available to older helper modules, but is never used to select a tenant automatically.
 const DEFAULT_COMPANY_ID = window.UM_DEFAULT_COMPANY_ID || 'company-essentra';
-const state = { data: null, source: 'loading', statusRows: [], apiAvailable: false, mailConfig: null, me: null, companyId: null, users: [], testQuestions: [], operations: null, backups: [], healthHistory: [], securityEvents: [], auditEvents: [] };
+const state = { data: null, source: 'loading', statusRows: [], apiAvailable: false, mailConfig: null, me: null, companyId: null, portalMode: 'auth-pending', users: [], testQuestions: [], operations: null, backups: [], healthHistory: [], securityEvents: [], auditEvents: [] };
 
 function esc(s=''){return String(s ?? '').replace(/[&<>\"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[c]))}
 function fmtDate(d){return d ? new Date(d).toLocaleDateString('de-DE') : '—'}
@@ -37,6 +37,26 @@ function requiresCompanySelection(){
   return Boolean(state.me?.roles?.includes('system_admin') && (state.me?.requiresCompanySelection || !state.companyId));
 }
 
+function resolveCurrentPortalMode(){
+  return UMPortalShell.resolvePortalMode(state.me,state.companyId);
+}
+
+function applyCurrentPortalMode(){
+  state.portalMode=resolveCurrentPortalMode();
+  UMPortalShell.applyPortalMode(state.portalMode,{onNavigate:setView});
+  return state.portalMode;
+}
+
+function renderPortalAccessDenied(){
+  setCoreWorkspaceVisible(false);
+  UMPortalShell.clearPortalShell();
+  const gate=$('companySelectionGate');
+  if(gate){
+    gate.hidden=false;
+    gate.innerHTML='<section class="card"><h2>Zugriff nicht freigegeben</h2><div class="notice dangerbox">Für dieses Benutzerkonto ist keine gültige Portalrolle hinterlegt.</div><a class="btn ghost logout-action" href="/.auth/logout">Abmelden</a></section>';
+  }
+}
+
 function setCoreWorkspaceVisible(visible){
   const nav = document.querySelector('.primary-tabs');
   if(nav) nav.hidden = !visible;
@@ -49,6 +69,8 @@ function renderAuthenticationRequired(message=''){
   state.statusRows = [];
   state.users = [];
   state.companyId = null;
+  state.portalMode = 'auth-required';
+  UMPortalShell.clearPortalShell();
   setCoreWorkspaceVisible(false);
   const gate = $('companySelectionGate');
   if(gate) UMAuthLogin.render({target:gate,message});
@@ -86,6 +108,7 @@ async function loadCompanyData(){
   try { state.users = await api('/users'); } catch { state.users = []; }
   const gate = $('companySelectionGate');
   if(gate){ gate.hidden = true; gate.innerHTML = ''; }
+  applyCurrentPortalMode();
   setCoreWorkspaceVisible(true);
   if(typeof updateCompanyShell === 'function') updateCompanyShell();
   renderAll();
@@ -94,13 +117,18 @@ async function loadCompanyData(){
 async function loadData(){
   try{
     state.me = await api('/me');
-    if(state.me?.companyId) state.companyId = state.me.companyId;
+    state.companyId = state.me?.companyId || null;
     renderUserInfo(true);
+    const mode = applyCurrentPortalMode();
 
-    if(requiresCompanySelection()){
+    if(mode === 'company-selection'){
       state.companyId = null;
       if(typeof showCompanySelection === 'function') await showCompanySelection();
       else renderServiceUnavailable('Firmenauswahl ist noch nicht geladen.');
+      return;
+    }
+    if(mode === 'denied'){
+      renderPortalAccessDenied();
       return;
     }
 
@@ -120,12 +148,10 @@ function renderUserInfo(ok=true){
 }
 
 function setView(id){
-  document.querySelectorAll('.tabs button').forEach(b=>b.classList.toggle('active',b.dataset.view===id));
+  document.querySelectorAll('#portalNavigation button[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===id));
   document.querySelectorAll('.view').forEach(v=>v.classList.toggle('active',v.id===id));
   render(id);
 }
-
-document.querySelectorAll('.tabs button').forEach(b=>b.addEventListener('click',()=>setView(b.dataset.view)));
 
 function employees(){return state.data?.employees || []}
 function types(){return state.data?.types || state.data?.instructionTypes || []}
