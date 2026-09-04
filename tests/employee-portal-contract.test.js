@@ -49,11 +49,12 @@ test('employee learning keeps server-owned progression and answer submission con
 
 test('login page offers Microsoft and email/password without changing role semantics', () => {
   const html = read('frontend/index.html');
-  const portal = read('frontend/employee-portal-v37.js');
-  assert.match(html, /\.auth\/login\/aad/);
-  assert.match(portal, /E-Mail und Passwort/);
-  assert.match(portal, /\/api\/auth\/password\/login/);
-  assert.match(portal, /credentials\s*:\s*['\"]include['\"]/);
+  const login = read('frontend/auth-login-v42.js');
+  assert.match(html, /auth-login-v42\.js/);
+  assert.match(login, /E-Mail und Passwort/);
+  assert.match(login, /\.auth\/login\/aad/);
+  assert.match(login, /\/api\/auth\/password\/login/);
+  assert.match(login, /credentials\s*:\s*['\"]include['\"]/);
 });
 
 test('database migration prepares password, learning-step and internal-attempt storage without applying it', () => {
