@@ -49,4 +49,8 @@ test('admin table Open action launches a CSP-safe read-only learner-style instru
   const previewSlice=previewStart>=0?ui.slice(previewStart,previewStart+9000):'';
   assert.doesNotMatch(previewSlice,/employee-training|attemptId|currentStep\s*:|method\s*:\s*['"](?:POST|PUT|PATCH|DELETE)['"]/i,
     'Die Admin-Vorschau darf keine Lern-, Test-, Abschluss- oder Nachweis-Schreiboperation verwenden.');
+  assert.doesNotMatch(previewSlice,/\sonclick\s*=/i,
+    'Die Vorschau-Steuerelemente müssen wegen script-src self ohne Inline-Eventhandler auskommen.');
+  assert.match(previewSlice,/data-v38-preview-action/,
+    'Die Vorschau braucht CSP-sichere deklarative Aktionen für Schließen und Originalunterlage.');
 });
