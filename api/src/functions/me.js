@@ -12,7 +12,8 @@ app.http('me', {
     try {
       const ctx = await getAuthorizedContext(request);
       const pool = await getPool();
-      await writeSecurityEvent(pool, ctx, 'auth.me.loaded', 'info', { roles: ctx.roles, companyId: ctx.companyId });
+      const requiresCompanySelection = ctx.roles.includes(Roles.SYSTEM_ADMIN) && !ctx.companyId;
+      await writeSecurityEvent(pool, ctx, 'auth.me.loaded', 'info', { roles: ctx.roles, companyId: ctx.companyId, authMode: ctx.authMode, requiresCompanySelection });
       return json({
         authenticated: true,
         companyId: ctx.companyId,
@@ -21,8 +22,9 @@ app.http('me', {
         displayName: ctx.userDetails,
         roles: ctx.roles,
         isSystemAdmin: ctx.roles.includes(Roles.SYSTEM_ADMIN),
+        requiresCompanySelection,
         isLocalDev: !!ctx.isLocalDev,
-        authMode: ctx.isLocalDev ? 'dev-bypass' : 'entra',
+        authMode: ctx.authMode || (ctx.isLocalDev ? 'dev-bypass' : 'entra'),
         allowedCompanies: ctx.allowedCompanies
       });
     } catch (err) {

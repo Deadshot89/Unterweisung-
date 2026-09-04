@@ -17,7 +17,9 @@ assert(index.includes('Digitales Unterweisungs- und Schulungsmanagement'), 'Prof
 assert(index.includes('class="system-strip"'), 'Kompakte Systemstatus-Leiste fehlt.');
 assert(index.includes('Systemstatus:'), 'Systemstatus fehlt.');
 assert(index.includes('Betriebsbereit'), 'Betriebsbereit-Text fehlt.');
-assert(index.includes('Essentra aktiv'), 'Essentra-Aktiv-Hinweis fehlt.');
+assert(index.includes('id="companySelectionGate"'), 'Zentraler Login-/Firmenauswahlbereich fehlt.');
+assert(index.includes('Keine Firma ausgewählt'), 'Vor Anmeldung darf keine Firma als aktiv dargestellt werden.');
+assert(!index.includes('Essentra aktiv'), 'Essentra darf vor erfolgreicher Anmeldung nicht als aktiv angezeigt werden.');
 assert(index.includes('/design-polish-v31.js'), 'Design-Polish-Datei wird nicht geladen.');
 assert(!index.includes('Azure Static Web Apps + Functions + SQL/Blob'), 'Technischer Azure-Text darf nicht mehr sichtbar im Header stehen.');
 assert(!index.includes('Login läuft im Dev-Bypass'), 'Dev-Bypass darf nicht mehr sichtbar in der Hauptoberflaeche stehen.');

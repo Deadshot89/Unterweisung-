@@ -1,7 +1,7 @@
 const $ = (id) => document.getElementById(id);
 const API_BASE_URL = String(window.UM_API_BASE_URL || '').replace(/\/$/, '');
 const DEFAULT_COMPANY_ID = window.UM_DEFAULT_COMPANY_ID || 'company-essentra';
-const state = { data: null, source: 'loading', statusRows: [], apiAvailable: false, mailConfig: null, me: null, companyId: DEFAULT_COMPANY_ID, users: [], operations: null, backups: [], healthHistory: [], securityEvents: [], auditEvents: [] };
+const state = { data: null, source: 'loading', statusRows: [], apiAvailable: false, mailConfig: null, me: null, companyId: null, users: [], operations: null, backups: [], healthHistory: [], securityEvents: [], auditEvents: [] };
 
 function esc(s=''){return String(s ?? '').replace(/[&<>\"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[c]))}
 function fmtDate(d){return d ? new Date(d).toLocaleDateString('de-DE') : '—'}
@@ -15,45 +15,151 @@ function apiUrl(path){
 }
 
 async function api(path, options={}){
-  const headers = {'Content-Type':'application/json','x-company-id': state.companyId || DEFAULT_COMPANY_ID, ...(options.headers||{})};
-  const res = await fetch(apiUrl('/api' + path), {...options, headers, mode:'cors'});
-  if(!res.ok) throw new Error(await res.text());
-  return res.json();
+  const headers = {'Content-Type':'application/json', ...(options.headers||{})};
+  if(state.companyId && !headers['x-company-id']) headers['x-company-id'] = state.companyId;
+  const res = await fetch(apiUrl('/api' + path), {...options, headers, mode:'cors', credentials:'include'});
+  const text = await res.text();
+  let payload = null;
+  if(text){ try { payload = JSON.parse(text); } catch { payload = null; } }
+  if(!res.ok){
+    const error = new Error(payload?.error || text || `HTTP ${res.status}`);
+    error.status = res.status;
+    throw error;
+  }
+  return payload ?? {};
+}
+
+function setCoreWorkspaceVisible(visible){
+  const nav = document.getElementById('portalNavigation') || document.querySelector('.primary-tabs');
+  if(nav) nav.hidden = !visible;
+  document.querySelectorAll('.view').forEach(view => { view.hidden = !visible; });
+  document.body.classList.toggle('auth-pending', !visible);
+}
+
+function resetCompanyData(){
+  state.data = null;
+  state.statusRows = [];
+  state.users = [];
+  state.mailConfig = null;
+  state.operations = null;
+  state.backups = [];
+  state.healthHistory = [];
+  state.securityEvents = [];
+  state.auditEvents = [];
+  state.apiAvailable = false;
+  state.source = 'loading';
+}
+
+function updateCompanyLabel(name=''){
+  const label = $('activeCompanyLabel');
+  if(label) label.textContent = name || state.companyId || 'Keine Firma ausgewählt';
+  const switchButton = $('companySwitchAction');
+  if(switchButton) switchButton.hidden = !(state.me?.roles?.includes('system_admin') && state.companyId);
+}
+
+function isAuthenticationError(err){
+  const msg = String(err?.message || err || '').toLowerCase();
+  return Number(err?.status) === 401 || Number(err?.status) === 403 || msg.includes('nicht angemeldet') || msg.includes('not authenticated') || msg.includes('freigeschaltet');
+}
+
+function renderAuthenticationRequired(message=''){
+  resetCompanyData();
+  state.me = null;
+  state.companyId = null;
+  setCoreWorkspaceVisible(false);
+  updateCompanyLabel();
+  const gate = $('companySelectionGate');
+  if(gate) UMAuthLogin.render({target:gate,message});
+  renderUserInfo(false);
+}
+
+function renderServiceUnavailable(message=''){
+  resetCompanyData();
+  state.companyId = null;
+  setCoreWorkspaceVisible(false);
+  updateCompanyLabel();
+  const gate = $('companySelectionGate');
+  if(gate){
+    gate.hidden = false;
+    gate.innerHTML = `<section class="card login-box"><h2>Dienst vorübergehend nicht erreichbar</h2><p>Aus Sicherheitsgründen werden keine Offline- oder Firmendaten ohne erfolgreiche Anmeldung angezeigt.</p>${message?`<p class="muted">${esc(message)}</p>`:''}<button class="btn primary" type="button" id="retryApplicationLoad">Erneut laden</button></section>`;
+    $('retryApplicationLoad')?.addEventListener('click', loadData);
+  }
+  renderUserInfo(Boolean(state.me));
+}
+
+async function loadCompanyData(){
+  if(!state.companyId) throw new Error('Bitte zuerst eine Firma auswählen.');
+  state.data = await api('/bootstrap');
+  state.apiAvailable = true;
+  state.source = 'api';
+  try { state.statusRows = await api('/instruction-status'); } catch { state.statusRows = buildLocalStatusRows(); }
+  try { state.mailConfig = await api('/mail/config'); } catch { state.mailConfig = { configured:false, missing:['mail/config nicht erreichbar'] }; }
+  try { state.users = await api('/users'); } catch { state.users = []; }
+  const gate = $('companySelectionGate');
+  if(gate){ gate.hidden = true; gate.innerHTML = ''; }
+  setCoreWorkspaceVisible(true);
+  updateCompanyLabel();
+  renderUserInfo(true);
+  renderAll();
+}
+
+async function showCompanySelection(){
+  if(!state.me?.roles?.includes('system_admin')) return false;
+  resetCompanyData();
+  state.companyId = null;
+  setCoreWorkspaceVisible(false);
+  updateCompanyLabel();
+  const gate = $('companySelectionGate');
+  if(!gate) return false;
+  gate.hidden = false;
+  gate.innerHTML = '<section class="card"><h2>Firma auswählen</h2><p class="muted">Firmen werden geladen …</p></section>';
+  try{
+    const list = await api('/system/companies');
+    const companies = (Array.isArray(list) ? list : []).filter(c => c && c.active !== false);
+    gate.innerHTML = `<section class="card"><h2>Firma auswählen</h2><p class="muted">Wähle die Firma, in der du arbeiten möchtest. Erst danach werden Firmendaten geladen.</p><div class="company-login-grid">${companies.map(c=>`<button type="button" class="company-login-choice" data-company-id="${esc(c.id)}"><strong>${esc(c.name||c.id)}</strong><span>Firma öffnen</span></button>`).join('') || '<div class="notice warning">Keine aktive Firma verfügbar.</div>'}</div></section>`;
+    gate.querySelectorAll('[data-company-id]').forEach(button => button.addEventListener('click', async()=>{
+      state.companyId = String(button.dataset.companyId || '');
+      updateCompanyLabel(button.querySelector('strong')?.textContent || state.companyId);
+      try { await loadCompanyData(); }
+      catch(err) { state.companyId = null; await showCompanySelection(); }
+    }));
+    return true;
+  }catch(err){
+    renderServiceUnavailable(err.message||err);
+    return false;
+  }
+}
+
+async function leaveCompanyContext(){
+  if(!state.me?.roles?.includes('system_admin')) return false;
+  resetCompanyData();
+  state.companyId = null;
+  return showCompanySelection();
 }
 
 async function loadData(){
   try{
     state.me = await api('/me');
-    state.companyId = state.me.companyId || state.companyId;
-    renderUserInfo();
-    state.data = await api('/bootstrap');
-    state.apiAvailable = true;
-    state.source = 'api';
-    try { state.statusRows = await api('/instruction-status'); } catch { state.statusRows = buildLocalStatusRows(); }
-    try { state.mailConfig = await api('/mail/config'); } catch { state.mailConfig = { configured:false, missing:['mail/config nicht erreichbar'] }; }
-    try { state.users = await api('/users'); } catch { state.users = []; }
-  }catch(err){
-    const msg = String(err.message || err);
-    if(msg.includes('401') || msg.includes('403') || msg.includes('Nicht angemeldet') || msg.includes('freigeschaltet')){
-      document.querySelector('main').innerHTML = `<section class="card login-box"><h2>Anmeldung erforderlich</h2><p>Bitte mit Microsoft/Entra anmelden. Falls du bereits angemeldet bist, muss dein Benutzer unter <b>Benutzer/Rechte</b> für die Firma freigeschaltet sein.</p><p class="muted">Fehler: ${esc(msg)}</p><a class="btn primary" href="/.auth/login/aad">Mit Microsoft anmelden</a></section>`;
-      renderUserInfo(false);
+    renderUserInfo(true);
+    if(state.me?.roles?.includes('system_admin') && (state.me?.requiresCompanySelection || !state.me?.companyId)){
+      await showCompanySelection();
       return;
     }
-    const res = await fetch('/seed/essentra-startdata.json');
-    state.data = await res.json();
-    state.apiAvailable = false;
-    state.source = 'seed';
-    state.statusRows = buildLocalStatusRows();
-    renderUserInfo(false);
+    state.companyId = state.me?.companyId || null;
+    if(!state.companyId) throw new Error('Keine Firma für diesen Benutzer zugeordnet.');
+    updateCompanyLabel(state.me?.companyName || state.companyId);
+    await loadCompanyData();
+  }catch(err){
+    if(isAuthenticationError(err)) renderAuthenticationRequired(err.message||err);
+    else renderServiceUnavailable(err.message||err);
   }
-  renderAll();
 }
 
 function renderUserInfo(ok=true){
   const el = $('userInfo');
   if(!el) return;
-  if(!ok || !state.me) { el.textContent = 'Nicht angemeldet / Seed-Fallback'; return; }
-  el.innerHTML = `${esc(state.me.displayName || state.me.email || 'Benutzer')} · ${esc(state.me.companyId)} · ${(state.me.roles||[]).map(r=>`<span class="role-pill">${esc(r)}</span>`).join('')}`;
+  if(!ok || !state.me) { el.textContent = 'Nicht angemeldet'; return; }
+  el.innerHTML = `${esc(state.me.displayName || state.me.email || 'Benutzer')} · ${esc(state.companyId || 'Keine Firma ausgewählt')} · ${(state.me.roles||[]).map(r=>`<span class="role-pill">${esc(r)}</span>`).join('')}`;
 }
 
 function setView(id){
@@ -316,6 +422,7 @@ async function createUser(){
 function renderSecurity(){
   $('security').innerHTML=`<div class="card"><h2>Sicherheitsstatus v0.6</h2><ul><li>Mandanten-Konzept über <code>companyId</code> in allen Fach-Endpunkten.</li><li>Rollenprüfung für System Admin/Firmen Admin/HSE/Line Manager/Mitarbeiter produktiv vorbereitet.</li><li>Audit-Log bei Änderungen vorbereitet.</li><li>Statusmatrix trennt Pflicht, fällig, abgelaufen und nicht erforderlich.</li><li>Externe Links verwenden Token-Hash statt Klartext-Token in SQL.</li><li>Microsoft Graph Mailversand ist vorbereitet: Einladung, Erinnerung, geplanter Gruppentermin mit ICS. Microsoft Entra Login und DB-Freischaltung sind vorbereitet. Nachweis-Upload ist gehärtet: Dateityp-/Größenprüfung, privater Blob-Speicher, Scanstatus, Downloadrechte und Audit-Log. Backup-/Restore-Konsole und Admin-Betriebsmonitoring sind eingebaut: Healthcheck, Backup-Export, Restore-Prüfung, Security-/Audit-Events.</li></ul></div>`;
 }
+document.getElementById('companySwitchAction')?.addEventListener('click', leaveCompanyContext);
 loadData();
 
 
