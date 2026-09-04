@@ -4,7 +4,7 @@
 
 **Goal:** Make the Admin/HSE “Öffnen” action launch a real learner-style read-only instruction preview without creating or mutating training, test, completion, or proof state.
 
-**Architecture:** Keep `frontend/learning-experience-v38.js` as the pure presentation layer and add the preview orchestration only to `frontend/learning-admin-v38.js`. The preview reads company-scoped learning steps, protected image download URLs, and test questions using existing GET endpoints; it must never call `employee-training` or any write endpoint.
+**Architecture:** Keep `frontend/learning-experience-v38.js` as the pure presentation layer, add preview orchestration to `frontend/learning-admin-v38.js`, and change the actual “Öffnen” button at its source in `frontend/instruction-type-management-v23.js`. The preview reads company-scoped learning steps, protected image download URLs, and test questions using existing GET endpoints; it must never call `employee-training` or any write endpoint.
 
 **Tech Stack:** Vanilla browser JavaScript, existing `api()` helper, Azure Static Web Apps frontend, Node `node:test` contract tests.
 
@@ -25,53 +25,69 @@
 
 ## File Structure
 
-- Modify `frontend/learning-admin-v38.js`: own the Admin/HSE read-only preview orchestration and modal lifecycle.
-- Reuse `frontend/learning-experience-v38.js`: pure renderers `renderLearningStep()` and `renderQuestionList()`; do not add network or mutation logic here.
-- Test `tests/learning-admin-v38.test.js`: keep the existing RED contract and strengthen read-only assertions only where necessary.
+- Modify `frontend/learning-admin-v38.js`: own Admin/HSE preview loading, protected image resolution, rendering, and modal lifecycle.
+- Modify `frontend/instruction-type-management-v23.js`: replace the legacy selection-only “Öffnen” action with the preview wrapper at the actual table-render source.
+- Reuse `frontend/learning-experience-v38.js`: pure renderers `renderLearningStep()` and `renderQuestionList()`; no network or mutation logic is added here.
+- Modify/test `tests/learning-admin-v38.test.js`: inspect both the preview module and the table-render source so the contract matches the real file boundary.
 
-### Task 1: Confirm the existing RED preview contract
+### Task 1: Confirm and correct the existing RED preview contract
 
 **Files:**
-- Test: `tests/learning-admin-v38.test.js`
+- Modify: `tests/learning-admin-v38.test.js`
 
 **Interfaces:**
-- Consumes: source text from `frontend/learning-admin-v38.js`.
-- Produces: a focused failing contract proving the missing function/action before implementation.
+- Consumes: source text from `frontend/learning-admin-v38.js` and `frontend/instruction-type-management-v23.js`.
+- Produces: one focused failing contract proving the missing preview function and selection-only table action before implementation.
 
 - [ ] **Step 1: Run the focused preview test before changing implementation**
 
-Run:
 ```bash
 node --test tests/learning-admin-v38.test.js
 ```
 
-Expected: the first two tests pass and `admin table Open action launches a read-only learner-style instruction preview` fails because `v38OpenInstructionPreview` is not implemented yet.
+Expected: the first two tests pass and `admin table Open action launches a read-only learner-style instruction preview` fails because `v38OpenInstructionPreview` is not implemented.
 
-- [ ] **Step 2: Preserve the existing contract exactly while adding one explicit no-write guard if needed**
+- [ ] **Step 2: Correct the test so it checks the real table-render file instead of forcing table markup into the preview module**
 
-The preview test must continue to contain these checks:
+Use these source variables in the preview test:
 ```js
-assert.match(ui,/v38OpenInstructionPreview/);
+const ui=read('frontend/learning-admin-v38.js');
+const workspace=read('frontend/instruction-type-management-v23.js');
+```
+
+Keep the preview requirements on `ui`:
+```js
+assert.match(ui,/v38OpenInstructionPreview/,'Eine echte Admin-Unterweisungsvorschau fehlt.');
 assert.match(ui,/\/learning-steps\?instructionTypeId=/);
 assert.match(ui,/\/files\/.*\/download/);
 assert.match(ui,/renderer\.renderLearningStep/);
 assert.match(ui,/renderer\.renderQuestionList/);
-
+assert.match(ui,/Nur Vorschau|Vorschau.*kein.*Abschluss|keinen.*Lernfortschritt/is);
 const previewStart=ui.indexOf('async function v38OpenInstructionPreview');
-const previewSlice=previewStart>=0?ui.slice(previewStart,previewStart+6500):'';
-assert.doesNotMatch(previewSlice,/employee-training|attemptId|currentStep\s*:/);
+const previewSlice=previewStart>=0?ui.slice(previewStart,previewStart+8000):'';
+assert.doesNotMatch(previewSlice,/employee-training|attemptId|currentStep\s*:|method\s*:\s*['"](?:POST|PUT|PATCH|DELETE)['"]/i);
 ```
 
-If the implementation introduces helper functions directly adjacent to the preview function, extend the inspected slice rather than weakening the forbidden-pattern checks.
+Check the actual table source separately:
+```js
+assert.match(workspace,/instruction-row-action[\s\S]{0,320}v38OpenInstructionFromTable/,
+  'Der Tabellenknopf Öffnen muss die echte Vorschau starten.');
+```
 
-- [ ] **Step 3: Commit only if the test contract itself changed**
+- [ ] **Step 3: Re-run the focused contract and confirm it remains RED for the intended missing implementation**
+
+```bash
+node --test tests/learning-admin-v38.test.js
+```
+
+Expected: RED because neither `v38OpenInstructionPreview` nor the new table wrapper wiring exists yet.
+
+- [ ] **Step 4: Commit the corrected RED contract**
 
 ```bash
 git add tests/learning-admin-v38.test.js
-git commit -m "test(rc991): lock read-only admin preview writes"
+git commit -m "test(rc991): align admin preview contract with real table source"
 ```
-
-If no test change was required, do not create an empty commit.
 
 ### Task 2: Implement company-scoped read-only preview loading
 
@@ -81,11 +97,10 @@ If no test change was required, do not create an empty commit.
 
 **Interfaces:**
 - Consumes: `api(path, options)`, `currentType(typeId)`, `canEditRichLearning()`, `globalThis.UMLearningExperience`.
-- Produces: `v38OpenInstructionPreview(typeId)`, `v38CloseInstructionPreview()`, and read-only DOM content rendered through the shared learning renderer.
+- Produces: `v38OpenInstructionPreview(typeId)`, `v38CloseInstructionPreview()`, `v38OpenInstructionFromTable(typeId)`.
 
-- [ ] **Step 1: Add a helper that resolves protected image URLs without mutating data**
+- [ ] **Step 1: Add a protected-image resolver that performs only GET behavior**
 
-Add next to the existing preview helpers:
 ```js
 async function v38PreviewStep(step){
   const view={...step,imageUrl:''};
@@ -100,11 +115,8 @@ async function v38PreviewStep(step){
 }
 ```
 
-This helper must use only GET behavior through `api()` and must not embed a Blob URL directly.
+- [ ] **Step 2: Add the read-only preview orchestration**
 
-- [ ] **Step 2: Add the real read-only preview function**
-
-Implement the orchestration with this shape:
 ```js
 async function v38OpenInstructionPreview(typeId){
   if(!canEditRichLearning())return;
@@ -135,36 +147,34 @@ async function v38OpenInstructionPreview(typeId){
 function v38CloseInstructionPreview(){
   document.getElementById('v38InstructionPreviewBackdrop')?.remove();
 }
+
+function v38OpenInstructionFromTable(typeId){
+  if(typeof selectInstructionWorkspaceItem==='function')selectInstructionWorkspaceItem(typeId);
+  return v38OpenInstructionPreview(typeId);
+}
 ```
 
-Important: do not add `employee-training`, `attemptId`, training progress, answer submission, POST, PATCH, PUT, or DELETE calls to this function path.
+The preview path must contain no training write calls and no write method options.
 
-- [ ] **Step 3: Export the preview functions**
+- [ ] **Step 3: Export only the new focused functions alongside the existing exports**
 
-Extend the existing export without duplicating the module:
+Extend the existing `Object.assign(window,{...})` with:
 ```js
-Object.assign(window,{
-  canEditRichLearning,
-  v38SaveInstructionContent,
-  v38PreviewLearningStep,
-  v38SaveLearningStep,
-  v38ClearLearningStep,
-  v38LoadLearningSteps,
-  v38EditLearningStep,
-  v38ToggleLearningStep,
-  v38OpenInstructionPreview,
-  v38CloseInstructionPreview
-});
+v38OpenInstructionPreview,
+v38CloseInstructionPreview,
+v38OpenInstructionFromTable
 ```
 
-- [ ] **Step 4: Run the focused contract**
+Do not create a second module or override `instructionTypeTable()` from `learning-admin-v38.js`.
 
-Run:
+- [ ] **Step 4: Run syntax and the focused preview test**
+
 ```bash
+node --check frontend/learning-admin-v38.js
 node --test tests/learning-admin-v38.test.js
 ```
 
-Expected: all tests in `learning-admin-v38.test.js` pass.
+Expected: preview-specific assertions pass; the table-action assertion remains RED until Task 3.
 
 - [ ] **Step 5: Commit the preview implementation**
 
@@ -173,69 +183,49 @@ git add frontend/learning-admin-v38.js tests/learning-admin-v38.test.js
 git commit -m "feat(rc991): add read-only admin instruction preview"
 ```
 
-### Task 3: Make the existing Admin table “Öffnen” action launch preview instead of only scrolling
+### Task 3: Change the actual Admin table “Öffnen” action at its source
 
 **Files:**
-- Modify: `frontend/learning-admin-v38.js`
+- Modify: `frontend/instruction-type-management-v23.js`
 - Test: `tests/learning-admin-v38.test.js`
 
 **Interfaces:**
-- Consumes: the existing instruction row action / `selectInstructionWorkspaceItem(...)` flow from the instruction workspace and `v38OpenInstructionPreview(typeId)` from Task 2.
-- Produces: one user-visible “Öffnen” action that selects the instruction context and then launches the read-only preview.
+- Consumes: global `v38OpenInstructionFromTable(typeId)` from Task 2.
+- Produces: one “Öffnen” button that preserves selection/detail synchronization and launches the preview.
 
-- [ ] **Step 1: Add a focused wrapper for the row action**
+- [ ] **Step 1: Replace only the existing action-cell button inside `instructionTypeTable()`**
 
-Use one wrapper rather than creating a second competing table action:
+Change this existing source:
 ```js
-function v38OpenInstructionFromTable(typeId){
-  if(typeof selectInstructionWorkspaceItem==='function')selectInstructionWorkspaceItem(typeId);
-  return v38OpenInstructionPreview(typeId);
-}
+<td class="actions-cell instruction-row-action"><button class="small" data-instruction-action="selectInstructionWorkspaceItem" data-instruction-id="${esc(t.id)}">Öffnen</button></td>
 ```
 
-Export `v38OpenInstructionFromTable` with the other `v38` functions.
-
-- [ ] **Step 2: Replace the legacy “Öffnen” handler at the source where `.instruction-row-action` is rendered**
-
-The generated button must call the wrapper, not only the selection/scroll behavior:
-```html
-<button class="instruction-row-action" type="button" onclick="v38OpenInstructionFromTable('INSTRUCTION_ID')">Öffnen</button>
-```
-
-Keep the existing record selection behavior through `selectInstructionWorkspaceItem(typeId)` inside the wrapper so the editor/detail context remains synchronized.
-
-- [ ] **Step 3: Update the static contract to lock the combined behavior**
-
-Require both selection and preview from the same action path:
+to:
 ```js
-assert.match(ui,/instruction-row-action[\s\S]{0,260}v38OpenInstructionFromTable/);
-assert.match(ui,/v38OpenInstructionFromTable[\s\S]{0,500}selectInstructionWorkspaceItem/);
-assert.match(ui,/v38OpenInstructionFromTable[\s\S]{0,500}v38OpenInstructionPreview/);
+<td class="actions-cell instruction-row-action"><button class="small" type="button" onclick="v38OpenInstructionFromTable('${esc(t.id)}')">Öffnen</button></td>
 ```
 
-Do not weaken the read-only assertions from Task 1.
+The separate instruction-name button may keep its existing `selectInstructionWorkspaceItem` behavior; only the explicit “Öffnen” action changes semantics.
 
-- [ ] **Step 4: Run syntax and focused tests**
+- [ ] **Step 2: Re-run the focused contract**
 
-Run:
 ```bash
-node --check frontend/learning-admin-v38.js
+node --check frontend/instruction-type-management-v23.js
 node --test tests/learning-admin-v38.test.js tests/unified-learning-experience.test.cjs
 ```
 
-Expected: syntax check succeeds and all selected tests pass.
+Expected: all selected tests pass.
 
-- [ ] **Step 5: Commit the real Open-action wiring**
+- [ ] **Step 3: Commit the real Open-action wiring**
 
 ```bash
-git add frontend/learning-admin-v38.js tests/learning-admin-v38.test.js
+git add frontend/instruction-type-management-v23.js tests/learning-admin-v38.test.js
 git commit -m "fix(rc991): make admin open action launch preview"
 ```
 
 ### Task 4: Verify preview regressions before starting login-shell work
 
 **Files:**
-- No production file changes expected.
 - Verify: `tests/learning-admin-v38.test.js`, `tests/unified-learning-experience.test.cjs`, `tests/blob-missing-download-v41.test.js`, `tests/tenant-isolation-login-v40.test.js`.
 
 **Interfaces:**
@@ -256,8 +246,8 @@ Expected: all selected tests pass.
 npm run pretest
 ```
 
-Expected: all pretest contracts pass; the prior 109/110 state is no longer blocked by the Admin preview contract.
+Expected: all pretest contracts pass; the previous Admin-preview failure is gone.
 
-- [ ] **Step 3: Do not sync company branches yet**
+- [ ] **Step 3: Hold synchronization until the login plan is also green**
 
-The preview checkpoint is intentionally held on `rc991-unified-learning-portal`. Essentra/Kontur synchronization happens only after the separate unified-login plan and full workflow are green.
+Keep the checkpoint only on `rc991-unified-learning-portal`. Do not update `company/essentra-components`, `company/kontur-werkzeugstahl`, or `main` yet.
