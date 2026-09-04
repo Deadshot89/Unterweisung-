@@ -1,6 +1,5 @@
-// v0.20: Rollenabhängige Oberfläche.
-// API bleibt die echte Sicherheitsgrenze. Dieses Script sorgt zusätzlich dafür,
-// dass Benutzer nur die Menüpunkte sehen, die zu ihrer Rolle passen.
+// v0.39: Rollenabhängige Oberfläche, ereignisgesteuert statt periodischem Polling.
+// API bleibt die echte Sicherheitsgrenze.
 
 const ROLE_VIEW_RULES = {
   dashboard: ['authenticated','employee','line_manager','hse','company_admin','system_admin'],
@@ -28,25 +27,17 @@ const ROLE_LABELS = {
   authenticated: 'Angemeldet'
 };
 
-function currentRoles(){
-  return state.me?.roles || [];
-}
-
+function currentRoles(){ return state.me?.roles || []; }
 function hasAnyRole(allowed=[]){
   const roles = currentRoles();
   if(roles.includes('system_admin')) return true;
   return allowed.some(r => roles.includes(r));
 }
-
-function viewAllowed(view){
-  return hasAnyRole(ROLE_VIEW_RULES[view] || ['system_admin']);
-}
-
+function viewAllowed(view){ return hasAnyRole(ROLE_VIEW_RULES[view] || ['system_admin']); }
 function firstAllowedView(){
   const preferred = ['dashboard','status','reminders','proofs','managerReport','employees','external','companies','users','operations','security'];
   return preferred.find(viewAllowed) || 'dashboard';
 }
-
 function roleSummary(){
   const roles = currentRoles().filter(r => r !== 'authenticated');
   if(!roles.length) return 'Keine Fachrolle';
@@ -64,9 +55,7 @@ function applyRoleVisibility(){
   });
 
   const active = document.querySelector('.tabs button.active');
-  if(active && (active.hidden || active.disabled)){
-    setView(firstAllowedView());
-  }
+  if(active && (active.hidden || active.disabled)) setView(firstAllowedView());
 }
 
 function accessDeniedHtml(view){
@@ -101,10 +90,10 @@ function accessDeniedHtml(view){
     renderUserInfo = function(ok=true){
       originalRenderUserInfo(ok);
       const el = $('userInfo');
-      if(el && ok && state.me){
-        el.insertAdjacentHTML('beforeend', ` <span class="role-pill">${esc(roleSummary())}</span>`);
+      if(el && ok && state.me && !el.querySelector('[data-role-summary]')){
+        el.insertAdjacentHTML('beforeend', ` <span class="role-pill" data-role-summary>${esc(roleSummary())}</span>`);
       }
-      setTimeout(applyRoleVisibility, 0);
+      queueMicrotask(applyRoleVisibility);
     };
   }
 
@@ -116,6 +105,6 @@ function accessDeniedHtml(view){
     };
   }
 
-  window.addEventListener('DOMContentLoaded', () => setTimeout(applyRoleVisibility, 400));
-  setInterval(applyRoleVisibility, 2500);
+  window.addEventListener('DOMContentLoaded', () => setTimeout(applyRoleVisibility, 0), {once:true});
+  window.addEventListener('load', applyRoleVisibility, {once:true});
 })();
