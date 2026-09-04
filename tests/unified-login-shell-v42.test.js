@@ -12,7 +12,7 @@ test('one pre-auth shell owns Microsoft and email/password login',()=>{
   const login=read('frontend/auth-login-v42.js');
   const portal=read('frontend/employee-portal-v37.js');
 
-  assert.match(html,/auth-login-v42\.js[\s\S]*app\.js/,'Auth-Login muss vor app.js geladen werden.');
+  assert.match(html,/auth-login-v42\.js[\s\S]*portal-shell-v43\.js[\s\S]*app\.js/,'Auth-Login und Portal-Shell müssen vor app.js geladen werden.');
   assert.match(app,/UMAuthLogin\.render/,'renderAuthenticationRequired muss die gemeinsame Login-Shell verwenden.');
   assert.match(login,/\.auth\/login\/aad/);
   assert.match(login,/\/api\/auth\/password\/login/);
@@ -29,13 +29,14 @@ test('one pre-auth shell owns Microsoft and email/password login',()=>{
   assert.doesNotMatch(app,/login-box[\s\S]{0,800}Mit Microsoft anmelden[\s\S]{0,800}Sitzung abmelden/,'app.js darf keinen Microsoft-only Ersatzlogin mehr rendern.');
 });
 
-test('auth state stays separate from login markup and preserves tenant routing',()=>{
+test('auth state stays separate from portal routing and preserves tenant routing',()=>{
   const shell=read('frontend/auth-shell-v40.js');
   const app=read('frontend/app.js');
   assert.match(shell,/auth-pending/);
   assert.match(shell,/auth-required/);
   assert.match(shell,/auth-authenticated/);
-  assert.match(app,/requiresCompanySelection/);
+  assert.match(app,/UMPortalShell\.resolvePortalMode/);
+  assert.match(app,/applyCurrentPortalMode/);
   assert.match(app,/showCompanySelection/);
   assert.match(app,/await loadCompanyData\(\)/);
 });
