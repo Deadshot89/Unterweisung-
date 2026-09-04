@@ -1,4 +1,5 @@
 import { writeFileSync, chmodSync } from 'node:fs';
+import { createHmac } from 'node:crypto';
 import path from 'node:path';
 
 // Temporary server-only bridge until SWA application settings are configured.
@@ -15,6 +16,19 @@ for (const name of ['AZURE_OPENAI_ENDPOINT','AZURE_OPENAI_API_KEY','AZURE_OPENAI
   if(process.env[name]?.trim()) settings[name]=process.env[name].trim();
 }
 console.log('Document analysis settings complete: '+['AZURE_OPENAI_ENDPOINT','AZURE_OPENAI_API_KEY','AZURE_OPENAI_DEPLOYMENT'].every(name=>!!settings[name]));
+
+const directSessionSecret=String(process.env.AUTH_SESSION_SECRET||'').trim();
+if(directSessionSecret){
+  if(directSessionSecret.length<32) throw new Error('AUTH_SESSION_SECRET must contain at least 32 characters.');
+  settings.AUTH_SESSION_SECRET=directSessionSecret;
+}else{
+  const sessionSeed=String(process.env.AUTH_SESSION_SEED||'').trim();
+  if(!sessionSeed) throw new Error('A server-only session signing source is required.');
+  settings.AUTH_SESSION_SECRET=createHmac('sha256',sessionSeed)
+    .update('unterweisungsmanager/auth-session/v1','utf8')
+    .digest('base64url');
+}
+console.log('Password session signing settings complete: true');
 
 const target = path.resolve('api/runtime-settings.deploy.json');
 // Oryx changes ownership to root. The managed runtime must still be able to
