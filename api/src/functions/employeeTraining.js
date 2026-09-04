@@ -6,6 +6,7 @@ import { getAuthorizedContext } from '../lib/auth.js';
 import { resolveEmployeeAccess } from '../lib/employeeAccess.js';
 import { saveCertificateHtml } from '../lib/certificate.js';
 import { writeAudit } from '../lib/audit.js';
+import { loadPublishedLearningContent } from '../lib/learningContent.js';
 
 function clean(value,max){const text=String(value??'').trim();return text?text.slice(0,max):null;}
 function addMonths(date,months){const d=new Date(date);d.setMonth(d.getMonth()+Number(months||12));return d;}
@@ -18,17 +19,11 @@ function nextLearningProgress(currentStep,requestedStep,stepCount){
 
 async function loadType(pool,companyId,employeeId,instructionTypeId){
   const result=await pool.request().input('companyId',sql.NVarChar(80),companyId).input('employeeId',sql.NVarChar(80),employeeId).input('instructionTypeId',sql.NVarChar(80),instructionTypeId)
-    .query(`SELECT TOP 1 t.id,t.name,t.category,t.intervalMonths,t.templateId,t.deliveryMode,t.testRequired,t.passPercent,t.active,
+    .query(`SELECT TOP 1 t.id,t.name,t.category,t.intervalMonths,t.description,t.templateId,t.deliveryMode,t.testRequired,t.passPercent,t.active,
                    e.name AS employeeName,e.email,c.name AS companyName,c.legalName
             FROM InstructionTypes t JOIN Employees e ON e.companyId=t.companyId AND e.id=@employeeId JOIN Companies c ON c.id=t.companyId
             WHERE t.companyId=@companyId AND t.id=@instructionTypeId AND t.active=1`);
   return result.recordset[0]||null;
-}
-async function loadSteps(pool,companyId,instructionTypeId,language){
-  const result=await pool.request().input('companyId',sql.NVarChar(80),companyId).input('instructionTypeId',sql.NVarChar(80),instructionTypeId).input('language',sql.NVarChar(10),language)
-    .query(`SELECT id,sortOrder,title,body,imageFileId FROM InstructionLearningSteps
-            WHERE companyId=@companyId AND instructionTypeId=@instructionTypeId AND language=@language AND status='published' ORDER BY sortOrder,createdAt`);
-  return result.recordset;
 }
 async function newQuestionSnapshot(pool,companyId,instructionTypeId,language,testRequired){
   if(!testRequired)return [];
@@ -57,10 +52,12 @@ app.http('employeeTraining', {
       const exclusion=await pool.request().input('companyId',sql.NVarChar(80),ctx.companyId).input('employeeId',sql.NVarChar(80),employeeId).input('instructionTypeId',sql.NVarChar(80),instructionTypeId)
         .query('SELECT TOP 1 id FROM EmployeeInstructionExclusions WHERE companyId=@companyId AND employeeId=@employeeId AND instructionTypeId=@instructionTypeId AND active=1');
       if(exclusion.recordset.length){const err=new Error('Diese Unterweisung ist für dich als nicht erforderlich markiert.');err.status=409;throw err;}
-      const steps=await loadSteps(pool,ctx.companyId,instructionTypeId,language);
+      const content=await loadPublishedLearningContent(pool,{companyId:ctx.companyId,instructionTypeId,language});
+      const steps=content.steps.map(({imageBlobPath,imageFileName,...step})=>step);
+      const contentPayload={learningGoal:content.learningGoal,learningIntro:content.learningIntro,keyPoints:content.keyPoints};
 
       if(request.method==='GET'){
-        if(String(type.deliveryMode||'practical')!=='online')return json({instructionTypeId,instructionName:type.name,deliveryMode:'practical',requiresPlanning:true,canSelfComplete:false,templateId:type.templateId,steps});
+        if(String(type.deliveryMode||'practical')!=='online')return json({instructionTypeId,instructionName:type.name,description:type.description,deliveryMode:'practical',requiresPlanning:true,canSelfComplete:false,templateId:type.templateId,steps,...contentPayload});
         let attempt=await pool.request().input('companyId',sql.NVarChar(80),ctx.companyId).input('employeeId',sql.NVarChar(80),employeeId).input('instructionTypeId',sql.NVarChar(80),instructionTypeId)
           .query("SELECT TOP 1 id,status,currentStep,questionSnapshotJson,startedAt FROM InternalTrainingAttempts WHERE companyId=@companyId AND employeeId=@employeeId AND instructionTypeId=@instructionTypeId AND status='started' ORDER BY startedAt DESC");
         let row=attempt.recordset[0];
@@ -73,7 +70,7 @@ app.http('employeeTraining', {
           row={id,status:'started',currentStep:0,questionSnapshotJson:JSON.stringify(snapshot),startedAt:new Date().toISOString()};
         }
         const snapshot=JSON.parse(row.questionSnapshotJson||'[]');
-        return json({attemptId:row.id,instructionTypeId,instructionName:type.name,deliveryMode:'online',requiresPlanning:false,canSelfComplete:true,testRequired:!!type.testRequired,passPercent:Number(type.passPercent||80),templateId:type.templateId,steps,currentStep:Number(row.currentStep||0),questions:safeQuestions(snapshot)});
+        return json({attemptId:row.id,instructionTypeId,instructionName:type.name,description:type.description,deliveryMode:'online',requiresPlanning:false,canSelfComplete:true,testRequired:!!type.testRequired,passPercent:Number(type.passPercent||80),templateId:type.templateId,steps,currentStep:Number(row.currentStep||0),questions:safeQuestions(snapshot),...contentPayload});
       }
 
       if(String(type.deliveryMode||'practical')!=='online'){const err=new Error('Praktische Unterweisungen müssen durch einen berechtigten Verantwortlichen bestätigt werden.');err.status=409;throw err;}
