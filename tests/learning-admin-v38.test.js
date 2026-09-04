@@ -22,12 +22,17 @@ test('rich editor remains restricted to system admin, company admin and HSE',()=
   assert.doesNotMatch(ui,/\['system_admin','company_admin','hse','line_manager'\]/);
 });
 
-test('admin table Open action launches a read-only learner-style instruction preview',()=>{
+test('admin table Open action launches a CSP-safe read-only learner-style instruction preview',()=>{
   const ui=read('frontend/learning-admin-v38.js');
   const workspace=read('frontend/instruction-type-management-v23.js');
+  const binder=read('frontend/instruction-analysis.js');
   assert.match(ui,/v38OpenInstructionPreview/,'Eine echte Admin-Unterweisungsvorschau fehlt.');
-  assert.match(workspace,/instruction-row-action[\s\S]{0,320}v38OpenInstructionFromTable/,
-    'Der Tabellenknopf Öffnen muss die echte Vorschau starten.');
+  assert.match(workspace,/instruction-row-action[\s\S]{0,320}data-instruction-action="selectInstructionWorkspaceItem"[\s\S]{0,220}>Öffnen</,
+    'Der Tabellenknopf Öffnen muss im vorhandenen delegierten Aktionssystem bleiben.');
+  assert.doesNotMatch(workspace,/onclick=/,
+    'Der Unterweisungs-Workspace darf wegen der CSP keine Inline-Eventhandler enthalten.');
+  assert.match(binder,/instruction-row-action[\s\S]{0,700}v38OpenInstructionFromTable|v38OpenInstructionFromTable[\s\S]{0,700}instruction-row-action/,
+    'Die delegierte Aktionsbindung muss den Öffnen-Knopf gezielt an die Admin-Vorschau weitergeben.');
   assert.match(ui,/\/learning-steps\?instructionTypeId=/,
     'Die Vorschau muss die vorhandenen Lernschritte der ausgewählten Unterweisung laden.');
   assert.match(ui,/\/files\/.*\/download/,
