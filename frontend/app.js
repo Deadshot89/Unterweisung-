@@ -19,8 +19,18 @@ async function api(path, options={}){
   const headers = {'Content-Type':'application/json', ...(options.headers||{})};
   if(state.companyId && !headers['x-company-id']) headers['x-company-id'] = state.companyId;
   const res = await fetch(apiUrl('/api' + path), {...options, headers, mode:'cors'});
-  if(!res.ok) throw new Error(await res.text());
-  return res.json();
+  const text = await res.text();
+  let payload = null;
+  if(text){
+    try { payload = JSON.parse(text); } catch { payload = null; }
+  }
+  if(!res.ok){
+    const error = new Error(payload?.error || text || `HTTP ${res.status}`);
+    error.status = res.status;
+    error.code = payload?.code || null;
+    throw error;
+  }
+  return payload ?? {};
 }
 
 function requiresCompanySelection(){
