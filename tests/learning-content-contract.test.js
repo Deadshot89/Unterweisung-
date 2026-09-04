@@ -43,9 +43,12 @@ test('instruction, bootstrap, step and employee APIs expose professional learnin
   assert.match(employee, /keyPoints/);
 });
 
-test('new rich content writes are guarded by migration 012 readiness', () => {
+test('new rich content writes are guarded by the centralized migration 012 readiness helper', () => {
+  const helper = source(helperPath);
   const types = source('api/src/functions/instructionTypes.js');
   const steps = source('api/src/functions/learningSteps.js');
-  assert.match(types, /Datenbankmigration 012/);
-  assert.match(steps, /Datenbankmigration 012/);
+  assert.match(helper, /Datenbankmigration 012/);
+  assert.match(helper, /requireLearningContentSchema/);
+  assert.match(types, /requireLearningContentSchema/);
+  assert.match(steps, /requireLearningContentSchema/);
 });
