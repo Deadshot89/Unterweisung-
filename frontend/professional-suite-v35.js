@@ -102,7 +102,7 @@ function ensureProfessionalFooter(){
   const main = document.querySelector('main');
   if(!main) return;
   let footer = document.getElementById('appFooterV35');
-  const footerHtml = `<span>Unterweisungsmanager · Essentra Arbeitsstand</span><span class="suite-chip">Betriebsbereit · ${PROFESSIONAL_SUITE_VERSION}</span>`;
+  const footerHtml = `<span>Unterweisungsmanager · Arbeitsbereich</span><span class="suite-chip">Betriebsbereit · ${PROFESSIONAL_SUITE_VERSION}</span>`;
   if(!footer){
     footer = document.createElement('footer');
     footer.id = 'appFooterV35';
