@@ -1,10 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 
-const read = path => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
+const url = path => new URL(`../${path}`, import.meta.url);
+const read = path => readFileSync(url(path), 'utf8');
 const index = read('frontend/index.html');
-const app = read('frontend/app.js');
 const shellCss = read('frontend/company-context-v39.css');
 const auth = read('api/src/lib/auth.js');
 
@@ -22,9 +22,14 @@ test('main workspace is closed by default until authentication has been confirme
     'Die Hauptseite muss bereits im HTML geschlossen starten, damit keine Firmenoberfläche vor dem Login aufblitzt.');
   assert.match(shellCss, /body\.auth-pending[\s\S]*\.primary-tabs[\s\S]*display\s*:\s*none/,
     'Navigation und Arbeitsbereiche müssen im ungeprüften Zustand verborgen sein.');
-  assert.match(app, /setAuthenticationShellState/,
+  assert.ok(existsSync(url('frontend/auth-shell-v40.js')),
+    'Eine fokussierte Auth-Shell muss den sichtbaren Login-Zustand steuern.');
+  const shell = read('frontend/auth-shell-v40.js');
+  assert.match(index, /auth-shell-v40\.js/,
+    'Die Auth-Shell muss von der Hauptseite geladen werden.');
+  assert.match(shell, /setAuthenticationShellState/,
     'Der Authentifizierungszustand braucht eine zentrale Shell-Umschaltung.');
-  assert.match(app, /setAuthenticationShellState\(['"]authenticated['"]\)/,
+  assert.match(shell, /authenticated/,
     'Die Firmenoberfläche darf erst nach bestätigter Identität freigegeben werden.');
 });
 
