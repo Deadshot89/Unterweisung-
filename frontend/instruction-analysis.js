@@ -115,6 +115,10 @@ function bindInstructionManagementActions(){
   const actions={clearInstructionWorkspaceFilters,prepareInstructionTypeEdit,toggleInstructionType,selectInstructionWorkspaceItem,saveInstructionType,clearInstructionTypeForm,
     newInstruction:prepareNewInstructionType};
   document.querySelectorAll('#instructions [data-instruction-action]').forEach(button=>{
-    button.onclick=()=>actions[button.dataset.instructionAction]?.(button.dataset.instructionId,button.dataset.active==='true');
+    button.onclick=()=>{
+      const action=button.dataset.instructionAction,id=button.dataset.instructionId;
+      if(action==='selectInstructionWorkspaceItem' && button.closest('.instruction-row-action') && typeof v38OpenInstructionFromTable==='function') return v38OpenInstructionFromTable(id);
+      return actions[action]?.(id,button.dataset.active==='true');
+    };
   });
 }
