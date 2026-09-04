@@ -25,10 +25,19 @@ test('application boot does not send a default tenant for an unselected system a
   assert.doesNotMatch(app, /'x-company-id':\s*state\.companyId\s*\|\|\s*DEFAULT_COMPANY_ID/);
 });
 
-test('company switch clears company-scoped state without discarding the authenticated identity', () => {
+test('company switch clears every company-scoped portal cache without discarding identity', () => {
   assert.match(companyContext, /state\.data\s*=\s*null/);
   assert.match(companyContext, /state\.statusRows\s*=\s*\[\]/);
   assert.match(companyContext, /state\.users\s*=\s*\[\]/);
   assert.match(companyContext, /state\.testQuestions\s*=\s*\[\]/);
+  assert.match(companyContext, /resetEmployeePortalState/);
+  assert.match(companyContext, /resetEmployeeLearningState/);
   assert.doesNotMatch(companyContext, /state\.me\s*=\s*null/);
+});
+
+test('company selection is a portal mode on the same origin and clears the current navigation', () => {
+  assert.match(companyContext, /state\.portalMode\s*=\s*['"]company-selection['"]/);
+  assert.match(companyContext, /UMPortalShell\.clearPortalShell\(\)/);
+  assert.doesNotMatch(companyContext, /location\.(href|assign|replace)|window\.location/,
+    'Firmenwechsel darf nicht auf eine andere Kunden-Website navigieren.');
 });
