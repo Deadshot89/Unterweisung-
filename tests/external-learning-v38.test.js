@@ -18,8 +18,9 @@ test('external learner uses the shared professional step, test and result render
   const html=read('frontend/external/instruction.html');
   const ui=read('frontend/external/instruction-v38.js');
   assert.match(html,/learning-experience-v38\.js[\s\S]*instruction-v38\.js/);
-  assert.match(ui,/UMLearningExperience\.renderLearningStep/);
-  assert.match(ui,/UMLearningExperience\.renderQuestionList/);
-  assert.match(ui,/UMLearningExperience\.renderResult/);
+  assert.match(ui,/renderer\s*=\s*globalThis\.UMLearningExperience/);
+  assert.match(ui,/renderer\.renderLearningStep/);
+  assert.match(ui,/renderer\.renderQuestionList/);
+  assert.match(ui,/renderer\.renderResult/);
   assert.doesNotMatch(ui,/Das solltest du mitnehmen/);
 });
