@@ -33,7 +33,14 @@ function hasAnyRole(allowed=[]){
   if(roles.includes('system_admin')) return true;
   return allowed.some(r => roles.includes(r));
 }
-function viewAllowed(view){ return hasAnyRole(ROLE_VIEW_RULES[view] || ['system_admin']); }
+function portalModeAllowsView(view){
+  const mode=state.portalMode;
+  if(mode==='admin-portal')return true;
+  if(mode==='employee-manager-portal')return ['dashboard','planning','external'].includes(view);
+  if(mode==='employee-portal')return view==='dashboard';
+  return false;
+}
+function viewAllowed(view){ return portalModeAllowsView(view) && hasAnyRole(ROLE_VIEW_RULES[view] || ['system_admin']); }
 function firstAllowedView(){
   const preferred = ['dashboard','status','reminders','proofs','managerReport','employees','external','companies','users','operations','security'];
   return preferred.find(viewAllowed) || 'dashboard';
@@ -45,7 +52,7 @@ function roleSummary(){
 }
 
 function applyRoleVisibility(){
-  const tabs = document.querySelectorAll('.tabs button[data-view]');
+  const tabs = document.querySelectorAll('#portalNavigation button[data-view]');
   tabs.forEach(btn => {
     const view = btn.dataset.view;
     const allowed = viewAllowed(view);
@@ -54,7 +61,7 @@ function applyRoleVisibility(){
     btn.title = allowed ? '' : 'Für deine Rolle nicht freigeschaltet';
   });
 
-  const active = document.querySelector('.tabs button.active');
+  const active = document.querySelector('#portalNavigation button.active');
   if(active && (active.hidden || active.disabled)) setView(firstAllowedView());
 }
 
@@ -73,7 +80,7 @@ function accessDeniedHtml(view){
   if(originalSetView){
     setView = function(id){
       if(state.me && !viewAllowed(id)){
-        document.querySelectorAll('.tabs button').forEach(b=>b.classList.toggle('active',b.dataset.view===id));
+        document.querySelectorAll('#portalNavigation button[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===id));
         document.querySelectorAll('.view').forEach(v=>v.classList.toggle('active',v.id===id));
         const target = $(id);
         if(target) target.innerHTML = accessDeniedHtml(id);
