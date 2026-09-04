@@ -24,7 +24,9 @@ jobs:
       - name: Fetch verified RC source
         run: git fetch origin rc991-unified-learning-portal
       - name: Prepare focused login hotfix
-        run: node scripts/hotfix-login-apply-once.js
+        run: |
+          node scripts/hotfix-login-apply-once.js
+          node -e "const fs=require('fs');const p='api/src/lib/auth.js';let s=fs.readFileSync(p,'utf8');const old='const selectedCompanyId=isDevSystemAdmin?(base.requestedCompanyId || null):defaultCompanyId();';if((s.split(old).length-1)!==1)throw new Error('dev company selection source mismatch');const replacement='const devCompanyId=base.requestedCompanyId || defaultCompanyId(); const selectedCompanyId=isDevSystemAdmin?(base.requestedCompanyId || null):devCompanyId;';fs.writeFileSync(p,s.replace(old,replacement));"
       - name: Install dependencies
         run: |
           npm install
