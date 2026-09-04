@@ -23,3 +23,11 @@ test('portal mode follows the approved role priority', () => {
   assert.equal(shell.resolvePortalMode({roles:['employee'],companyId:'company-a'}, 'company-a'), 'employee-portal');
   assert.equal(shell.resolvePortalMode({roles:['authenticated'],companyId:'company-a'}, 'company-a'), 'denied');
 });
+
+test('index keeps one neutral internal shell instead of a baked-in admin website', () => {
+  const html=read('frontend/index.html');
+  assert.match(html, /<nav[^>]*id="portalNavigation"[^>]*class="tabs primary-tabs"[^>]*hidden[^>]*><\/nav>/);
+  assert.match(html, /auth-login-v42\.js[\s\S]*portal-shell-v43\.js[\s\S]*app\.js/);
+  assert.doesNotMatch(html, /<nav[^>]*primary-tabs[^>]*>[\s\S]*data-view="companies"/);
+  assert.equal((html.match(/id="portalNavigation"/g)||[]).length,1);
+});
