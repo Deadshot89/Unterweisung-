@@ -1,0 +1,41 @@
+name: Provision Company Admin
+
+on:
+  push:
+    branches:
+      - 'company/**'
+    paths:
+      - 'operations/company-admin-provision-request.json'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: provision-company-admin-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  provision:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    name: Provision one approved company admin
+    steps:
+      - name: Checkout exact requested revision
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install runtime dependencies only
+        run: npm install --omit=dev
+
+      - name: Provision approved company admin
+        env:
+          SQL_CONNECTION_STRING: ${{ secrets.SQL_CONNECTION_STRING }}
+          PROVISION_BRANCH: ${{ github.ref_name }}
+        run: node scripts/provision-company-admin.js operations/company-admin-provision-request.json
