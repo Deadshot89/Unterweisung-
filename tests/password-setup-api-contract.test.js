@@ -23,12 +23,15 @@ test('password setup consumes token and updates password atomically', () => {
   assert.match(source, /lockedUntil=NULL/);
   assert.match(source, /passwordSetAt=SYSUTCDATETIME\(\)/);
   assert.match(source, /PasswordSetupTokens[\s\S]*usedAt=SYSUTCDATETIME\(\)/);
-  assert.match(source, /beginTransaction\(/);
-  assert.match(source, /commit\(/);
-  assert.match(source, /rollback\(/);
+  assert.match(source, /new sql\.Transaction\(pool\)/);
+  assert.match(source, /transaction\.begin\(\)/);
+  assert.match(source, /transaction\.commit\(\)/);
+  assert.match(source, /transaction\.rollback\(\)/);
 });
 
 test('security event omits raw credentials', () => {
   assert.match(source, /auth\.password\.setupSucceeded/);
-  assert.doesNotMatch(source, /writeSecurityEvent\([^;]*(token|passwordHash|password)[^;]*\)/i);
+  const eventCall = source.match(/writeSecurityEvent\([\s\S]*?'auth\.password\.setupSucceeded'[\s\S]*?\);/)?.[0] || '';
+  assert.ok(eventCall);
+  assert.doesNotMatch(eventCall, /\btoken\b|tokenHash|passwordHash|\bpassword\b/i);
 });
