@@ -34,6 +34,15 @@ test('setup-link action posts to protected endpoint and displays returned URL on
   assert.match(source, /30 Minuten/);
 });
 
+test('setup link is fully visible and copied without truncating the password token', () => {
+  assert.match(source, /id="passwordSetupLinkValue"/);
+  assert.match(source, /<textarea[^>]*readonly[^>]*>\$\{esc\(result\.url\)\}<\/textarea>/);
+  assert.match(source, /data-password-setup-copy/);
+  assert.match(source, /navigator\.clipboard\.writeText\(url\)/);
+  assert.match(source, /const url=String\(field\?\.value\|\|''\)/);
+  assert.doesNotMatch(source, /<input type="text" readonly value="\$\{esc\(result\.url\)\}">/);
+});
+
 test('delegated click handler invokes setup link generation', () => {
   assert.match(source, /\[data-password-setup-action\]/);
   assert.match(source, /createPasswordSetupLink\(button\.dataset\.userId\)/);
