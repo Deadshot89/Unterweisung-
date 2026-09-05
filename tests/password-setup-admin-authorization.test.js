@@ -35,3 +35,13 @@ test('company admin cannot patch or upsert an existing system admin', () => {
   assert.match(users, /SELECT TOP 1 id,role FROM Users WHERE companyId=@companyId AND LOWER\(email\)=LOWER\(@email\)/);
   assert.match(users, /existing\.role===Roles\.SYSTEM_ADMIN\s*&&\s*!ctx\.roles\.includes\(Roles\.SYSTEM_ADMIN\)/);
 });
+
+test('user update audit never serializes arbitrary request body fields', () => {
+  const updateAudit = users.match(/writeAudit\(pool,\s*ctx,\s*'user\.updated'[\s\S]*?\);/)?.[0] || '';
+  assert.ok(updateAudit);
+  assert.doesNotMatch(updateAudit, /\.\.\.body/);
+  assert.doesNotMatch(updateAudit, /password|token/i);
+  assert.match(updateAudit, /role/);
+  assert.match(updateAudit, /active/);
+  assert.match(updateAudit, /companyId/);
+});
