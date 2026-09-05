@@ -1,4 +1,4 @@
-name: One-time password bootstrap
+name: One-time password reset
 
 on:
   push:
@@ -11,11 +11,11 @@ permissions:
   contents: read
 
 concurrency:
-  group: one-time-password-bootstrap
+  group: one-time-password-reset
   cancel-in-progress: false
 
 jobs:
-  migrate-and-bootstrap:
+  migrate-and-reset:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -33,13 +33,14 @@ jobs:
       - name: Install root dependencies
         run: npm install
 
-      - name: Run additive database migrations
+      - name: Verify additive database migrations
         env:
           SQL_CONNECTION_STRING: ${{ secrets.SQL_CONNECTION_STRING }}
         run: npm run db:migrate
 
-      - name: Seed operator initial password setup hash
+      - name: Seed operator password reset hash
         env:
           SQL_CONNECTION_STRING: ${{ secrets.SQL_CONNECTION_STRING }}
           PASSWORD_SETUP_TOKEN_HASH: 685d455d367b9d65c7cf5cbef5fcd0ae49e30dc3bd6ad88dedcc43890b45ab54
+          PASSWORD_SETUP_PURPOSE: password_reset
         run: npm run auth:seed-initial-setup
