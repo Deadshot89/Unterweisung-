@@ -66,7 +66,10 @@ function userActionButtons(user, editable=false){
   const setupAction=canCreatePasswordSetupLink(user)
     ? ` <button class="small" type="button" data-password-setup-action data-user-id="${esc(user.id)}">Passwort-Setup-Link erstellen</button>`
     : '';
-  return normalActions + setupAction;
+  const diagnosticsAction=state.me?.roles?.includes('system_admin') && user.role !== 'system_admin'
+    ? ` <button class="small ${user.diagnosticsView?'ghost':''}" type="button" data-diagnostics-permission data-user-id="${esc(user.id)}" data-enabled="${user.diagnosticsView?'true':'false'}">${user.diagnosticsView?'Fehlerdiagnose entziehen':'Fehlerdiagnose freigeben'}</button>`
+    : '';
+  return normalActions + setupAction + diagnosticsAction;
 }
 
 function userTable(rows, editable=false){
@@ -171,6 +174,21 @@ async function copyPasswordSetupLink(){
   }
 }
 
+async function setDiagnosticPermission(id, enabled){
+  if(!state.me?.roles?.includes('system_admin')) return;
+  const user=(state.users||[]).find(item=>item.id===id);
+  if(!user) return;
+  try{
+    await api('/users/' + encodeURIComponent(id) + '/permissions/diagnostics', {
+      method: enabled ? 'DELETE' : 'PUT',
+      body: JSON.stringify({ companyId: state.companyId || DEFAULT_COMPANY_ID })
+    });
+    await refreshUsers();
+  }catch(err){
+    alert('Fehlerdiagnose-Berechtigung konnte nicht geändert werden: ' + String(err.message || err));
+  }
+}
+
 async function saveUser(){
   const id = $('userEditId').value.trim();
   const email = $('userEmail').value.trim();
@@ -206,6 +224,12 @@ async function toggleUser(id, active){
 }
 
 document.addEventListener('click',event=>{
+  const diagnosticsButton=event.target?.closest?.('[data-diagnostics-permission]');
+  if(diagnosticsButton){
+    event.preventDefault();
+    setDiagnosticPermission(diagnosticsButton.dataset.userId, diagnosticsButton.dataset.enabled === 'true');
+    return;
+  }
   const copyButton=event.target?.closest?.('[data-password-setup-copy]');
   if(copyButton){
     event.preventDefault();

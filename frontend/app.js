@@ -14,6 +14,32 @@ function apiUrl(path){
   return API_BASE_URL ? API_BASE_URL + cleanPath : cleanPath;
 }
 
+function reportApiDiagnostic(path, response, payload, method='GET'){
+  const apiPath = String(path || '');
+  if(apiPath.startsWith('/diagnostics')) return;
+  if(!state.me || !response || response.ok) return;
+  const errorMessage = String(payload?.error || payload?.message || ('HTTP ' + response.status)).slice(0, 1000);
+  const diagnosticHeaders = {'Content-Type':'application/json'};
+  if(state.companyId) diagnosticHeaders['x-company-id'] = state.companyId;
+  const appVersion = String(document.getElementById('appVersion')?.textContent || '').slice(0, 80);
+  fetch(apiUrl('/api/diagnostics/events'), {
+    method: 'POST',
+    headers: diagnosticHeaders,
+    mode: 'cors',
+    credentials: 'include',
+    body: JSON.stringify({
+      area: 'frontend.api',
+      action: 'request.failed',
+      errorMessage,
+      errorCode: 'HTTP_' + response.status,
+      apiPath,
+      httpMethod: String(method || 'GET').toUpperCase().slice(0, 12),
+      httpStatus: Number(response.status || 0),
+      appVersion
+    })
+  }).catch(() => {});
+}
+
 async function api(path, options={}){
   const headers = {'Content-Type':'application/json', ...(options.headers||{})};
   if(state.companyId && !headers['x-company-id']) headers['x-company-id'] = state.companyId;
@@ -22,7 +48,8 @@ async function api(path, options={}){
   let payload = null;
   if(text){ try { payload = JSON.parse(text); } catch { payload = null; } }
   if(!res.ok){
-    const error = new Error(payload?.error || text || `HTTP ${res.status}`);
+    reportApiDiagnostic(path, res, payload, options.method || 'GET');
+    const error = new Error(payload?.error || payload?.message || text || `HTTP ${res.status}`);
     error.status = res.status;
     throw error;
   }

@@ -38,12 +38,19 @@ function hasAnyRole(allowed=[]){
   return allowed.some(r => roles.includes(r));
 }
 
+function canOpenDiagnostics(){
+  const roles = currentRoles();
+  const permissions = state.me?.permissions || [];
+  return roles.includes('system_admin') || permissions.includes('diagnostics.view');
+}
+
 function viewAllowed(view){
+  if(view === 'diagnostics') return canOpenDiagnostics();
   return hasAnyRole(ROLE_VIEW_RULES[view] || ['system_admin']);
 }
 
 function firstAllowedView(){
-  const preferred = ['dashboard','status','reminders','proofs','managerReport','employees','external','companies','users','operations','security'];
+  const preferred = ['dashboard','status','reminders','proofs','managerReport','employees','external','companies','users','operations','security','diagnostics'];
   return preferred.find(viewAllowed) || 'dashboard';
 }
 
