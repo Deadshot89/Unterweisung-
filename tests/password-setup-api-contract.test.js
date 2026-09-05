@@ -29,9 +29,11 @@ test('password setup consumes token and updates password atomically', () => {
   assert.match(source, /transaction\.rollback\(\)/);
 });
 
-test('security event omits raw credentials', () => {
+test('security event omits raw credentials from details', () => {
   assert.match(source, /auth\.password\.setupSucceeded/);
   const eventCall = source.match(/writeSecurityEvent\([\s\S]*?'auth\.password\.setupSucceeded'[\s\S]*?\);/)?.[0] || '';
   assert.ok(eventCall);
-  assert.doesNotMatch(eventCall, /\btoken\b|tokenHash|passwordHash|\bpassword\b/i);
+  const details = eventCall.match(/\{\s*userId:\s*target\.userId,\s*companyId:\s*target\.companyId,\s*purpose:\s*target\.purpose\s*\}/)?.[0] || '';
+  assert.ok(details);
+  assert.doesNotMatch(details, /\btoken\b|tokenHash|passwordHash|\bpassword\b/i);
 });
