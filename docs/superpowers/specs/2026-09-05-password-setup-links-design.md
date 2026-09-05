@@ -31,7 +31,9 @@ Ein Setup-Link enthält einen zufälligen Token mit mindestens 256 Bit Entropie.
 
 Beispielstruktur:
 
-`https://<zentrale-domain>/?passwordSetup=<RAW_TOKEN>`
+`https://<zentrale-domain>/#passwordSetup=<RAW_TOKEN>`
+
+Der Token liegt bewusst im URL-Fragment (`#...`) und nicht im Query-String. URL-Fragmente werden vom Browser nicht an Azure, API-Endpunkte oder HTTP-Referrer übertragen. JavaScript liest den Token lokal aus `location.hash` und sendet ihn ausschließlich im Body des Setup-POSTs.
 
 Der Roh-Token wird niemals in der Datenbank und niemals im Repository gespeichert. Persistiert wird ausschließlich:
 
@@ -103,7 +105,7 @@ Serverablauf:
 2. Tokenzeile plus Zielbenutzer laden.
 3. Prüfen: nicht benutzt, nicht abgelaufen, Benutzer aktiv.
 4. Bei `initial_password` zusätzlich sicherstellen, dass der Benutzer noch kein Passwort gesetzt hat.
-5. Passwortregeln 10–256 Zeichen anwenden.
+5. Passwortregeln 10–256 Zeichen und Gleichheit von `password`/`passwordConfirm` anwenden.
 6. Passwort mit bestehendem scrypt-Verfahren hashen.
 7. In einer DB-Transaktion:
    - `passwordHash` aktualisieren
@@ -120,7 +122,7 @@ Fehlermeldungen geben keine sensiblen Kontodetails preis. Ungültig, verbraucht 
 
 ### 6. Login-UI für Setup-Link
 
-`auth-login-v42.js` erkennt `passwordSetup` in der aktuellen URL.
+`auth-login-v42.js` erkennt `passwordSetup` ausschließlich im URL-Fragment der aktuellen Seite.
 
 Bei vorhandenem Token zeigt die zentrale Loginseite statt des normalen Passwortformulars einen fokussierten Bereich:
 
@@ -132,11 +134,11 @@ Bei vorhandenem Token zeigt die zentrale Loginseite statt des normalen Passwortf
 
 Nach Erfolg:
 
-- Token wird aus der Browser-URL entfernt
+- Fragment und damit der Token werden mit `history.replaceState` aus der Browser-URL entfernt
 - Erfolgsmeldung erscheint
 - normales E-Mail/Passwort-Login wird wieder angezeigt
 
-Der Token darf nicht in Logs, Analytics, Fehlertexte oder DOM-Debug-Ausgaben geschrieben werden.
+Der Token darf nicht in Logs, Analytics, Fehlertexte, Referrer oder DOM-Debug-Ausgaben geschrieben werden.
 
 ### 7. Admin-Funktion für weitere Benutzer
 
@@ -153,6 +155,7 @@ Berechtigung:
 - `system_admin` darf Setup-Links für alle verwaltbaren Benutzer erzeugen.
 - `company_admin` darf nur Benutzer der eigenen Firma verwalten.
 - Ein `company_admin` darf niemals einen `system_admin` ändern, sperren, zurücksetzen oder einen Setup-Link für ihn erzeugen.
+- Der Server lädt die Zielrolle aus der Datenbank; er vertraut dafür nicht auf die Rolle im Request-Body.
 
 Ablauf:
 
@@ -170,6 +173,7 @@ Solange Graph-Mail nicht konfiguriert ist, kopiert der Admin den Link manuell un
 - Kein Endpoint, der anhand einer E-Mail-Adresse öffentlich einen Setup-Link zurückgibt.
 - Kein Klartextpasswort in Datenbank, Logs oder Repository.
 - Kein Roh-Setup-Token in Datenbank oder Repository.
+- Der Roh-Token steht nicht im Query-String und wird nicht als HTTP-Referrer übertragen.
 - Token wird nur einmal als URL an den berechtigten Empfänger ausgegeben.
 - Alle Passwortänderungen erhöhen `sessionVersion` und machen bestehende Passwortsitzungen ungültig.
 - `company_admin` kann keinen `system_admin` verwalten.
@@ -187,11 +191,12 @@ TDD-Verträge müssen mindestens abdecken:
 5. `initial_password` funktioniert nur, solange noch kein Passwort gesetzt ist.
 6. Erfolgreiche Passwortsetzung setzt scrypt-Hash, `passwordSetAt`, Provider und erhöht `sessionVersion`.
 7. Erfolgreiche Passwortsetzung verbraucht bzw. widerruft alle Setup-Tokens des Benutzers.
-8. Setup-Seite zeigt Passwort + Bestätigung und entfernt Token nach Erfolg aus der URL.
+8. Setup-Seite liest den Token aus dem URL-Fragment, zeigt Passwort + Bestätigung und entfernt das Fragment nach Erfolg.
 9. Admin-Link-Erzeugung ist mandantengebunden.
 10. `company_admin` kann niemals einen `system_admin` zurücksetzen.
 11. Das normale Login mit dem neu gesetzten Passwort funktioniert anschließend.
 12. Anonymer Zugriff auf Dashboard/Firmendaten bleibt weiterhin gesperrt.
+13. Weder Query-String noch Referrer-/Logpfad enthalten den Roh-Setup-Token.
 
 ### 10. Rollout
 
