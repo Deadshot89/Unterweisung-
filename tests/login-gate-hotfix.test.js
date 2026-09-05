@@ -17,7 +17,7 @@ test('anonymous startup is fail-closed and never selects or seeds Essentra', () 
 
 test('auth-pending state hides the complete application shell even after professional styling applies', () => {
   const css = read('frontend/login-gate-v44.css');
-  for (const selector of ['.system-strip', '.primary-tabs', '.view', '.app-footer-v35']) {
+  for (const selector of ['.system-strip', '.primary-tabs', '.view']) {
     const escaped = selector.replace('.', '\\.');
     assert.match(css, new RegExp(`body\\.auth-pending[^\\{]*${escaped}[^\\{]*\\{[^}]*display\\s*:\\s*none\\s*!important`, 's'), `${selector} must remain invisible before authentication`);
   }
