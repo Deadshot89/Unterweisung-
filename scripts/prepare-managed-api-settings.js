@@ -17,6 +17,12 @@ for (const name of ['AZURE_OPENAI_ENDPOINT','AZURE_OPENAI_API_KEY','AZURE_OPENAI
 }
 console.log('Document analysis settings complete: '+['AZURE_OPENAI_ENDPOINT','AZURE_OPENAI_API_KEY','AZURE_OPENAI_DEPLOYMENT'].every(name=>!!settings[name]));
 
+const graphNames = ['GRAPH_TENANT_ID','GRAPH_CLIENT_ID','GRAPH_CLIENT_SECRET','MAIL_FROM'];
+for (const name of graphNames) {
+  if(process.env[name]?.trim()) settings[name]=process.env[name].trim();
+}
+console.log('Graph mail settings complete: '+graphNames.every(name=>!!settings[name]));
+
 const directSessionSecret=String(process.env.AUTH_SESSION_SECRET||'').trim();
 if(directSessionSecret){
   if(directSessionSecret.length<32) throw new Error('AUTH_SESSION_SECRET must contain at least 32 characters.');
