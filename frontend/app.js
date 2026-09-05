@@ -426,7 +426,7 @@ function renderSecurity(){
 }
 document.getElementById('companySwitchAction')?.addEventListener('click', leaveCompanyContext);
 renderAuthenticationRequired();
-loadData();
+if(!UMAuthLogin.hasPasswordSetupToken()) loadData();
 
 
 // Betrieb / Backup / Monitoring v0.8
