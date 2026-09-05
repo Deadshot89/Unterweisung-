@@ -1,0 +1,85 @@
+name: One-time company list benchmark
+
+on:
+  push:
+    branches:
+      - auth-login-diagnostic
+    paths:
+      - ".github/workflows/auth-company-query-benchmark.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: npm install --omit=dev
+      - name: Execute optimized production query against Azure SQL
+        env:
+          SQL_CONNECTION_STRING: ${{ secrets.SQL_CONNECTION_STRING }}
+        run: |
+          node --input-type=module <<'NODE'
+          import sql from 'mssql';
+          const connectionString=String(process.env.SQL_CONNECTION_STRING||'').trim();
+          if(!connectionString) throw new Error('SQL_CONNECTION_STRING is unavailable');
+          const pool=await sql.connect(connectionString);
+          try{
+            const started=Date.now();
+            const result=await pool.request().query(`WITH userStats AS (
+              SELECT companyId,
+                     COUNT(*) AS userCount,
+                     SUM(CASE WHEN active=1 AND role='company_admin' THEN 1 ELSE 0 END) AS companyAdminCount
+              FROM Users
+              GROUP BY companyId
+            ), employeeStats AS (
+              SELECT companyId, COUNT(*) AS employeeCount
+              FROM Employees
+              WHERE active=1
+              GROUP BY companyId
+            ), templateStats AS (
+              SELECT companyId, COUNT(*) AS templateCount
+              FROM Templates
+              WHERE active=1
+              GROUP BY companyId
+            ), instructionTypeStats AS (
+              SELECT companyId, COUNT(*) AS instructionTypeCount
+              FROM InstructionTypes
+              WHERE active=1
+              GROUP BY companyId
+            ), questionStats AS (
+              SELECT companyId, COUNT(*) AS testQuestionCount
+              FROM TestQuestions
+              WHERE active=1
+              GROUP BY companyId
+            )
+            SELECT c.id,c.name,c.legalName,c.addressLine,c.defaultLanguage,c.active,c.createdAt,c.updatedAt,
+                   cs.mailMode,cs.mailFromName,cs.mailFromEmail,cs.replyToEmail,
+                   COALESCE(us.userCount,0) AS userCount,
+                   COALESCE(us.companyAdminCount,0) AS companyAdminCount,
+                   COALESCE(es.employeeCount,0) AS employeeCount,
+                   COALESCE(ts.templateCount,0) AS templateCount,
+                   COALESCE(its.instructionTypeCount,0) AS instructionTypeCount,
+                   COALESCE(qs.testQuestionCount,0) AS testQuestionCount
+            FROM Companies c
+            LEFT JOIN CompanySettings cs ON cs.companyId=c.id
+            LEFT JOIN userStats us ON us.companyId=c.id
+            LEFT JOIN employeeStats es ON es.companyId=c.id
+            LEFT JOIN templateStats ts ON ts.companyId=c.id
+            LEFT JOIN instructionTypeStats its ON its.companyId=c.id
+            LEFT JOIN questionStats qs ON qs.companyId=c.id
+            ORDER BY c.createdAt DESC,c.name`);
+            const elapsedMs=Date.now()-started;
+            console.log(JSON.stringify({elapsedMs,companyCount:result.recordset.length,companies:result.recordset.map(r=>({id:r.id,userCount:r.userCount,employeeCount:r.employeeCount,templateCount:r.templateCount,instructionTypeCount:r.instructionTypeCount,testQuestionCount:r.testQuestionCount}))}));
+            if(result.recordset.length<2) throw new Error('Expected active production companies are missing');
+            if(elapsedMs>=5000) throw new Error(`Optimized query still too slow: ${elapsedMs}ms`);
+          }finally{await pool.close();}
+          NODE
