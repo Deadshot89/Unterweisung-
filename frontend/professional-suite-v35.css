@@ -45,7 +45,7 @@ body.app-shell-v35 .system-strip{
 
 body.app-shell-v35 .primary-tabs.pro-navigation{
   grid-column:1;
-  grid-row:2 / span 30;
+  grid-row:2;
   position:sticky;
   top:94px;
   display:flex;
@@ -199,38 +199,6 @@ body.app-shell-v35 .btn.primary{
   box-shadow:0 10px 22px rgba(15,111,143,.18);
 }
 
-body.app-shell-v35 .app-footer-v35{
-  grid-column:1 / -1;
-  display:flex;
-  justify-content:space-between;
-  gap:12px;
-  flex-wrap:wrap;
-  color:#98a2b3;
-  font-size:12px;
-  padding:8px 4px 0;
-}
-
-body.app-shell-v35 .suite-chip{
-  display:inline-flex;
-  align-items:center;
-  gap:7px;
-  border:1px solid var(--suite-line);
-  border-radius:999px;
-  background:#fff;
-  padding:6px 9px;
-  color:#475467;
-  font-weight:800;
-}
-
-body.app-shell-v35 .suite-chip::before{
-  content:'';
-  width:8px;
-  height:8px;
-  border-radius:50%;
-  background:#17b26a;
-  box-shadow:0 0 0 3px #dcfae6;
-}
-
 /* Bounded participant selector; do not inherit full-width form input styling. */
 #planning .planning-participants{min-width:0}
 #planning .participant-toolbar{display:flex;align-items:end;gap:12px;flex-wrap:wrap;margin-bottom:10px}
@@ -314,8 +282,5 @@ body.app-shell-v35 .suite-chip::before{
   }
   body.app-shell-v35 .professional-table-wrap{
     max-height:none;
-  }
-  body.app-shell-v35 .app-footer-v35{
-    display:none;
   }
 }
