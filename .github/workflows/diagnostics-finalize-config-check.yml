@@ -1,0 +1,40 @@
+name: Diagnose Mail-Konfiguration prüfen
+
+on:
+  push:
+    branches:
+      - diagnostics-finalize-config
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Vorhandene Function-App-Mailkonfiguration prüfen
+        env:
+          FUNCTION_PUBLISH_PROFILE: ${{ secrets.AZURE_FUNCTIONAPP_PUBLISH_PROFILE }}
+        run: |
+          node --input-type=module <<'NODE'
+          const xml = process.env.FUNCTION_PUBLISH_PROFILE || '';
+          if (!xml) throw new Error('Function-Publish-Profil fehlt.');
+          const attr = (name) => {
+            const m = xml.match(new RegExp(`${name}="([^"]*)"`, 'i'));
+            return m?.[1] || '';
+          };
+          const user = attr('userName');
+          const password = attr('userPWD');
+          const publishUrl = attr('publishUrl').replace(/^https?:\/\//i, '');
+          if (!user || !password || !publishUrl) throw new Error('Publish-Profil konnte nicht sicher ausgewertet werden.');
+          const url = `https://${publishUrl.replace(/\/$/, '')}/api/settings`;
+          const response = await fetch(url, {
+            headers: { authorization: `Basic ${Buffer.from(`${user}:${password}`).toString('base64')}` },
+            signal: AbortSignal.timeout(30000)
+          });
+          if (!response.ok) throw new Error(`Kudu App-Settings konnten nicht gelesen werden (HTTP ${response.status}).`);
+          const settings = await response.json();
+          const keys = ['GRAPH_TENANT_ID','GRAPH_CLIENT_ID','GRAPH_CLIENT_SECRET','MAIL_FROM'];
+          for (const key of keys) console.log(`${key}: ${settings[key] ? 'vorhanden' : 'nicht vorhanden'}`);
+          console.log(`GRAPH_MAIL_COMPLETE: ${keys.every(key => !!settings[key]) ? 'ja' : 'nein'}`);
+          NODE
