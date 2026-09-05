@@ -6,7 +6,7 @@ on:
       - fix-diagnostics-mail-readiness-state
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   check:
@@ -16,6 +16,128 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+
+      - name: Bereitschaftsstatus minimal korrigieren
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          api_path = Path('api/src/functions/diagnostics.js')
+          api = api_path.read_text(encoding='utf-8')
+          old = """function alertRuntimeStatus() {
+            const mail = mailConfigStatus();
+            let pushConfigured = true;
+            try {
+              getVapidPublicKey();
+            } catch {
+              pushConfigured = false;
+            }
+            return {
+              emailConfigured: !!mail.configured,
+              emailProvider: mail.provider || 'microsoft-graph',
+              emailMissing: Array.isArray(mail.missing) ? mail.missing : [],
+              pushConfigured,
+              pushProvider: 'web-push'
+            };
+          }
+          """
+          new = """function alertRuntimeStatus() {
+            const mail = mailConfigStatus();
+            let pushConfigured = true;
+            try {
+              getVapidPublicKey();
+            } catch {
+              pushConfigured = false;
+            }
+            return {
+              emailConfigured: !!mail.configured,
+              emailProvider: mail.provider || 'microsoft-graph',
+              emailMissing: Array.isArray(mail.missing) ? mail.missing : [],
+              pushConfigured,
+              pushProvider: 'web-push'
+            };
+          }
+
+          async function emailDeliveryStatus(pool) {
+            const result = await pool.request().query(`
+              SELECT TOP 20 alertResultJson,alertedAt
+              FROM DiagnosticEvents
+              WHERE alertResultJson IS NOT NULL
+                AND alertedAt IS NOT NULL
+              ORDER BY alertedAt DESC,id DESC`);
+            for (const row of result.recordset) {
+              try {
+                const alertResult = JSON.parse(row.alertResultJson);
+                if (typeof alertResult?.email?.sent === 'boolean') {
+                  return {
+                    deliveryVerified: alertResult.email.sent,
+                    lastDeliveryAttemptAt: row.alertedAt || null
+                  };
+                }
+              } catch {
+                // Ungültige Altwerte überspringen; keine Diagnosedetails nach außen geben.
+              }
+            }
+            return { deliveryVerified: null, lastDeliveryAttemptAt: null };
+          }
+          """
+          if old not in api:
+              raise SystemExit('API-Anker alertRuntimeStatus nicht gefunden')
+          api = api.replace(old, new, 1)
+
+          old = """      const row = counts.recordset[0] || {};
+                const alertStatus = alertRuntimeStatus();
+                return json({
+          """
+          new = """      const row = counts.recordset[0] || {};
+                const alertStatus = alertRuntimeStatus();
+                const emailDelivery = await emailDeliveryStatus(pool);
+                const emailReady = !!alertStatus.emailConfigured && emailDelivery.deliveryVerified === true;
+                return json({
+          """
+          if old not in api:
+              raise SystemExit('API-Anker Statusaufbau nicht gefunden')
+          api = api.replace(old, new, 1)
+
+          old = """          email: {
+                    configured: alertStatus.emailConfigured,
+                    provider: alertStatus.emailProvider,
+                    missing: alertStatus.emailMissing
+                  },
+          """
+          new = """          email: {
+                    configured: alertStatus.emailConfigured,
+                    deliveryVerified: emailDelivery.deliveryVerified,
+                    ready: emailReady,
+                    lastDeliveryAttemptAt: emailDelivery.lastDeliveryAttemptAt,
+                    provider: alertStatus.emailProvider,
+                    missing: alertStatus.emailMissing
+                  },
+          """
+          if old not in api:
+              raise SystemExit('API-Anker E-Mail-Status nicht gefunden')
+          api = api.replace(old, new, 1)
+          api_path.write_text(api, encoding='utf-8')
+
+          app_path = Path('frontend/diagnostics-app.js')
+          app = app_path.read_text(encoding='utf-8')
+          old = """    $('statusEmail').textContent = status?.alerts?.email?.configured ? 'BEREIT' : 'NICHT BEREIT';
+          """
+          new = """    const emailStatus = status?.alerts?.email;
+              $('statusEmail').textContent = emailStatus?.ready
+                ? 'BEREIT'
+                : emailStatus?.deliveryVerified === false
+                  ? 'NICHT BEREIT · LETZTER VERSAND FEHLGESCHLAGEN'
+                  : emailStatus?.configured
+                    ? 'NICHT BEREIT · VERSAND NICHT BESTÄTIGT'
+                    : 'NICHT BEREIT';
+          """
+          if old not in app:
+              raise SystemExit('Frontend-Anker E-Mail-Status nicht gefunden')
+          app = app.replace(old, new, 1)
+          app_path.write_text(app, encoding='utf-8')
+          PY
+
       - name: Abhängigkeiten installieren
         run: npm install
       - name: API-Abhängigkeiten installieren
@@ -23,3 +145,12 @@ jobs:
         run: npm install --omit=dev
       - name: Vollständige Testsuite
         run: npm test
+
+      - name: Geprüfte Produktänderung committen
+        run: |
+          git config user.name "Deadshot89"
+          git config user.email "86518220+Deadshot89@users.noreply.github.com"
+          git add api/src/functions/diagnostics.js frontend/diagnostics-app.js
+          git diff --cached --quiet && exit 0
+          git commit -m "fix: E-Mail-Bereitschaft erst nach Zustellung melden"
+          git push origin HEAD:fix-diagnostics-mail-readiness-state
