@@ -74,6 +74,55 @@ jobs:
           echo "AZURE_TENANT_ID repository variable present: $AZURE_TENANT_ID_VAR_PRESENT"
           echo "AZURE_SUBSCRIPTION_ID repository variable present: $AZURE_SUBSCRIPTION_ID_VAR_PRESENT"
 
+      - name: Load Graph mail settings securely
+        if: github.event_name == 'push'
+        env:
+          FUNCTION_PUBLISH_PROFILE: ${{ secrets.AZURE_FUNCTIONAPP_PUBLISH_PROFILE }}
+          GRAPH_TENANT_ID: ${{ secrets.GRAPH_TENANT_ID || vars.GRAPH_TENANT_ID }}
+          GRAPH_CLIENT_ID: ${{ secrets.GRAPH_CLIENT_ID || vars.GRAPH_CLIENT_ID }}
+          GRAPH_CLIENT_SECRET: ${{ secrets.GRAPH_CLIENT_SECRET }}
+          MAIL_FROM: ${{ secrets.MAIL_FROM || vars.MAIL_FROM }}
+        run: |
+          node --input-type=module <<'NODE'
+          import { appendFileSync } from 'node:fs';
+
+          const keys = ['GRAPH_TENANT_ID','GRAPH_CLIENT_ID','GRAPH_CLIENT_SECRET','MAIL_FROM'];
+          const settings = Object.fromEntries(keys.map(key => [key, String(process.env[key] || '')]));
+          const complete = () => keys.every(key => !!settings[key]);
+
+          if (!complete()) {
+            const xml = String(process.env.FUNCTION_PUBLISH_PROFILE || '');
+            if (!xml) throw new Error('Graph-Mail ist unvollständig und das Function-Publish-Profil fehlt.');
+            const attr = (name) => {
+              const match = xml.match(new RegExp(`${name}="([^"]*)"`, 'i'));
+              return match?.[1] || '';
+            };
+            const user = attr('userName');
+            const password = attr('userPWD');
+            const publishUrl = attr('publishUrl').replace(/^https?:\/\//i, '').replace(/\/$/, '');
+            if (!user || !password || !publishUrl) throw new Error('Function-Publish-Profil konnte nicht ausgewertet werden.');
+
+            const response = await fetch(`https://${publishUrl}/api/settings`, {
+              headers: { authorization: `Basic ${Buffer.from(`${user}:${password}`).toString('base64')}` },
+              signal: AbortSignal.timeout(30000)
+            });
+            if (!response.ok) throw new Error(`Vorhandene Azure-App-Einstellungen konnten nicht geladen werden (HTTP ${response.status}).`);
+            const azureSettings = await response.json();
+            for (const key of keys) {
+              if (!settings[key]) settings[key] = String(azureSettings[key] || '');
+            }
+          }
+
+          if (!complete()) throw new Error('Microsoft-Graph-Mailkonfiguration ist weiterhin unvollständig.');
+          for (const key of keys) {
+            const value = settings[key];
+            if (/\r|\n/.test(value)) throw new Error(`Ungültige mehrzeilige Konfiguration für ${key}.`);
+            console.log(`::add-mask::${value}`);
+            appendFileSync(process.env.GITHUB_ENV, `${key}=${value}\n`, 'utf8');
+          }
+          console.log('GRAPH_MAIL_COMPLETE: ja');
+          NODE
+
       - name: Prepare managed API runtime settings
         env:
           SQL_CONNECTION_STRING: ${{ secrets.SQL_CONNECTION_STRING }}
@@ -84,10 +133,6 @@ jobs:
           AZURE_OPENAI_ENDPOINT: ${{ secrets.AZURE_OPENAI_ENDPOINT || vars.AZURE_OPENAI_ENDPOINT || 'https://aoai-unterweisungsmanager-dev.openai.azure.com/' }}
           AZURE_OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
           AZURE_OPENAI_DEPLOYMENT: ${{ secrets.AZURE_OPENAI_DEPLOYMENT || vars.AZURE_OPENAI_DEPLOYMENT || 'gpt-5.4-mini' }}
-          GRAPH_TENANT_ID: ${{ secrets.GRAPH_TENANT_ID || vars.GRAPH_TENANT_ID }}
-          GRAPH_CLIENT_ID: ${{ secrets.GRAPH_CLIENT_ID || vars.GRAPH_CLIENT_ID }}
-          GRAPH_CLIENT_SECRET: ${{ secrets.GRAPH_CLIENT_SECRET }}
-          MAIL_FROM: ${{ secrets.MAIL_FROM || vars.MAIL_FROM }}
         run: node scripts/prepare-managed-api-settings.js
 
       - name: Build And Deploy
