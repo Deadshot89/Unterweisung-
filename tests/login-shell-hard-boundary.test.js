@@ -17,7 +17,7 @@ test('authenticated workspace is physically hidden in HTML until login and compa
 test('startup renders the login shell immediately before checking the existing session',()=>{
   const app=read('frontend/app.js');
   const renderAt=app.lastIndexOf('\nrenderAuthenticationRequired();');
-  const loadAt=app.lastIndexOf('\nloadData();');
+  const loadAt=app.lastIndexOf('loadData();');
   assert.ok(renderAt>=0,'startup must render the login shell');
   assert.ok(loadAt>=0,'startup must still check the existing session');
   assert.ok(renderAt<loadAt,'login shell must render before the initial session check');
