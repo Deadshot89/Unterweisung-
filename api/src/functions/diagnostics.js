@@ -269,6 +269,67 @@ app.http('diagnosticPushConfig', {
   }
 });
 
+app.http('diagnosticPushDevices', {
+  methods: ['GET'],
+  authLevel: 'anonymous',
+  route: 'diagnostics/push/devices',
+  handler: async (request, context) => {
+    try {
+      const ctx = await getAuthorizedContext(request);
+      assertRole(ctx, [Roles.SYSTEM_ADMIN]);
+      const pool = await getPool();
+      const result = await pool.request()
+        .input('userId', sql.NVarChar(120), ctx.userId)
+        .query(`SELECT id,deviceName,deviceLabel,createdAt,updatedAt,lastSuccessAt,lastErrorAt,lastError
+                FROM PushSubscriptions
+                WHERE userId=@userId
+                ORDER BY updatedAt DESC`);
+      return json({ devices: result.recordset });
+    } catch (err) {
+      return serverError(err, context);
+    }
+  }
+});
+
+app.http('diagnosticPushDevice', {
+  methods: ['PATCH','DELETE'],
+  authLevel: 'anonymous',
+  route: 'diagnostics/push/devices/{id}',
+  handler: async (request, context) => {
+    try {
+      const ctx = await getAuthorizedContext(request);
+      assertRole(ctx, [Roles.SYSTEM_ADMIN]);
+      const id = clean(request.params?.id, 80);
+      if (!id) return badRequest('Geräte-ID fehlt.');
+      const pool = await getPool();
+
+      if (request.method === 'DELETE') {
+        const removed = await pool.request()
+          .input('id', sql.NVarChar(80), id)
+          .input('userId', sql.NVarChar(120), ctx.userId)
+          .query('DELETE FROM PushSubscriptions OUTPUT DELETED.id WHERE id=@id AND userId=@userId');
+        if (!removed.recordset.length) return json({ error: 'Gerät nicht gefunden.' }, 404);
+        return json({ ok: true, removed: true, id });
+      }
+
+      const input = await request.json().catch(() => ({}));
+      const deviceName = clean(input.deviceName, 120);
+      const updated = await pool.request()
+        .input('id', sql.NVarChar(80), id)
+        .input('userId', sql.NVarChar(120), ctx.userId)
+        .input('deviceName', sql.NVarChar(120), deviceName)
+        .query(`UPDATE PushSubscriptions
+                SET deviceName=@deviceName,updatedAt=SYSUTCDATETIME()
+                OUTPUT INSERTED.id,INSERTED.deviceName,INSERTED.deviceLabel,INSERTED.createdAt,INSERTED.updatedAt,INSERTED.lastSuccessAt,INSERTED.lastErrorAt,INSERTED.lastError
+                WHERE id=@id AND userId=@userId`);
+      if (!updated.recordset.length) return json({ error: 'Gerät nicht gefunden.' }, 404);
+      return json({ ok: true, device: updated.recordset[0] });
+    } catch (err) {
+      return serverError(err, context);
+    }
+  }
+});
+
 app.http('diagnosticPushSubscriptions', {
   methods: ['POST','DELETE'],
   authLevel: 'anonymous',
@@ -292,18 +353,34 @@ app.http('diagnosticPushSubscriptions', {
       }
 
       const id = `push-${randomUUID()}`;
-      await pool.request()
+      const deviceLabel = clean(input.deviceLabel, 160) || 'Unbekanntes Gerät';
+      const deviceName = clean(input.deviceName, 120);
+      const userAgent = clean(request.headers.get('user-agent'), 1000);
+      const savedResult = await pool.request()
         .input('id', sql.NVarChar(80), id)
         .input('userId', sql.NVarChar(120), ctx.userId)
         .input('endpoint', sql.NVarChar(2048), endpoint)
         .input('endpointHash', sql.NVarChar(128), hash)
+        .input('deviceLabel', sql.NVarChar(160), deviceLabel)
+        .input('deviceName', sql.NVarChar(120), deviceName)
+        .input('userAgent', sql.NVarChar(1000), userAgent)
         .query(`MERGE PushSubscriptions AS target
                 USING (SELECT @endpointHash AS endpointHash) AS source
                 ON target.endpointHash=source.endpointHash
-                WHEN MATCHED THEN UPDATE SET userId=@userId,endpoint=@endpoint,updatedAt=SYSUTCDATETIME(),lastError=NULL,lastErrorAt=NULL
-                WHEN NOT MATCHED THEN INSERT(id,userId,endpoint,endpointHash)
-                VALUES(@id,@userId,@endpoint,@endpointHash);`);
-      return json({ ok: true, active: true });
+                WHEN MATCHED THEN UPDATE SET
+                  userId=@userId,
+                  endpoint=@endpoint,
+                  deviceLabel=@deviceLabel,
+                  deviceName=COALESCE(@deviceName,target.deviceName),
+                  userAgent=@userAgent,
+                  updatedAt=SYSUTCDATETIME(),
+                  lastError=NULL,
+                  lastErrorAt=NULL
+                WHEN NOT MATCHED THEN INSERT(id,userId,endpoint,endpointHash,deviceLabel,deviceName,userAgent)
+                VALUES(@id,@userId,@endpoint,@endpointHash,@deviceLabel,@deviceName,@userAgent)
+                OUTPUT inserted.id;`);
+      const saved = savedResult.recordset[0] || { id };
+      return json({ ok: true, active: true, deviceId: saved.id });
     } catch (err) {
       return serverError(err, context);
     }
