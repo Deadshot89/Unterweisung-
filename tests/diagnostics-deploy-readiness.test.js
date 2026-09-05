@@ -7,6 +7,14 @@ const functionsWorkflow = fs.readFileSync('.github/workflows/azure-functions-api
 const migrationRunner = fs.readFileSync('scripts/apply-migrations.js', 'utf8');
 const diagnosticsMigration = fs.readFileSync('database/migrations/011_diagnostics_pwa.sql', 'utf8');
 
+function migrationStep(workflow) {
+  const start = workflow.indexOf('- name: Run database migrations');
+  assert.ok(start >= 0, 'Migration step is missing');
+  const rest = workflow.slice(start + 1);
+  const nextStepOffset = rest.indexOf('\n      - name: ');
+  return nextStepOffset >= 0 ? workflow.slice(start, start + 1 + nextStepOffset) : workflow.slice(start);
+}
+
 function assertMigrationBeforeDeploy(workflow, deployStepName) {
   const migrationIndex = workflow.indexOf('name: Run database migrations');
   const deployIndex = workflow.indexOf(`name: ${deployStepName}`);
@@ -26,6 +34,11 @@ test('diagnostics schema migration is idempotent and contains all required table
 
 test('static web app production deployment migrates schema before publishing', () => {
   assertMigrationBeforeDeploy(staticWorkflow, 'Build And Deploy');
+});
+
+test('static web app preview deployments can never migrate the production database', () => {
+  const step = migrationStep(staticWorkflow);
+  assert.match(step, /if:\s*github\.event_name\s*==\s*'push'/);
 });
 
 test('standalone functions production deployment migrates schema before publishing', () => {
