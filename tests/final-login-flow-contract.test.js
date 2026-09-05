@@ -18,7 +18,8 @@ test('production login shows only email and password while Microsoft login is di
 
 test('login keeps external instructions independent and setup links on the same page', () => {
   assert.match(login, /Externe Unterweisungen/);
-  assert.match(login, /#passwordSetup=/);
+  assert.match(login, /params\.get\('passwordSetup'\)/);
+  assert.doesNotMatch(login, /\?passwordSetup=/);
   assert.match(login, /Passwort festlegen/);
   assert.match(login, /\/api\/auth\/password\/setup/);
   assert.match(login, /history\.replaceState/);
