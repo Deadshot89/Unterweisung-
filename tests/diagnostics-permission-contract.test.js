@@ -18,7 +18,8 @@ test('diagnostics permission is explicit and system-admin managed', () => {
   assert.match(me, /permissions/);
   assert.match(users, /diagnosticsView/);
   assert.match(permissionApi, /Roles\.SYSTEM_ADMIN/);
-  assert.match(permissionApi, /permissionKey[^\n]*diagnostics\.view|diagnostics\.view[^\n]*permissionKey/i);
+  assert.match(permissionApi, /DIAGNOSTICS_VIEW_PERMISSION/);
+  assert.match(permissionApi, /permissionKey/);
 });
 
 test('delegated diagnostics permission remains company-scoped', () => {
