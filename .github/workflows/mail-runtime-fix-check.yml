@@ -16,5 +16,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Diagnose-Mail-Runtime-Test
-        run: node --test tests/diagnostics-alert-readiness.test.js
+      - name: Abhängigkeiten installieren
+        run: npm install
+      - name: API-Abhängigkeiten installieren
+        working-directory: api
+        run: npm install --omit=dev
+      - name: Vollständige Testsuite
+        run: npm test
