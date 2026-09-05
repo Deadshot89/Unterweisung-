@@ -41,6 +41,19 @@ test('static web app preview deployments can never migrate the production databa
   assert.match(step, /if:\s*github\.event_name\s*==\s*'push'/);
 });
 
+test('static web app verifies every diagnostics PWA asset after publishing', () => {
+  const buildIndex = staticWorkflow.indexOf('name: Build And Deploy');
+  const verifyIndex = staticWorkflow.indexOf('name: Verify deployed diagnostics PWA');
+  assert.ok(buildIndex >= 0, 'Build step is missing');
+  assert.ok(verifyIndex > buildIndex, 'Diagnostics PWA verification must run after deployment');
+  assert.match(staticWorkflow, /steps\.builddeploy\.outputs\.static_web_app_url\s*!=\s*''/);
+  for (const asset of ['/diagnostics.html','/diagnostics-app.js','/diagnostics-sw.js','/diagnostics.webmanifest']) {
+    assert.ok(staticWorkflow.includes(asset), `Post-deploy verification is missing ${asset}`);
+  }
+  assert.match(staticWorkflow, /assert\.equal\(response\.status,\s*200/);
+  assert.match(staticWorkflow, /readFileSync\(`frontend\$\{path\}`/);
+});
+
 test('standalone functions production deployment migrates schema before publishing', () => {
   assertMigrationBeforeDeploy(functionsWorkflow, 'Deploy to Azure Functions');
   assert.match(functionsWorkflow, /Install root runtime dependencies/);
