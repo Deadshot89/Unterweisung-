@@ -95,6 +95,8 @@
   function renderStatus(status) {
     $('statusApi').textContent = String(status?.api || '—').toUpperCase();
     $('statusDatabase').textContent = String(status?.database || '—').toUpperCase();
+    $('statusEmail').textContent = status?.alerts?.email?.configured ? 'BEREIT' : 'NICHT BEREIT';
+    $('statusPush').textContent = status?.alerts?.push?.configured ? 'BEREIT' : 'NICHT BEREIT';
     $('countCritical').textContent = String(status?.counts?.critical ?? 0);
     $('countWarning').textContent = String(status?.counts?.warning ?? 0);
     $('countInfo').textContent = String(status?.counts?.info ?? 0);
