@@ -26,11 +26,12 @@ assert(script.includes('scheduleProfessionalSuite'), 'Gebündelte Design-Ausfüh
 assert(script.includes('professionalSuiteScheduled'), 'Schutz gegen mehrfaches Planen fehlt.');
 assert(script.includes('professionalSuiteApplying'), 'Schutz gegen parallele Ausführung fehlt.');
 assert(script.includes('updateNavigationGroups'), 'Navigation wird nicht gruppiert.');
-assert(script.includes('ensureProfessionalFooter'), 'Footer/Standanzeige fehlt.');
+assert(!script.includes('ensureProfessionalFooter'), 'Der redundante Footer darf nicht mehr erzeugt werden.');
+assert(!script.includes('appFooterV35'), 'Der alte Footer-Knoten darf nicht mehr existieren.');
 assert(script.includes('app-shell-v35'), 'App-Shell-Klasse fehlt.');
 assert(script.includes('pro-shell-grid'), 'Shell-Grid-Klasse fehlt.');
 assert(!script.includes('Essentra Arbeitsstand'), 'Zentraler Footer darf keine Essentra-Firma fest verdrahten.');
-assert(script.includes('Unterweisungsmanager · Arbeitsbereich'), 'Footer braucht eine neutrale zentrale Bezeichnung.');
+assert(!script.includes('Unterweisungsmanager · Arbeitsbereich'), 'Unterer redundanter Arbeitsbereich-Footer muss entfernt sein.');
 assert(!script.includes('new MutationObserver'), 'Major-Design-Script darf keinen Body-MutationObserver mehr nutzen.');
 assert(script.includes('setView = function'), 'setView Hook fehlt.');
 assert(script.includes('render = function'), 'render Hook fehlt.');
@@ -42,8 +43,9 @@ assert(css.includes('grid-template-columns:272px minmax(0,1fr)'), 'Desktop-Arbei
 assert(css.includes('.primary-tabs.pro-navigation'), 'Professionelle Navigation fehlt.');
 assert(css.includes('.nav-group-title'), 'Navigationsgruppen-CSS fehlt.');
 assert(css.includes('Arbeitsbereiche'), 'Navigationsueberschrift fehlt.');
-assert(css.includes('.app-footer-v35'), 'Footer CSS fehlt.');
-assert(css.includes('.suite-chip'), 'Suite-Statuschip fehlt.');
+assert(!/grid-row\s*:\s*2\s*\/\s*span\s*30/.test(css), 'Navigation darf keine 30 leeren Grid-Zeilen reservieren.');
+assert(!css.includes('.app-footer-v35'), 'Footer CSS muss entfernt sein.');
+assert(!css.includes('.suite-chip'), 'Unterer Statuschip muss entfernt sein.');
 assert(css.includes('@media(max-width:1180px)'), 'Tablet/mobile Umschaltung fehlt.');
 assert(css.includes('@media(max-width:720px)'), 'Mobile Feinabstimmung fehlt.');
 assert(!css.includes('localhost'), 'Kein localhost-Hinweis im Design-CSS.');
