@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Unterweisungsmanager Fehlerdiagnose">
+  <rect width="512" height="512" rx="112" fill="#132238"/>
+  <rect x="84" y="84" width="344" height="344" rx="76" fill="#ffffff"/>
+  <path d="M256 134c66 0 120 54 120 120s-54 120-120 120-120-54-120-120 54-120 120-120Z" fill="#eef4ff"/>
+  <path d="M256 174v104" stroke="#132238" stroke-width="34" stroke-linecap="round"/>
+  <circle cx="256" cy="326" r="21" fill="#b42318"/>
+  <path d="M177 381h158" stroke="#2563eb" stroke-width="24" stroke-linecap="round"/>
+</svg>
