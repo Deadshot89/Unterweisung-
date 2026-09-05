@@ -1,0 +1,47 @@
+name: Live Login Boundary Check Once
+
+on:
+  push:
+    branches:
+      - verify-live-login-boundary
+    paths:
+      - .github/workflows/live-login-boundary-check-once.yml
+
+permissions:
+  contents: read
+
+jobs:
+  verify-live:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify production login boundary
+        run: |
+          set -euo pipefail
+          BASE='https://delightful-sky-05dbf7603.7.azurestaticapps.net'
+          curl --fail --silent --show-error --location --retry 4 --retry-delay 2 "$BASE/" -o /tmp/index.html
+          curl --fail --silent --show-error --location --retry 4 --retry-delay 2 "$BASE/app.js" -o /tmp/app.js
+          curl --fail --silent --show-error --location --retry 4 --retry-delay 2 "$BASE/auth-login-v42.js" -o /tmp/auth-login.js
+          curl --fail --silent --show-error --location --retry 4 --retry-delay 2 "$BASE/login-gate-v44.css" -o /tmp/login.css
+
+          grep -E 'id="authenticatedApp"[^>]*hidden' /tmp/index.html
+          grep -F 'id="companySelectionGate"' /tmp/index.html
+          grep -F '#authenticatedApp[hidden]{display:none!important}' /tmp/login.css
+          grep -F "const authenticatedApp = \$('authenticatedApp');" /tmp/app.js
+          grep -F 'authenticatedApp.hidden = !visible;' /tmp/app.js
+
+          render_line="$(grep -n '^renderAuthenticationRequired();$' /tmp/app.js | tail -1 | cut -d: -f1)"
+          load_line="$(grep -n '^loadData();$' /tmp/app.js | tail -1 | cut -d: -f1)"
+          test -n "$render_line" && test -n "$load_line" && test "$render_line" -lt "$load_line"
+
+          grep -F 'Mit Microsoft anmelden' /tmp/auth-login.js
+          grep -F 'E-Mail und Passwort' /tmp/auth-login.js
+
+          status="$(curl --silent --show-error --output /tmp/me.txt --write-out '%{http_code}' --retry 4 --retry-delay 2 "$BASE/api/me" || true)"
+          echo "Anonymous /api/me HTTP status: $status"
+          cat /tmp/me.txt || true
+          case "$status" in
+            401|403) ;;
+            *) echo "Expected anonymous /api/me to reject with 401/403, got $status" >&2; exit 1;;
+          esac
+
+          echo 'LIVE_LOGIN_BOUNDARY_OK'
