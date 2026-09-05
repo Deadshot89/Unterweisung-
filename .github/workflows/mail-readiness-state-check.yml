@@ -21,42 +21,13 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
+          import re
 
           api_path = Path('api/src/functions/diagnostics.js')
           api = api_path.read_text(encoding='utf-8')
-          old = """function alertRuntimeStatus() {
-            const mail = mailConfigStatus();
-            let pushConfigured = true;
-            try {
-              getVapidPublicKey();
-            } catch {
-              pushConfigured = false;
-            }
-            return {
-              emailConfigured: !!mail.configured,
-              emailProvider: mail.provider || 'microsoft-graph',
-              emailMissing: Array.isArray(mail.missing) ? mail.missing : [],
-              pushConfigured,
-              pushProvider: 'web-push'
-            };
-          }
-          """
-          new = """function alertRuntimeStatus() {
-            const mail = mailConfigStatus();
-            let pushConfigured = true;
-            try {
-              getVapidPublicKey();
-            } catch {
-              pushConfigured = false;
-            }
-            return {
-              emailConfigured: !!mail.configured,
-              emailProvider: mail.provider || 'microsoft-graph',
-              emailMissing: Array.isArray(mail.missing) ? mail.missing : [],
-              pushConfigured,
-              pushProvider: 'web-push'
-            };
-          }
+
+          marker = "\nfunction endpointHash(endpoint) {"
+          helper = """
 
           async function emailDeliveryStatus(pool) {
             const result = await pool.request().query(`
@@ -81,60 +52,65 @@ jobs:
             return { deliveryVerified: null, lastDeliveryAttemptAt: null };
           }
           """
-          if old not in api:
-              raise SystemExit('API-Anker alertRuntimeStatus nicht gefunden')
-          api = api.replace(old, new, 1)
+          if 'async function emailDeliveryStatus(pool)' not in api:
+              if marker not in api:
+                  raise SystemExit('API-Anker für Zustellstatus nicht gefunden')
+              api = api.replace(marker, helper + marker, 1)
 
           old = """      const row = counts.recordset[0] || {};
                 const alertStatus = alertRuntimeStatus();
                 return json({
           """
-          new = """      const row = counts.recordset[0] || {};
-                const alertStatus = alertRuntimeStatus();
-                const emailDelivery = await emailDeliveryStatus(pool);
-                const emailReady = !!alertStatus.emailConfigured && emailDelivery.deliveryVerified === true;
-                return json({
-          """
-          if old not in api:
-              raise SystemExit('API-Anker Statusaufbau nicht gefunden')
-          api = api.replace(old, new, 1)
+          # Normale Quelldatei verwendet sechs Leerzeichen weniger als der YAML-Block.
+          old_source = "      const row = counts.recordset[0] || {};\n      const alertStatus = alertRuntimeStatus();\n      return json({\n"
+          new_source = "      const row = counts.recordset[0] || {};\n      const alertStatus = alertRuntimeStatus();\n      const emailDelivery = await emailDeliveryStatus(pool);\n      const emailReady = !!alertStatus.emailConfigured && emailDelivery.deliveryVerified === true;\n      return json({\n"
+          if 'const emailDelivery = await emailDeliveryStatus(pool);' not in api:
+              if old_source not in api:
+                  raise SystemExit('API-Anker Statusaufbau nicht gefunden')
+              api = api.replace(old_source, new_source, 1)
 
-          old = """          email: {
-                    configured: alertStatus.emailConfigured,
-                    provider: alertStatus.emailProvider,
-                    missing: alertStatus.emailMissing
-                  },
-          """
-          new = """          email: {
-                    configured: alertStatus.emailConfigured,
-                    deliveryVerified: emailDelivery.deliveryVerified,
-                    ready: emailReady,
-                    lastDeliveryAttemptAt: emailDelivery.lastDeliveryAttemptAt,
-                    provider: alertStatus.emailProvider,
-                    missing: alertStatus.emailMissing
-                  },
-          """
-          if old not in api:
-              raise SystemExit('API-Anker E-Mail-Status nicht gefunden')
-          api = api.replace(old, new, 1)
+          pattern = re.compile(
+              r"(?P<i>\s*)email:\s*\{\s*\n"
+              r"(?P=i)\s{2}configured:\s*alertStatus\.emailConfigured,\s*\n"
+              r"(?P=i)\s{2}provider:\s*alertStatus\.emailProvider,\s*\n"
+              r"(?P=i)\s{2}missing:\s*alertStatus\.emailMissing\s*\n"
+              r"(?P=i)\}",
+              re.MULTILINE,
+          )
+          replacement = (
+              "          email: {\n"
+              "            configured: alertStatus.emailConfigured,\n"
+              "            deliveryVerified: emailDelivery.deliveryVerified,\n"
+              "            ready: emailReady,\n"
+              "            lastDeliveryAttemptAt: emailDelivery.lastDeliveryAttemptAt,\n"
+              "            provider: alertStatus.emailProvider,\n"
+              "            missing: alertStatus.emailMissing\n"
+              "          }"
+          )
+          if 'deliveryVerified: emailDelivery.deliveryVerified' not in api:
+              api, count = pattern.subn(replacement, api, count=1)
+              if count != 1:
+                  raise SystemExit(f'API-E-Mail-Statusblock nicht eindeutig gefunden: {count}')
+
           api_path.write_text(api, encoding='utf-8')
 
           app_path = Path('frontend/diagnostics-app.js')
           app = app_path.read_text(encoding='utf-8')
-          old = """    $('statusEmail').textContent = status?.alerts?.email?.configured ? 'BEREIT' : 'NICHT BEREIT';
-          """
-          new = """    const emailStatus = status?.alerts?.email;
+          old_line = "    $('statusEmail').textContent = status?.alerts?.email?.configured ? 'BEREIT' : 'NICHT BEREIT';"
+          new_block = """    const emailStatus = status?.alerts?.email;
               $('statusEmail').textContent = emailStatus?.ready
                 ? 'BEREIT'
                 : emailStatus?.deliveryVerified === false
                   ? 'NICHT BEREIT · LETZTER VERSAND FEHLGESCHLAGEN'
                   : emailStatus?.configured
                     ? 'NICHT BEREIT · VERSAND NICHT BESTÄTIGT'
-                    : 'NICHT BEREIT';
-          """
-          if old not in app:
-              raise SystemExit('Frontend-Anker E-Mail-Status nicht gefunden')
-          app = app.replace(old, new, 1)
+                    : 'NICHT BEREIT';"""
+          # dedent the workflow indentation from the intended JS source
+          new_block = '\n'.join(line[10:] if line.startswith('          ') else line for line in new_block.splitlines())
+          if 'const emailStatus = status?.alerts?.email;' not in app:
+              if old_line not in app:
+                  raise SystemExit('Frontend-Anker E-Mail-Status nicht gefunden')
+              app = app.replace(old_line, new_block, 1)
           app_path.write_text(app, encoding='utf-8')
           PY
 
