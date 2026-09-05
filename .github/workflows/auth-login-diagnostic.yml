@@ -1,0 +1,122 @@
+name: One-time operator password diagnostic
+
+on:
+  push:
+    branches:
+      - auth-login-diagnostic
+    paths:
+      - ".github/workflows/auth-login-diagnostic.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout diagnostic branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install database client
+        run: npm install --omit=dev
+
+      - name: Inspect operator authentication state without exposing secrets
+        env:
+          SQL_CONNECTION_STRING: ${{ secrets.SQL_CONNECTION_STRING }}
+        run: |
+          node --input-type=module <<'NODE'
+          import sql from 'mssql';
+
+          const email = 'unterweisungmanagment@outlook.de';
+          const connectionString = String(process.env.SQL_CONNECTION_STRING || '').trim();
+          if (!connectionString) throw new Error('SQL_CONNECTION_STRING is unavailable');
+
+          const pool = await sql.connect(connectionString);
+          try {
+            const users = await pool.request()
+              .input('email', sql.NVarChar(254), email)
+              .query(`SELECT id,companyId,email,displayName,role,active,provider,passwordHash,passwordSetAt,
+                             failedLoginCount,lockedUntil,sessionVersion,lastSeenAt,updatedAt
+                      FROM dbo.Users
+                      WHERE LOWER(email)=LOWER(@email)
+                      ORDER BY companyId,id`);
+
+            console.log(`operatorCount=${users.recordset.length}`);
+            for (const [index, row] of users.recordset.entries()) {
+              const hash = String(row.passwordHash || '');
+              const parts = hash ? hash.split('$') : [];
+              let saltBytes = null;
+              let derivedBytes = null;
+              if (parts.length === 6 && parts[0] === 'scrypt') {
+                try {
+                  saltBytes = Buffer.from(parts[4], 'base64url').length;
+                  derivedBytes = Buffer.from(parts[5], 'base64url').length;
+                } catch {}
+              }
+              const hashShapeValid = parts.length === 6 && parts[0] === 'scrypt' &&
+                Number.isInteger(Number(parts[1])) && Number.isInteger(Number(parts[2])) && Number.isInteger(Number(parts[3])) &&
+                saltBytes >= 16 && derivedBytes >= 32;
+              const lockedNow = !!row.lockedUntil && new Date(row.lockedUntil).getTime() > Date.now();
+              console.log(JSON.stringify({
+                record: index + 1,
+                id: row.id,
+                companyId: row.companyId,
+                role: row.role,
+                active: !!row.active,
+                provider: row.provider,
+                passwordHashPresent: !!row.passwordHash,
+                passwordSetAtPresent: !!row.passwordSetAt,
+                passwordSetAt: row.passwordSetAt || null,
+                hashScheme: parts[0] || null,
+                hashParts: parts.length,
+                hashN: parts.length === 6 ? Number(parts[1]) : null,
+                hashR: parts.length === 6 ? Number(parts[2]) : null,
+                hashP: parts.length === 6 ? Number(parts[3]) : null,
+                saltBytes,
+                derivedBytes,
+                hashShapeValid,
+                failedLoginCount: Number(row.failedLoginCount || 0),
+                lockedNow,
+                lockedUntil: row.lockedUntil || null,
+                sessionVersion: Number(row.sessionVersion || 0),
+                lastSeenAt: row.lastSeenAt || null,
+                updatedAt: row.updatedAt || null
+              }));
+            }
+
+            if (users.recordset.length === 1) {
+              const user = users.recordset[0];
+              const tokens = await pool.request()
+                .input('userId', sql.NVarChar(120), user.id)
+                .input('companyId', sql.NVarChar(80), user.companyId)
+                .query(`SELECT TOP 5 purpose,createdAt,expiresAt,usedAt
+                        FROM dbo.PasswordSetupTokens
+                        WHERE userId=@userId AND companyId=@companyId
+                        ORDER BY createdAt DESC`);
+              console.log('setupTokens=' + JSON.stringify(tokens.recordset));
+
+              const events = await pool.request()
+                .input('userId', sql.NVarChar(120), user.id)
+                .input('email', sql.NVarChar(254), email)
+                .query(`SELECT TOP 20 eventType,severity,createdAt,
+                               CASE WHEN actorUserId=@userId THEN CAST(1 AS BIT) ELSE CAST(0 AS BIT) END AS actorMatches
+                        FROM dbo.SecurityEvents
+                        WHERE createdAt >= DATEADD(DAY,-1,SYSUTCDATETIME())
+                          AND eventType LIKE 'auth.password.%'
+                          AND (actorUserId=@userId OR detailsJson LIKE '%' + @email + '%')
+                        ORDER BY createdAt DESC`);
+              console.log('passwordEvents=' + JSON.stringify(events.recordset));
+            }
+          } finally {
+            await pool.close();
+          }
+          NODE
