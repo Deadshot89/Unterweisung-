@@ -13,7 +13,7 @@ permissions:
 jobs:
   diagnose:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 8
     steps:
       - name: Checkout diagnostic branch
         uses: actions/checkout@v4
@@ -44,7 +44,7 @@ jobs:
           try {
             const users = await pool.request()
               .input('email', sql.NVarChar(254), email)
-              .query(`SELECT id,companyId,email,displayName,role,active,provider,passwordHash,passwordSetAt,
+              .query(`SELECT id,companyId,role,active,provider,passwordHash,passwordSetAt,
                              failedLoginCount,lockedUntil,sessionVersion,lastSeenAt,updatedAt
                       FROM dbo.Users
                       WHERE LOWER(email)=LOWER(@email)
@@ -75,7 +75,6 @@ jobs:
                 provider: row.provider,
                 passwordHashPresent: !!row.passwordHash,
                 passwordSetAtPresent: !!row.passwordSetAt,
-                passwordSetAt: row.passwordSetAt || null,
                 hashScheme: parts[0] || null,
                 hashParts: parts.length,
                 hashN: parts.length === 6 ? Number(parts[1]) : null,
@@ -86,7 +85,6 @@ jobs:
                 hashShapeValid,
                 failedLoginCount: Number(row.failedLoginCount || 0),
                 lockedNow,
-                lockedUntil: row.lockedUntil || null,
                 sessionVersion: Number(row.sessionVersion || 0),
                 lastSeenAt: row.lastSeenAt || null,
                 updatedAt: row.updatedAt || null
@@ -95,28 +93,43 @@ jobs:
 
             if (users.recordset.length === 1) {
               const user = users.recordset[0];
-              const tokens = await pool.request()
-                .input('userId', sql.NVarChar(120), user.id)
-                .input('companyId', sql.NVarChar(80), user.companyId)
-                .query(`SELECT TOP 5 purpose,createdAt,expiresAt,usedAt
-                        FROM dbo.PasswordSetupTokens
-                        WHERE userId=@userId AND companyId=@companyId
-                        ORDER BY createdAt DESC`);
-              console.log('setupTokens=' + JSON.stringify(tokens.recordset));
-
               const events = await pool.request()
                 .input('userId', sql.NVarChar(120), user.id)
                 .input('email', sql.NVarChar(254), email)
-                .query(`SELECT TOP 20 eventType,severity,createdAt,
+                .query(`SELECT TOP 30 eventType,severity,createdAt,
                                CASE WHEN actorUserId=@userId THEN CAST(1 AS BIT) ELSE CAST(0 AS BIT) END AS actorMatches
                         FROM dbo.SecurityEvents
                         WHERE createdAt >= DATEADD(DAY,-1,SYSUTCDATETIME())
-                          AND eventType LIKE 'auth.password.%'
                           AND (actorUserId=@userId OR detailsJson LIKE '%' + @email + '%')
                         ORDER BY createdAt DESC`);
-              console.log('passwordEvents=' + JSON.stringify(events.recordset));
+              console.log('authEvents=' + JSON.stringify(events.recordset));
             }
           } finally {
             await pool.close();
           }
+          NODE
+
+      - name: Measure company-list join cardinality
+        env:
+          SQL_CONNECTION_STRING: ${{ secrets.SQL_CONNECTION_STRING }}
+        run: |
+          node --input-type=module <<'NODE'
+          import sql from 'mssql';
+          const connectionString = String(process.env.SQL_CONNECTION_STRING || '').trim();
+          if (!connectionString) throw new Error('SQL_CONNECTION_STRING is unavailable');
+          const pool = await sql.connect(connectionString);
+          try {
+            const result = await pool.request().query(`SELECT c.id,
+              (SELECT COUNT(*) FROM dbo.Users u WHERE u.companyId=c.id) AS users,
+              (SELECT COUNT(*) FROM dbo.Employees e WHERE e.companyId=c.id AND e.active=1) AS employees,
+              (SELECT COUNT(*) FROM dbo.Templates tpl WHERE tpl.companyId=c.id AND tpl.active=1) AS templates,
+              (SELECT COUNT(*) FROM dbo.InstructionTypes t WHERE t.companyId=c.id AND t.active=1) AS instructionTypes,
+              (SELECT COUNT(*) FROM dbo.TestQuestions q WHERE q.companyId=c.id AND q.active=1) AS testQuestions
+              FROM dbo.Companies c WHERE c.active=1 ORDER BY c.id`);
+            for (const row of result.recordset) {
+              const counts = [row.users,row.employees,row.templates,row.instructionTypes,row.testQuestions].map(v=>Math.max(1,Number(v||0)));
+              const cartesianRows = counts.reduce((a,b)=>a*b,1);
+              console.log(JSON.stringify({companyId:row.id,users:row.users,employees:row.employees,templates:row.templates,instructionTypes:row.instructionTypes,testQuestions:row.testQuestions,estimatedJoinedRowsBeforeGrouping:cartesianRows}));
+            }
+          } finally { await pool.close(); }
           NODE
