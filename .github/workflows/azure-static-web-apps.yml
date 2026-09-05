@@ -40,6 +40,11 @@ jobs:
       - name: Run frontend/API syntax checks
         run: npm test
 
+      - name: Run database migrations
+        env:
+          SQL_CONNECTION_STRING: ${{ secrets.SQL_CONNECTION_STRING }}
+        run: npm run db:migrate
+
       - name: Diagnose Azure configuration bridge
         env:
           SQL_SECRET_PRESENT: ${{ secrets.SQL_CONNECTION_STRING != '' }}
