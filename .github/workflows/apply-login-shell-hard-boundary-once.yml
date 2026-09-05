@@ -1,0 +1,71 @@
+name: Apply Login Shell Hard Boundary Once
+
+on:
+  push:
+    branches:
+      - hotfix-login-shell-hard-boundary
+    paths:
+      - .github/workflows/apply-login-shell-hard-boundary-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch-test-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: hotfix-login-shell-hard-boundary
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Apply exact app.js patch
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path=Path('frontend/app.js')
+          text=path.read_text()
+          old="""function setCoreWorkspaceVisible(visible){
+  const nav = document.getElementById('portalNavigation') || document.querySelector('.primary-tabs');
+  if(nav) nav.hidden = !visible;
+  document.querySelectorAll('.view').forEach(view => { view.hidden = !visible; });
+  document.body.classList.toggle('auth-pending', !visible);
+}"""
+          new="""function setCoreWorkspaceVisible(visible){
+  const authenticatedApp = $('authenticatedApp');
+  if(authenticatedApp) authenticatedApp.hidden = !visible;
+  const nav = document.getElementById('portalNavigation') || document.querySelector('.primary-tabs');
+  if(nav) nav.hidden = !visible;
+  document.querySelectorAll('.view').forEach(view => { view.hidden = !visible; });
+  document.body.classList.toggle('auth-pending', !visible);
+}"""
+          if text.count(old) != 1:
+              raise SystemExit(f'workspace visibility anchor count={text.count(old)}')
+          text=text.replace(old,new)
+          old_tail="""document.getElementById('companySwitchAction')?.addEventListener('click', leaveCompanyContext);
+loadData();"""
+          new_tail="""document.getElementById('companySwitchAction')?.addEventListener('click', leaveCompanyContext);
+renderAuthenticationRequired();
+loadData();"""
+          if text.count(old_tail) != 1:
+              raise SystemExit(f'startup anchor count={text.count(old_tail)}')
+          path.write_text(text.replace(old_tail,new_tail))
+          PY
+          git diff --check
+          git diff -- frontend/app.js
+      - name: Install root dependencies
+        run: npm install
+      - name: Install API dependencies
+        run: npm install --prefix api --omit=dev
+      - name: Verify full regression suite
+        run: npm test
+      - name: Commit verified app patch
+        run: |
+          git config user.name 'Deadshot89'
+          git config user.email '86518220+Deadshot89@users.noreply.github.com'
+          git add frontend/app.js
+          git diff --cached --quiet && { echo 'No app.js change to commit'; exit 1; }
+          git commit -m 'fix(auth): release workspace only after authenticated company load'
+          git push origin HEAD:hotfix-login-shell-hard-boundary
