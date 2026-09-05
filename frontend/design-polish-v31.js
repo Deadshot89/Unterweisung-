@@ -12,9 +12,8 @@ const FRIENDLY_ROLE_LABELS = {
 };
 
 function designCompanyName(){
-  const companiesList = typeof companies === 'function' ? companies() : [];
-  const company = companiesList.find(c => c.id === state.companyId) || companiesList[0];
-  return company?.name || state.me?.companyName || 'Essentra Components GmbH';
+  if(typeof activeCompanyName === 'function') return activeCompanyName();
+  return state.companyId || 'Keine Firma ausgewählt';
 }
 
 function designUserName(){
