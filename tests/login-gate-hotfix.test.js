@@ -64,3 +64,14 @@ test('password authentication backend is part of the same managed API', () => {
   assert.ok(existsSync('api/src/functions/passwordAuth.js'), 'Password login/logout endpoints are missing');
   assert.ok(existsSync('api/src/lib/passwordAuth.js'), 'Password session implementation is missing');
 });
+
+test('production frontend uses one canonical same-origin application and no default company', () => {
+  const config = read('frontend/config.js');
+  const app = read('frontend/app.js');
+  assert.match(config, /UM_API_BASE_URL\s*=\s*['"]['"]/, 'Browser API must use the same origin as the central website');
+  assert.doesNotMatch(config, /azurewebsites\.net/i, 'Production browser config must not call a second Azure Function host');
+  assert.match(config, /UM_DEFAULT_COMPANY_ID\s*=\s*['"]['"]/, 'Production must not preselect any company');
+  assert.match(config, /UM_CANONICAL_ORIGIN\s*=\s*['"]https:\/\/delightful-sky-05dbf7603\.7\.azurestaticapps\.net['"]/, 'Exactly one canonical user-facing origin must be declared');
+  assert.doesNotMatch(config, /05db7f603/i, 'Retired Azure host must never be referenced');
+  assert.doesNotMatch(app, /UM_DEFAULT_COMPANY_ID\s*\|\|\s*['"]company-essentra['"]/, 'App must not restore Essentra as a hidden default company');
+});
