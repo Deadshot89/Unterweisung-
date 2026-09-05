@@ -4,12 +4,12 @@ import path from 'node:path';
 
 // Temporary server-only bridge until SWA application settings are configured.
 // Never include auth overrides, publish profiles or deployment tokens.
-const names = ['SQL_CONNECTION_STRING', 'AZURE_STORAGE_CONNECTION_STRING'];
+const names = ['SQL_CONNECTION_STRING', 'AZURE_STORAGE_CONNECTION_STRING', 'PUBLIC_BASE_URL'];
 const settings = {};
 for (const name of names) {
   const value = process.env[name];
   if (!value?.trim()) throw new Error(`Required deployment setting is missing: ${name}`);
-  settings[name] = value;
+  settings[name] = value.trim();
 }
 
 for (const name of ['AZURE_OPENAI_ENDPOINT','AZURE_OPENAI_API_KEY','AZURE_OPENAI_DEPLOYMENT']) {
