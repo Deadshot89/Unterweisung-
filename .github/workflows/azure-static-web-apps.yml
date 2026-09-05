@@ -108,6 +108,23 @@ jobs:
           fi
           sudo rm -f -- api/runtime-settings.deploy.json
 
+      - name: Verify deployed diagnostics PWA
+        if: steps.builddeploy.outputs.static_web_app_url != ''
+        env:
+          STATIC_WEB_APP_URL: ${{ steps.builddeploy.outputs.static_web_app_url }}
+        run: |
+          node --input-type=module <<'NODE'
+          import { readFileSync } from 'node:fs';
+          import assert from 'node:assert/strict';
+          const paths = ['/diagnostics.html','/diagnostics-app.js','/diagnostics-sw.js','/diagnostics.webmanifest'];
+          for (const path of paths) {
+            const response = await fetch(new URL(path, process.env.STATIC_WEB_APP_URL), { redirect: 'manual', signal: AbortSignal.timeout(30000) });
+            assert.equal(response.status, 200, `Diagnostics PWA asset unavailable: ${path}`);
+            assert.equal((await response.text()).replace(/\r\n/g, '\n'), readFileSync(`frontend${path}`, 'utf8').replace(/\r\n/g, '\n'), `Unexpected diagnostics PWA asset content: ${path}`);
+            console.log(`Diagnostics PWA asset verified: ${path}`);
+          }
+          NODE
+
       - name: Verify deployed stylesheets
         if: steps.builddeploy.outputs.static_web_app_url != ''
         env:
