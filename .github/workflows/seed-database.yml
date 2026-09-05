@@ -1,25 +1,52 @@
-name: One-time password reset
+name: Seed Unterweisungsmanager Database
 
 on:
   push:
     branches:
-      - ops-password-bootstrap-20260905
+      - main
     paths:
-      - ".github/workflows/seed-database.yml"
+      - "operations/data-import-request.json"
 
 permissions:
   contents: read
 
 concurrency:
-  group: one-time-password-reset
+  group: seed-database-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
-  migrate-and-reset:
+  authorize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    name: Validate explicit import request (no database access)
+    outputs:
+      approved: ${{ steps.request.outputs.approved }}
+    steps:
+      - name: Checkout exact requested revision
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 2
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Validate request before exposing database credentials
+        id: request
+        run: node .github/scripts/authorize-data-import.cjs
+
+  seed:
+    needs: authorize
+    if: needs.authorize.outputs.approved == 'true' && github.run_attempt == 1
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    name: Import start data
+
     steps:
-      - name: Checkout exact ops revision
+      - name: Checkout
         uses: actions/checkout@v4
         with:
           ref: ${{ github.sha }}
@@ -33,14 +60,23 @@ jobs:
       - name: Install root dependencies
         run: npm install
 
-      - name: Verify additive database migrations
+      - name: Install API dependencies
+        working-directory: api
+        run: npm install --omit=dev
+
+      - name: Run migrations
         env:
           SQL_CONNECTION_STRING: ${{ secrets.SQL_CONNECTION_STRING }}
         run: npm run db:migrate
 
-      - name: Seed operator password reset hash
+      - name: Import start data
         env:
           SQL_CONNECTION_STRING: ${{ secrets.SQL_CONNECTION_STRING }}
-          PASSWORD_SETUP_TOKEN_HASH: 685d455d367b9d65c7cf5cbef5fcd0ae49e30dc3bd6ad88dedcc43890b45ab54
-          PASSWORD_SETUP_PURPOSE: password_reset
-        run: npm run auth:seed-initial-setup
+        run: npm run db:seed
+
+      - name: Upload templates to blob storage
+        env:
+          SQL_CONNECTION_STRING: ${{ secrets.SQL_CONNECTION_STRING }}
+          AZURE_STORAGE_CONNECTION_STRING: ${{ secrets.AZURE_STORAGE_CONNECTION_STRING }}
+          BLOB_CONTAINER_TEMPLATES: templates
+        run: npm run blob:upload-templates
