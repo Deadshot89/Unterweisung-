@@ -12,6 +12,15 @@ jobs:
   check:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Abhängigkeiten installieren
+        run: npm install
+      - name: API-Abhängigkeiten installieren
+        working-directory: api
+        run: npm install --omit=dev
       - name: Vorhandene Function-App-Mailkonfiguration prüfen
         env:
           FUNCTION_PUBLISH_PROFILE: ${{ secrets.AZURE_FUNCTIONAPP_PUBLISH_PROFILE }}
@@ -38,3 +47,5 @@ jobs:
           for (const key of keys) console.log(`${key}: ${settings[key] ? 'vorhanden' : 'nicht vorhanden'}`);
           console.log(`GRAPH_MAIL_COMPLETE: ${keys.every(key => !!settings[key]) ? 'ja' : 'nein'}`);
           NODE
+      - name: Vollständigen Vertragstest ausführen
+        run: npm test
