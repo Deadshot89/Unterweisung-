@@ -29,13 +29,24 @@ app.http('passwordSetupConsume', {
       const token = String(body.token || '');
       const password = String(body.password || '');
       const passwordConfirm = String(body.passwordConfirm || '');
-      if (!token || token.length < 32) return badRequest(INVALID_SETUP);
+      if (!/^[A-Za-z0-9_-]{43}$/.test(token)) return badRequest(INVALID_SETUP);
       if (password !== passwordConfirm) return badRequest('Die Passwörter stimmen nicht überein.');
       if (password.length < 10 || password.length > 256) return badRequest('Passwort muss zwischen 10 und 256 Zeichen lang sein.');
 
       const tokenHash = hashSetupToken(token);
-      const passwordHash = await hashPassword(password);
       const pool = await getPool();
+      const preflight = await pool.request()
+        .input('tokenHash', sql.NVarChar(128), tokenHash)
+        .query(`SELECT TOP 2 t.id
+                FROM dbo.PasswordSetupTokens t
+                JOIN dbo.Users u ON u.id=t.userId AND u.companyId=t.companyId
+                WHERE t.tokenHash=@tokenHash
+                  AND t.usedAt IS NULL
+                  AND t.expiresAt>SYSUTCDATETIME()
+                  AND u.active=1`);
+      if (preflight.recordset.length !== 1) return badRequest(INVALID_SETUP);
+
+      const passwordHash = await hashPassword(password);
       transaction = new sql.Transaction(pool);
       await transaction.begin();
 
