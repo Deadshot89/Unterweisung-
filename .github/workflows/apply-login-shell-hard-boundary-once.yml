@@ -39,3 +39,4 @@ jobs:
           git diff --cached --quiet && exit 1
           git commit -m 'fix(auth): release workspace only after authenticated company load'
           git push origin HEAD:hotfix-login-shell-hard-boundary
+# retry after corrected startup-order assertion
