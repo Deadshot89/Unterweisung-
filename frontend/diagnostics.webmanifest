@@ -1,0 +1,19 @@
+{
+  "name": "Unterweisungsmanager Fehlerdiagnose",
+  "short_name": "UM Diagnose",
+  "description": "Systemstatus, Fehlerdiagnose und kritische Benachrichtigungen für den Unterweisungsmanager",
+  "lang": "de-DE",
+  "start_url": "/diagnostics.html",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f3f6fa",
+  "theme_color": "#132238",
+  "icons": [
+    {
+      "src": "/diagnostics-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
