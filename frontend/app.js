@@ -30,6 +30,8 @@ async function api(path, options={}){
 }
 
 function setCoreWorkspaceVisible(visible){
+  const authenticatedApp = $('authenticatedApp');
+  if(authenticatedApp) authenticatedApp.hidden = !visible;
   const nav = document.getElementById('portalNavigation') || document.querySelector('.primary-tabs');
   if(nav) nav.hidden = !visible;
   document.querySelectorAll('.view').forEach(view => { view.hidden = !visible; });
@@ -423,6 +425,7 @@ function renderSecurity(){
   $('security').innerHTML=`<div class="card"><h2>Sicherheitsstatus v0.6</h2><ul><li>Mandanten-Konzept über <code>companyId</code> in allen Fach-Endpunkten.</li><li>Rollenprüfung für System Admin/Firmen Admin/HSE/Line Manager/Mitarbeiter produktiv vorbereitet.</li><li>Audit-Log bei Änderungen vorbereitet.</li><li>Statusmatrix trennt Pflicht, fällig, abgelaufen und nicht erforderlich.</li><li>Externe Links verwenden Token-Hash statt Klartext-Token in SQL.</li><li>Microsoft Graph Mailversand ist vorbereitet: Einladung, Erinnerung, geplanter Gruppentermin mit ICS. Microsoft Entra Login und DB-Freischaltung sind vorbereitet. Nachweis-Upload ist gehärtet: Dateityp-/Größenprüfung, privater Blob-Speicher, Scanstatus, Downloadrechte und Audit-Log. Backup-/Restore-Konsole und Admin-Betriebsmonitoring sind eingebaut: Healthcheck, Backup-Export, Restore-Prüfung, Security-/Audit-Events.</li></ul></div>`;
 }
 document.getElementById('companySwitchAction')?.addEventListener('click', leaveCompanyContext);
+renderAuthenticationRequired();
 loadData();
 
 
