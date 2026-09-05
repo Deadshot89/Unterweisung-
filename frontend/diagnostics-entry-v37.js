@@ -1,4 +1,5 @@
 // v0.37: Berechtigter Einstieg in die separate Fehlerdiagnose-PWA.
+// Die sichtbare Freigabe ergänzt nur die Oberfläche; die API prüft diagnostics.view serverseitig erneut.
 function diagnosticsAccessAllowed(){
   const roles = state.me?.roles || [];
   const permissions = state.me?.permissions || [];
