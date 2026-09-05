@@ -50,7 +50,7 @@ app.http('users', {
         const result = await pool.request()
           .input('companyId', sql.NVarChar(80), companyId)
           .query(`SELECT u.id,u.companyId,u.email,u.displayName,u.role,u.active,u.entraObjectId,u.provider,
-                         CASE WHEN u.passwordHash IS NULL THEN CAST(0 AS BIT) ELSE CAST(1 AS BIT) END AS passwordEnabled,
+                         CASE WHEN passwordHash IS NULL THEN CAST(0 AS BIT) ELSE CAST(1 AS BIT) END AS passwordEnabled,
                          CASE WHEN EXISTS(
                            SELECT 1 FROM UserPermissions p
                            WHERE p.companyId=u.companyId AND p.userId=u.id AND p.permissionKey='diagnostics.view'
