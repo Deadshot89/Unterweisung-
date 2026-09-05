@@ -11,23 +11,30 @@ const diagnosticsApp = fs.readFileSync('frontend/diagnostics-app.js', 'utf8');
 const managedSettings = fs.readFileSync('scripts/prepare-managed-api-settings.js', 'utf8');
 const staticWorkflow = fs.readFileSync('.github/workflows/azure-static-web-apps.yml', 'utf8');
 
-test('diagnostic status reports safe email and push alert readiness', () => {
+test('diagnostic status distinguishes configured mail from verified delivery readiness', () => {
   assert.match(diagnosticsApi, /mailConfigStatus/);
   assert.match(diagnosticsApi, /getVapidPublicKey/);
   assert.match(diagnosticsApi, /alerts\s*:\s*\{/);
   assert.match(diagnosticsApi, /email\s*:\s*\{[\s\S]*configured/);
+  assert.match(diagnosticsApi, /deliveryVerified/);
+  assert.match(diagnosticsApi, /ready\s*:/);
+  assert.match(diagnosticsApi, /alertResultJson/);
+  assert.match(diagnosticsApi, /email\?\.sent|email\.sent/);
   assert.match(diagnosticsApi, /push\s*:\s*\{[\s\S]*configured/);
   assert.doesNotMatch(diagnosticsApi, /GRAPH_CLIENT_SECRET\s*:/);
 });
 
-test('diagnostics PWA visibly shows email and phone push readiness', () => {
+test('diagnostics PWA never calls configured-only email delivery ready', () => {
   assert.match(diagnosticsHtml, /id="statusEmail"/);
   assert.match(diagnosticsHtml, /E-Mail-Alarm/);
   assert.match(diagnosticsHtml, /id="statusPush"/);
   assert.match(diagnosticsHtml, /Handy-Push/);
   assert.match(diagnosticsApp, /statusEmail/);
   assert.match(diagnosticsApp, /statusPush/);
-  assert.match(diagnosticsApp, /alerts\?\.email\?\.configured/);
+  assert.match(diagnosticsApp, /alerts\?\.email\?\.ready/);
+  assert.match(diagnosticsApp, /VERSAND NICHT BESTÄTIGT/);
+  assert.match(diagnosticsApp, /LETZTER VERSAND FEHLGESCHLAGEN/);
+  assert.doesNotMatch(diagnosticsApp, /alerts\?\.email\?\.configured\s*\?\s*'BEREIT'/);
   assert.match(diagnosticsApp, /alerts\?\.push\?\.configured/);
 });
 
