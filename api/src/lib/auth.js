@@ -29,8 +29,8 @@ function defaultCompanyId(){ return process.env.DEFAULT_COMPANY_ID||process.env.
 
 export function getRequestContext(request){
   const rawPrincipal=request.headers.get('x-ms-client-principal');
-  const principal=decodePrincipal(rawPrincipal);
-  const passwordSession=principal?null:passwordSessionFromRequest(request);
+  const passwordSession=passwordSessionFromRequest(request);
+  const principal=passwordSession?null:decodePrincipal(rawPrincipal);
   const localDev=isLocalDevelopment()&&!rawPrincipal&&!passwordSession;
   const devRoles=localDev?request.headers.get('x-dev-roles'):null;
   const requestedCompanyId=parseCompanyHeader(request);
