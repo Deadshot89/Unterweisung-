@@ -37,3 +37,12 @@ test('managed API settings bridge accepts Graph mail configuration only server-s
   assert.doesNotMatch(managedSettings, /console\.log\([^\n]*GRAPH_CLIENT_SECRET/);
   assert.doesNotMatch(staticWorkflow, /echo[^\n]*GRAPH_CLIENT_SECRET/);
 });
+
+test('production deployment securely falls back to existing Function App Graph settings', () => {
+  assert.match(staticWorkflow, /AZURE_FUNCTIONAPP_PUBLISH_PROFILE/);
+  assert.match(staticWorkflow, /\/api\/settings/);
+  assert.match(staticWorkflow, /GITHUB_ENV/);
+  assert.match(staticWorkflow, /::add-mask::/);
+  assert.match(staticWorkflow, /GRAPH_MAIL_COMPLETE/);
+  assert.doesNotMatch(staticWorkflow, /console\.log\([^\n]*(GRAPH_TENANT_ID|GRAPH_CLIENT_ID|GRAPH_CLIENT_SECRET|MAIL_FROM)[^\n]*settings\[/);
+});
