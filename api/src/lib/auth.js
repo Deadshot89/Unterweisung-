@@ -80,7 +80,7 @@ export async function getAuthorizedContext(request){
       ? `SELECT id,companyId,email,displayName,role,active,entraObjectId,sessionVersion FROM Users WHERE active=1 AND id=@userId AND LOWER(email)=LOWER(@email)`
       : `SELECT id,companyId,email,displayName,role,active,entraObjectId FROM Users WHERE active=1 AND (LOWER(email)=LOWER(@email) OR id=@userId OR entraObjectId=@userId)`);
   }catch(err){
-    if(passwordMode&&/Invalid column name 'sessionVersion'/i.test(String(err.message||err))){const setup=new Error('Passwort-Anmeldung benötigt noch die freizugebende Datenbankmigration 011.');setup.status=503;throw setup;}
+    if(passwordMode&&/Invalid column name 'sessionVersion'/i.test(String(err.message||err))){const setup=new Error('Passwort-Anmeldung benötigt noch die freizugebende Datenbankmigration 010.');setup.status=503;throw setup;}
     throw err;
   }
   const dbUsers=res.recordset||[];

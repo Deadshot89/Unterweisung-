@@ -29,6 +29,11 @@ function canManageRole(ctx, role) {
   if (ctx.roles.includes(Roles.SYSTEM_ADMIN)) return true;
   return [Roles.COMPANY_ADMIN, Roles.HSE, Roles.LINE_MANAGER, Roles.EMPLOYEE].includes(role);
 }
+function denySystemAdminTarget() {
+  const err = new Error('Keine Berechtigung für Systemadmin-Zugang');
+  err.status = 403;
+  throw err;
+}
 
 app.http('users', {
   methods: ['GET', 'POST', 'PATCH'],
@@ -44,7 +49,9 @@ app.http('users', {
         const companyId = targetCompanyId(ctx, request.query.get('companyId'));
         const result = await pool.request()
           .input('companyId', sql.NVarChar(80), companyId)
-          .query(`SELECT id,companyId,email,displayName,role,active,entraObjectId,provider,lastSeenAt,createdAt,updatedAt,notes
+          .query(`SELECT id,companyId,email,displayName,role,active,entraObjectId,provider,
+                         CASE WHEN passwordHash IS NULL THEN CAST(0 AS BIT) ELSE CAST(1 AS BIT) END AS passwordEnabled,
+                         lastSeenAt,createdAt,updatedAt,notes
                   FROM Users WHERE companyId=@companyId ORDER BY displayName,email`);
         return json(result.recordset);
       }
@@ -56,10 +63,17 @@ app.http('users', {
         const companyId = targetCompanyId(ctx, body.companyId);
         const email = validEmail(body.email);
         if (!email) return badRequest('Gültige E-Mail-Adresse fehlt.');
+        const existingResult = await pool.request()
+          .input('companyId', sql.NVarChar(80), companyId)
+          .input('email', sql.NVarChar(254), email)
+          .query('SELECT TOP 1 id,role FROM Users WHERE companyId=@companyId AND LOWER(email)=LOWER(@email)');
+        const existing = existingResult.recordset[0];
+        if (existing && existing.role===Roles.SYSTEM_ADMIN && !ctx.roles.includes(Roles.SYSTEM_ADMIN)) denySystemAdminTarget();
+
         const displayName = clean(body.displayName, 200) || email;
         const role = roleOrDefault(body.role);
         if (!canManageRole(ctx, role)) return badRequest('Diese Rolle darfst du nicht vergeben.');
-        const id = clean(body.id, 120) || `user-${uuidv4()}`;
+        const id = clean(body.id, 120) || existing?.id || `user-${uuidv4()}`;
         await pool.request()
           .input('id', sql.NVarChar(120), id)
           .input('companyId', sql.NVarChar(80), companyId)
@@ -80,9 +94,21 @@ app.http('users', {
 
       const id = request.params.id;
       if (!id) return badRequest('id is required');
+      const companyId = targetCompanyId(ctx, body.companyId);
+      const targetResult = await pool.request()
+        .input('id', sql.NVarChar(120), id)
+        .input('companyId', sql.NVarChar(80), companyId)
+        .query('SELECT TOP 1 id,companyId,role FROM Users WHERE id=@id AND companyId=@companyId');
+      const target = targetResult.recordset[0];
+      if (!target) {
+        const err = new Error('Benutzer nicht gefunden.');
+        err.status = 404;
+        throw err;
+      }
+      if (target.role===Roles.SYSTEM_ADMIN && !ctx.roles.includes(Roles.SYSTEM_ADMIN)) denySystemAdminTarget();
+
       const role = body.role ? roleOrDefault(body.role) : null;
       if (role && !canManageRole(ctx, role)) return badRequest('Diese Rolle darfst du nicht setzen.');
-      const companyId = targetCompanyId(ctx, body.companyId);
       const active = body.active === false ? 0 : 1;
 
       await pool.request()
@@ -101,7 +127,14 @@ app.http('users', {
                   notes=COALESCE(@notes,notes),
                   updatedAt=SYSUTCDATETIME()
                 WHERE id=@id AND companyId=@companyId`);
-      await writeAudit(pool, ctx, 'user.updated', 'user', id, { ...body, companyId });
+      await writeAudit(pool, ctx, 'user.updated', 'user', id, {
+        displayName: clean(body.displayName, 200),
+        role,
+        active: active === 1,
+        companyId,
+        entraObjectIdChanged: body.entraObjectId !== undefined,
+        notesChanged: body.notes !== undefined
+      });
       await writeSecurityEvent(pool, ctx, 'user.updated', 'info', { id, role, active: active === 1, companyId });
       return json({ ok: true });
     } catch (err) {

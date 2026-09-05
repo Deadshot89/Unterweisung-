@@ -34,13 +34,14 @@ test('failed initial auth lookup renders login; only post-login failures may sho
   assert.match(loadData, /else\s+renderServiceUnavailable\(/, 'A backend failure after successful authentication may still show the service-unavailable state');
 });
 
-test('central login shell offers Microsoft and password login on the same website', () => {
+test('central login shell temporarily offers only email and password on the same website', () => {
   assert.ok(existsSync('frontend/auth-login-v42.js'), 'Shared login shell is missing');
   const login = read('frontend/auth-login-v42.js');
   const index = read('frontend/index.html');
-  assert.match(login, /Mit Microsoft anmelden/);
   assert.match(login, /E-Mail und Passwort/);
   assert.match(login, /\/api\/auth\/password\/login/);
+  assert.doesNotMatch(login, /Mit Microsoft anmelden/);
+  assert.doesNotMatch(login, /\/\.auth\/login\/aad/);
   assert.ok(index.indexOf('/auth-login-v42.js') >= 0 && index.indexOf('/auth-login-v42.js') < index.indexOf('/app.js'), 'Login shell must load before app.js');
 });
 
