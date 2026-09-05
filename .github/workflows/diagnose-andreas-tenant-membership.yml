@@ -1,0 +1,79 @@
+name: Diagnose Andreas tenant membership
+
+on:
+  push:
+    branches:
+      - fix-andreas-tenant-membership
+    paths:
+      - .github/workflows/diagnose-andreas-tenant-membership.yml
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install SQL client
+        run: npm install --omit=dev
+      - name: Read production tenant membership
+        env:
+          SQL_CONNECTION_STRING: ${{ secrets.SQL_CONNECTION_STRING }}
+        run: |
+          node <<'NODE'
+          const sql = require('mssql');
+          const email = 'andreas.zohren@arcelormittal.com';
+          const essentra = 'company-essentra';
+          const kontur = 'company-kontur-werkzeugstahl';
+          const pool = await sql.connect(process.env.SQL_CONNECTION_STRING);
+          try {
+            const users = await pool.request()
+              .input('email', sql.NVarChar(254), email)
+              .query(`SELECT id,companyId,email,displayName,role,active,provider,lastSeenAt,
+                             CASE WHEN passwordHash IS NULL THEN CAST(0 AS BIT) ELSE CAST(1 AS BIT) END AS passwordEnabled
+                      FROM dbo.Users WHERE LOWER(email)=LOWER(@email) ORDER BY companyId`);
+            const duplicateCount = await pool.request().query(`
+              SELECT COUNT(*) AS duplicateEmailCount FROM (
+                SELECT LOWER(email) AS emailKey
+                FROM dbo.Users
+                GROUP BY LOWER(email)
+                HAVING COUNT(DISTINCT companyId) > 1
+              ) d`);
+            const fkRows = await pool.request().query(`
+              SELECT fk.name AS foreignKeyName, OBJECT_SCHEMA_NAME(fk.parent_object_id) AS parentSchema,
+                     OBJECT_NAME(fk.parent_object_id) AS parentTable
+              FROM sys.foreign_keys fk
+              WHERE fk.referenced_object_id = OBJECT_ID('dbo.Users')
+              ORDER BY parentTable, foreignKeyName`);
+            let tokenCounts = [];
+            const tokenTable = await pool.request().query(`SELECT OBJECT_ID('dbo.PasswordSetupTokens','U') AS objectId`);
+            if (tokenTable.recordset[0]?.objectId) {
+              const ids = users.recordset.map(r => r.id);
+              for (const id of ids) {
+                const count = await pool.request().input('userId', sql.NVarChar(120), id)
+                  .query(`SELECT COUNT(*) AS tokenCount FROM dbo.PasswordSetupTokens WHERE userId=@userId`);
+                tokenCounts.push({ userId: id, tokenCount: Number(count.recordset[0]?.tokenCount || 0) });
+              }
+            }
+            const result = {
+              targetRows: users.recordset.map(r => ({
+                id: r.id, companyId: r.companyId, displayName: r.displayName, role: r.role,
+                active: !!r.active, provider: r.provider, passwordEnabled: !!r.passwordEnabled,
+                isExpectedKonturAdmin: r.companyId === kontur && r.role === 'company_admin' && !!r.active,
+                isWrongEssentraRow: r.companyId === essentra
+              })),
+              targetRowCount: users.recordset.length,
+              crossCompanyDuplicateEmailCount: Number(duplicateCount.recordset[0]?.duplicateEmailCount || 0),
+              foreignKeysReferencingUsers: fkRows.recordset,
+              passwordSetupTokenCounts: tokenCounts
+            };
+            console.log(JSON.stringify(result, null, 2));
+          } finally {
+            await pool.close();
+          }
+          NODE
