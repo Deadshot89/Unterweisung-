@@ -49,14 +49,14 @@ app.http('users', {
         const companyId = targetCompanyId(ctx, request.query.get('companyId'));
         const result = await pool.request()
           .input('companyId', sql.NVarChar(80), companyId)
-          .query(`SELECT u.id,u.companyId,u.email,u.displayName,u.role,u.active,u.entraObjectId,u.provider,
+          .query(`SELECT id,companyId,email,displayName,role,active,entraObjectId,provider,
                          CASE WHEN passwordHash IS NULL THEN CAST(0 AS BIT) ELSE CAST(1 AS BIT) END AS passwordEnabled,
                          CASE WHEN EXISTS(
                            SELECT 1 FROM UserPermissions p
-                           WHERE p.companyId=u.companyId AND p.userId=u.id AND p.permissionKey='diagnostics.view'
+                           WHERE p.companyId=Users.companyId AND p.userId=Users.id AND p.permissionKey='diagnostics.view'
                          ) THEN CAST(1 AS BIT) ELSE CAST(0 AS BIT) END AS diagnosticsView,
-                         u.lastSeenAt,u.createdAt,u.updatedAt,u.notes
-                  FROM Users u WHERE u.companyId=@companyId ORDER BY u.displayName,u.email`);
+                         lastSeenAt,createdAt,updatedAt,notes
+                  FROM Users WHERE companyId=@companyId ORDER BY displayName,email`);
         return json(result.recordset);
       }
 
