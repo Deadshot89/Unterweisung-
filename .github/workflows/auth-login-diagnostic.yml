@@ -6,6 +6,8 @@ on:
       - auth-login-diagnostic
     paths:
       - ".github/workflows/auth-login-diagnostic.yml"
+      - "tests/system-company-list-performance.test.js"
+      - "api/src/functions/systemCompanies.js"
 
 permissions:
   contents: read
@@ -26,8 +28,11 @@ jobs:
         with:
           node-version: "22"
 
-      - name: Install database client
-        run: npm install --omit=dev
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run repository regression tests
+        run: npm test
 
       - name: Inspect operator authentication state without exposing secrets
         env:
