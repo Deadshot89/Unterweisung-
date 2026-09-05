@@ -25,8 +25,8 @@ jobs:
         env:
           SQL_CONNECTION_STRING: ${{ secrets.SQL_CONNECTION_STRING }}
         run: |
-          node <<'NODE'
-          const sql = require('mssql');
+          node --input-type=module <<'NODE'
+          import sql from 'mssql';
           const email = 'andreas.zohren@arcelormittal.com';
           const essentra = 'company-essentra';
           const kontur = 'company-kontur-werkzeugstahl';
