@@ -11,6 +11,12 @@ test('user table shows password state without exposing credentials', () => {
   assert.doesNotMatch(source, /passwordHash/);
 });
 
+test('current user management explains email-password access without advertising Microsoft login', () => {
+  assert.match(source, /E-Mail\/Passwort/);
+  assert.match(source, /Passwort-Setup-Link/);
+  assert.doesNotMatch(source, /Microsoft/i);
+});
+
 test('authorized users get CSP-safe setup-link action', () => {
   assert.match(source, /function canCreatePasswordSetupLink\(user\)/);
   assert.match(source, /user\.role === 'system_admin' && !canCreateSystemAdmin\(\)/);
