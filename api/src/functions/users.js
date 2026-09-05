@@ -127,7 +127,14 @@ app.http('users', {
                   notes=COALESCE(@notes,notes),
                   updatedAt=SYSUTCDATETIME()
                 WHERE id=@id AND companyId=@companyId`);
-      await writeAudit(pool, ctx, 'user.updated', 'user', id, { ...body, companyId });
+      await writeAudit(pool, ctx, 'user.updated', 'user', id, {
+        displayName: clean(body.displayName, 200),
+        role,
+        active: active === 1,
+        companyId,
+        entraObjectIdChanged: body.entraObjectId !== undefined,
+        notesChanged: body.notes !== undefined
+      });
       await writeSecurityEvent(pool, ctx, 'user.updated', 'info', { id, role, active: active === 1, companyId });
       return json({ ok: true });
     } catch (err) {
