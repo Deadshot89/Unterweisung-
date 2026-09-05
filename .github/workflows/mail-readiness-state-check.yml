@@ -25,7 +25,6 @@ jobs:
 
           api_path = Path('api/src/functions/diagnostics.js')
           api = api_path.read_text(encoding='utf-8')
-
           marker = "\nfunction endpointHash(endpoint) {"
           helper = """
 
@@ -57,11 +56,6 @@ jobs:
                   raise SystemExit('API-Anker für Zustellstatus nicht gefunden')
               api = api.replace(marker, helper + marker, 1)
 
-          old = """      const row = counts.recordset[0] || {};
-                const alertStatus = alertRuntimeStatus();
-                return json({
-          """
-          # Normale Quelldatei verwendet sechs Leerzeichen weniger als der YAML-Block.
           old_source = "      const row = counts.recordset[0] || {};\n      const alertStatus = alertRuntimeStatus();\n      return json({\n"
           new_source = "      const row = counts.recordset[0] || {};\n      const alertStatus = alertRuntimeStatus();\n      const emailDelivery = await emailDeliveryStatus(pool);\n      const emailReady = !!alertStatus.emailConfigured && emailDelivery.deliveryVerified === true;\n      return json({\n"
           if 'const emailDelivery = await emailDeliveryStatus(pool);' not in api:
@@ -91,23 +85,20 @@ jobs:
               api, count = pattern.subn(replacement, api, count=1)
               if count != 1:
                   raise SystemExit(f'API-E-Mail-Statusblock nicht eindeutig gefunden: {count}')
-
           api_path.write_text(api, encoding='utf-8')
 
           app_path = Path('frontend/diagnostics-app.js')
           app = app_path.read_text(encoding='utf-8')
           old_line = "    $('statusEmail').textContent = status?.alerts?.email?.configured ? 'BEREIT' : 'NICHT BEREIT';"
-          new_block = """    const emailStatus = status?.alerts?.email;
-              $('statusEmail').textContent = emailStatus?.ready
-                ? 'BEREIT'
-                : emailStatus?.deliveryVerified === false
-                  ? 'NICHT BEREIT · LETZTER VERSAND FEHLGESCHLAGEN'
-                  : emailStatus?.configured
-                    ? 'NICHT BEREIT · VERSAND NICHT BESTÄTIGT'
-                    : 'NICHT BEREIT';"""
-          # dedent the workflow indentation from the intended JS source
+          new_block = """    $('statusEmail').textContent = status?.alerts?.email?.ready
+              ? 'BEREIT'
+              : status?.alerts?.email?.deliveryVerified === false
+                ? 'NICHT BEREIT · LETZTER VERSAND FEHLGESCHLAGEN'
+                : status?.alerts?.email?.configured
+                  ? 'NICHT BEREIT · VERSAND NICHT BESTÄTIGT'
+                  : 'NICHT BEREIT';"""
           new_block = '\n'.join(line[10:] if line.startswith('          ') else line for line in new_block.splitlines())
-          if 'const emailStatus = status?.alerts?.email;' not in app:
+          if 'status?.alerts?.email?.ready' not in app:
               if old_line not in app:
                   raise SystemExit('Frontend-Anker E-Mail-Status nicht gefunden')
               app = app.replace(old_line, new_block, 1)
