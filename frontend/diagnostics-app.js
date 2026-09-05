@@ -1,7 +1,8 @@
 (() => {
   const $ = id => document.getElementById(id);
   const API_BASE_URL = String(window.UM_API_BASE_URL || '').replace(/\/$/, '');
-  const state = { me: null, events: [], installPrompt: null, registration: null };
+  const DEVICE_STORAGE_KEY = 'diagnosticsPushDeviceId';
+  const state = { me: null, events: [], devices: [], installPrompt: null, registration: null };
 
   function apiUrl(path) {
     const cleanPath = String(path || '').startsWith('/') ? path : `/${path}`;
@@ -60,6 +61,35 @@
 
   function severityLabel(value) {
     return ({ critical:'Kritisch', warning:'Warnung', info:'Information' })[value] || value || '—';
+  }
+
+  function currentDeviceId() {
+    try { return localStorage.getItem(DEVICE_STORAGE_KEY) || ''; } catch { return ''; }
+  }
+
+  function rememberDeviceId(value) {
+    try {
+      if (value) localStorage.setItem(DEVICE_STORAGE_KEY, String(value));
+      else localStorage.removeItem(DEVICE_STORAGE_KEY);
+    } catch {
+      // Push funktioniert auch ohne lokalen Gerätenamen-Marker weiter.
+    }
+  }
+
+  function detectDeviceLabel() {
+    const ua = String(navigator.userAgent || '');
+    const os = /Android/i.test(ua) ? 'Android'
+      : /iPhone|iPad|iPod/i.test(ua) ? 'iPhone / iPad'
+      : /Windows/i.test(ua) ? 'Windows'
+      : /Macintosh|Mac OS X/i.test(ua) ? 'macOS'
+      : /Linux/i.test(ua) ? 'Linux'
+      : 'Unbekanntes Gerät';
+    const browser = /EdgA|EdgiOS|Edg\//i.test(ua) ? 'Edge'
+      : /CriOS|Chrome/i.test(ua) ? 'Chrome'
+      : /FxiOS|Firefox/i.test(ua) ? 'Firefox'
+      : /Safari/i.test(ua) ? 'Safari'
+      : 'Browser';
+    return `${os} · ${browser}`;
   }
 
   function queryString({ includeSearch = true } = {}) {
@@ -217,6 +247,94 @@
     return state.registration;
   }
 
+  async function registerPushDevice(subscription) {
+    const result = await api('/diagnostics/push/subscriptions', {
+      method: 'POST',
+      body: JSON.stringify({ endpoint: subscription.endpoint, deviceLabel: detectDeviceLabel() })
+    });
+    if (result.deviceId) rememberDeviceId(result.deviceId);
+    return result;
+  }
+
+  function renderPushDevices(devices) {
+    state.devices = Array.isArray(devices) ? devices : [];
+    const tbody = $('diagDevices');
+    if (!tbody) return;
+    if (!state.devices.length) {
+      tbody.innerHTML = '<tr><td colspan="5" class="muted">Noch kein Gerät für Pushmeldungen registriert.</td></tr>';
+      return;
+    }
+    const localDeviceId = currentDeviceId();
+    tbody.innerHTML = state.devices.map(device => {
+      const current = String(device.id) === String(localDeviceId);
+      const name = device.deviceName || device.deviceLabel || 'Unbekanntes Gerät';
+      const status = device.lastError
+        ? `Fehler: ${device.lastError}`
+        : device.lastSuccessAt ? 'Push aktiv' : 'Registriert, noch keine Zustellung';
+      return `<tr data-device-id="${esc(device.id)}">
+        <td><strong>${esc(name)}</strong>${current ? '<br><span class="muted">dieses Gerät</span>' : ''}${device.deviceName && device.deviceLabel ? `<br><span class="muted">${esc(device.deviceLabel)}</span>` : ''}</td>
+        <td>${esc(formatDate(device.createdAt))}</td>
+        <td>${esc(formatDate(device.lastSuccessAt))}</td>
+        <td>${esc(status)}</td>
+        <td>
+          <button type="button" class="button secondary" data-device-rename="${esc(device.id)}">Gerät umbenennen</button>
+          <button type="button" class="button secondary" data-device-remove="${esc(device.id)}">Gerät entfernen</button>
+        </td>
+      </tr>`;
+    }).join('');
+    tbody.querySelectorAll('[data-device-rename]').forEach(button => button.addEventListener('click', () => renamePushDevice(button.dataset.deviceRename)));
+    tbody.querySelectorAll('[data-device-remove]').forEach(button => button.addEventListener('click', () => removePushDevice(button.dataset.deviceRemove)));
+  }
+
+  async function loadPushDevices() {
+    if (!isSystemAdmin()) return;
+    if ($('diagDevicesPanel')) $('diagDevicesPanel').hidden = false;
+    try {
+      const result = await api('/diagnostics/push/devices');
+      renderPushDevices(result.devices || []);
+    } catch (err) {
+      const tbody = $('diagDevices');
+      if (tbody) tbody.innerHTML = `<tr><td colspan="5">Geräte konnten nicht geladen werden: ${esc(err.message || err)}</td></tr>`;
+    }
+  }
+
+  async function renamePushDevice(id) {
+    const device = state.devices.find(item => String(item.id) === String(id));
+    if (!device) return;
+    const value = window.prompt('Gerät umbenennen', device.deviceName || device.deviceLabel || '');
+    if (value === null) return;
+    try {
+      await api(`/diagnostics/push/devices/${encodeURIComponent(id)}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ deviceName: value.trim() })
+      });
+      await loadPushDevices();
+    } catch (err) {
+      setPushMessage(`Gerät konnte nicht umbenannt werden: ${err.message || err}`, 'error');
+    }
+  }
+
+  async function removePushDevice(id) {
+    const device = state.devices.find(item => String(item.id) === String(id));
+    if (!device) return;
+    if (!window.confirm(`Gerät „${device.deviceName || device.deviceLabel || 'Unbekanntes Gerät'}“ wirklich entfernen?`)) return;
+    try {
+      const isCurrent = String(id) === String(currentDeviceId());
+      if (isCurrent) {
+        const registration = await registerServiceWorker().catch(() => null);
+        const subscription = registration ? await registration.pushManager.getSubscription().catch(() => null) : null;
+        if (subscription) await subscription.unsubscribe().catch(() => false);
+        rememberDeviceId('');
+      }
+      await api(`/diagnostics/push/devices/${encodeURIComponent(id)}`, { method: 'DELETE' });
+      if (isCurrent && $('diagPushEnable')) $('diagPushEnable').textContent = 'Handy-Benachrichtigungen aktivieren';
+      setPushMessage('Gerät wurde aus den Push-Benachrichtigungen entfernt.', 'success');
+      await loadPushDevices();
+    } catch (err) {
+      setPushMessage(`Gerät konnte nicht entfernt werden: ${err.message || err}`, 'error');
+    }
+  }
+
   async function enablePush() {
     if (!isSystemAdmin()) return;
     const button = $('diagPushEnable');
@@ -239,12 +357,10 @@
           applicationServerKey: urlBase64ToUint8Array(config.publicKey)
         });
       }
-      await api('/diagnostics/push/subscriptions', {
-        method: 'POST',
-        body: JSON.stringify({ endpoint: subscription.endpoint })
-      });
+      await registerPushDevice(subscription);
       setPushMessage('Handy-Benachrichtigungen sind auf diesem Gerät aktiviert. Kritische Fehler werden zusätzlich per E-Mail gemeldet.', 'success');
       if (button) button.textContent = 'Handy-Benachrichtigungen aktiv';
+      await loadPushDevices();
     } catch (err) {
       setPushMessage(`Push-Aktivierung fehlgeschlagen: ${err.message || err}`, 'error');
     } finally {
@@ -256,20 +372,25 @@
     if (!isSystemAdmin()) return;
     const button = $('diagPushEnable');
     button.hidden = false;
+    if ($('diagDevicesPanel')) $('diagDevicesPanel').hidden = false;
     if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
       button.disabled = true;
       setPushMessage('Web-Push wird von diesem Browser nicht unterstützt.', 'warning');
+      await loadPushDevices();
       return;
     }
     try {
       const registration = await registerServiceWorker();
       const subscription = await registration.pushManager.getSubscription();
       if (subscription && Notification.permission === 'granted') {
+        await registerPushDevice(subscription);
         button.textContent = 'Handy-Benachrichtigungen aktiv';
         setPushMessage('Dieses Gerät ist bereits für kritische Pushmeldungen registriert.', 'success');
       }
+      await loadPushDevices();
     } catch (err) {
       setPushMessage(`Service Worker konnte nicht vorbereitet werden: ${err.message || err}`, 'warning');
+      await loadPushDevices();
     }
   }
 
@@ -317,6 +438,7 @@
   $('diagRefresh')?.addEventListener('click', loadDiagnostics);
   $('diagExport')?.addEventListener('click', downloadExport);
   $('diagPushEnable')?.addEventListener('click', enablePush);
+  $('diagDevicesRefresh')?.addEventListener('click', loadPushDevices);
   $('diagCompany')?.addEventListener('change', loadDiagnostics);
   $('diagSeverity')?.addEventListener('change', loadDiagnostics);
   let searchTimer = null;
