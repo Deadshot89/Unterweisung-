@@ -179,7 +179,7 @@ app.http('passwordSetupLinkCreate', {
         'info',
         { targetUserId: target.id, companyId: target.companyId, purpose }
       );
-      const url = setupLink(rawToken, new URL(request.url).origin);
+      const url = setupLink(rawToken);
       return json({ ok: true, url, expiresInMinutes: 30, purpose });
     } catch (err) {
       if (transaction) {
