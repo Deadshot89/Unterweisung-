@@ -14,7 +14,8 @@ test('authenticated admins can create tenant-bound setup links', () => {
   assert.match(setup, /createSetupToken\(\)/);
   assert.match(setup, /hashSetupToken\(rawToken\)/);
   assert.match(setup, /DATEADD\(MINUTE,30,SYSUTCDATETIME\(\)\)/);
-  assert.match(setup, /setupLink\(rawToken,/);
+  assert.match(setup, /setupLink\(rawToken\)/);
+  assert.doesNotMatch(setup, /setupLink\(rawToken,\s*new URL\(request\.url\)\.origin\)/);
 });
 
 test('company admin can never create setup link for system admin', () => {
