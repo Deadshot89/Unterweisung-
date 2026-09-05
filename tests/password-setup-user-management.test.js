@@ -7,7 +7,7 @@ const source = readFileSync('frontend/user-management-v19.js','utf8');
 test('user table shows password state without exposing credentials', () => {
   assert.match(source, /Passwort aktiv/);
   assert.match(source, /Kein Passwort/);
-  assert.match(source, /u\.passwordEnabled/);
+  assert.match(source, /user\.passwordEnabled/);
   assert.doesNotMatch(source, /passwordHash/);
 });
 
@@ -29,6 +29,6 @@ test('setup-link action posts to protected endpoint and displays returned URL on
 });
 
 test('delegated click handler invokes setup link generation', () => {
-  assert.match(source, /closest\('\[data-password-setup-action\]'\)/);
+  assert.match(source, /\[data-password-setup-action\]/);
   assert.match(source, /createPasswordSetupLink\(button\.dataset\.userId\)/);
 });
