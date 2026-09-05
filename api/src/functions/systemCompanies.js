@@ -167,7 +167,34 @@ app.http('systemCompanies', {
       const pool = await getPool();
 
       if (request.method === 'GET') {
-        const result = await pool.request().query(`SELECT
+        const result = await pool.request().query(`WITH userStats AS (
+              SELECT companyId,
+                     COUNT(*) AS userCount,
+                     SUM(CASE WHEN active=1 AND role='company_admin' THEN 1 ELSE 0 END) AS companyAdminCount
+              FROM Users
+              GROUP BY companyId
+            ), employeeStats AS (
+              SELECT companyId, COUNT(*) AS employeeCount
+              FROM Employees
+              WHERE active=1
+              GROUP BY companyId
+            ), templateStats AS (
+              SELECT companyId, COUNT(*) AS templateCount
+              FROM Templates
+              WHERE active=1
+              GROUP BY companyId
+            ), instructionTypeStats AS (
+              SELECT companyId, COUNT(*) AS instructionTypeCount
+              FROM InstructionTypes
+              WHERE active=1
+              GROUP BY companyId
+            ), questionStats AS (
+              SELECT companyId, COUNT(*) AS testQuestionCount
+              FROM TestQuestions
+              WHERE active=1
+              GROUP BY companyId
+            )
+            SELECT
               c.id,
               c.name,
               c.legalName,
@@ -180,21 +207,19 @@ app.http('systemCompanies', {
               cs.mailFromName,
               cs.mailFromEmail,
               cs.replyToEmail,
-              COUNT(DISTINCT u.id) AS userCount,
-              SUM(CASE WHEN u.active=1 AND u.role='company_admin' THEN 1 ELSE 0 END) AS companyAdminCount,
-              COUNT(DISTINCT e.id) AS employeeCount,
-              COUNT(DISTINCT tpl.id) AS templateCount,
-              COUNT(DISTINCT t.id) AS instructionTypeCount,
-              COUNT(DISTINCT q.id) AS testQuestionCount
+              COALESCE(us.userCount,0) AS userCount,
+              COALESCE(us.companyAdminCount,0) AS companyAdminCount,
+              COALESCE(es.employeeCount,0) AS employeeCount,
+              COALESCE(ts.templateCount,0) AS templateCount,
+              COALESCE(its.instructionTypeCount,0) AS instructionTypeCount,
+              COALESCE(qs.testQuestionCount,0) AS testQuestionCount
             FROM Companies c
             LEFT JOIN CompanySettings cs ON cs.companyId=c.id
-            LEFT JOIN Users u ON u.companyId=c.id
-            LEFT JOIN Employees e ON e.companyId=c.id AND e.active=1
-            LEFT JOIN Templates tpl ON tpl.companyId=c.id AND tpl.active=1
-            LEFT JOIN InstructionTypes t ON t.companyId=c.id AND t.active=1
-            LEFT JOIN TestQuestions q ON q.companyId=c.id AND q.active=1
-            GROUP BY c.id,c.name,c.legalName,c.addressLine,c.defaultLanguage,c.active,c.createdAt,c.updatedAt,
-                     cs.mailMode,cs.mailFromName,cs.mailFromEmail,cs.replyToEmail
+            LEFT JOIN userStats us ON us.companyId=c.id
+            LEFT JOIN employeeStats es ON es.companyId=c.id
+            LEFT JOIN templateStats ts ON ts.companyId=c.id
+            LEFT JOIN instructionTypeStats its ON its.companyId=c.id
+            LEFT JOIN questionStats qs ON qs.companyId=c.id
             ORDER BY c.createdAt DESC, c.name`);
         return json(result.recordset);
       }
