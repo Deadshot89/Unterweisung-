@@ -7,27 +7,27 @@ Branch: `auth-password-setup-links`
 
 Der Unterweisungsmanager muss einen sicheren Erstzugang ohne funktionierende Microsoft-Anmeldung und ohne bereits eingeloggten Administrator ermöglichen. Gleichzeitig darf es keine offene Registrierung, kein Standardpasswort und keinen öffentlich erratbaren Bootstrap-Pfad geben.
 
-Der gleiche Mechanismus soll anschließend für normale Benutzer wie Andreas Zohren wiederverwendet werden: Ein Administrator erzeugt einen einmaligen Setup-Link, den der Benutzer zum Festlegen oder Zurücksetzen seines eigenen Passworts verwendet.
+Der gleiche Mechanismus wird anschließend für normale Benutzer wie Andreas Zohren wiederverwendet: Ein Administrator erzeugt einen einmaligen Setup-Link, den der Benutzer zum Festlegen oder Zurücksetzen seines eigenen Passworts verwendet.
 
 ## Ausgangslage
 
-- Die zentrale Website besitzt bereits Microsoft- sowie E-Mail/Passwort-Login.
-- Das vorhandene `system_admin`-Konto kann derzeit über Microsoft nicht zuverlässig freigeschaltet werden.
-- Für dieses Konto ist noch kein nutzbares Passwort gesetzt.
-- Der Microsoft-Graph-Mailversand ist aktuell nicht konfiguriert; ein reiner E-Mail-Reset würde den Betreiber weiterhin aussperren.
-- Passwort-Hashes werden bereits per scrypt gespeichert; Sitzungen sind signiert und versioniert.
+- Die zentrale Website besitzt bereits einen E-Mail/Passwort-Login; die vorhandene Microsoft-Authentifizierung bleibt technisch im Backend erhalten, wird im aktuellen Release aber vollständig aus der Loginoberfläche ausgeblendet.
+- Der Betreiberzugang ist verbindlich `UnterweisungManagment@outlook.de`.
+- Für diesen Betreiberzugang muss ein sicherer Erstzugang funktionieren, auch wenn in Azure SQL noch kein passender `system_admin`-Datensatz vorhanden ist.
+- Microsoft Graph Mail ist aktuell nicht konfiguriert; ein reiner E-Mail-Reset würde den Betreiber weiterhin aussperren.
+- Passwort-Hashes werden per scrypt gespeichert; Sitzungen sind signiert und versioniert.
 
 ## Gewählte Architektur
 
 ### 1. Eine zentrale Loginseite
 
-Die bestehende zentrale Website bleibt der einzige interne Einstieg. Auf der Loginseite wird neben Microsoft und E-Mail/Passwort ein Bereich `Erstzugang / Passwort festlegen` integriert.
+Die bestehende zentrale Website bleibt der einzige interne Einstieg. Im aktuellen Release zeigt die Loginseite ausschließlich `E-Mail und Passwort`. Microsoft-Login wird vorübergehend nicht angeboten und erst in einem späteren, separat getesteten Release wieder sichtbar gemacht.
 
-Ein normaler Aufruf ohne gültigen Setup-Token zeigt keine Registrierungsmöglichkeit. Der Benutzer kann sich nicht selbst ein Konto anlegen.
+Ein Aufruf mit gültigem Passwort-Setup-Token zeigt auf derselben Seite den Bereich `Passwort festlegen`. Ein normaler Aufruf ohne gültigen Setup-Token zeigt keine Registrierungsmöglichkeit. Benutzer können sich nicht selbst ein Konto anlegen.
 
 ### 2. Kryptografischer Setup-Token
 
-Ein Setup-Link enthält einen zufälligen Token mit mindestens 256 Bit Entropie.
+Ein Setup-Link enthält einen zufälligen Token mit 256 Bit Entropie.
 
 Beispielstruktur:
 
@@ -49,7 +49,7 @@ Der Roh-Token wird niemals in der Datenbank und niemals im Repository gespeicher
 Ein Token ist:
 
 - nur einmal verwendbar
-- standardmäßig 30 Minuten gültig
+- 30 Minuten gültig
 - an genau einen Benutzer gebunden
 - nach erfolgreicher Passwortsetzung sofort verbraucht
 - nach Ablauf unbrauchbar
@@ -68,28 +68,25 @@ Neue Tabelle `PasswordSetupTokens`:
 - `createdBy` NVARCHAR(120), NULL
 - `createdAt` DATETIME2, NOT NULL
 
-Indizes unterstützen die Suche nach Token-Hash und Zielbenutzer.
-
-Die Migration ist additiv und idempotent. Bestehende Benutzer-, Rollen- und Unterweisungsdaten werden nicht verändert.
+Zusätzlich ergänzt Migration 010 die Passwort-/Sitzungsspalten an `Users`, falls sie fehlen. Die Migration ist additiv und idempotent; bestehende Unterweisungs-, Firmen- und Benutzerdaten werden nicht gelöscht.
 
 ### 4. Erstmaliger Betreiber-Bootstrap
 
-Für den bereits vorhandenen `system_admin` ohne Passwort wird einmalig ein starker Roh-Token außerhalb des Repositorys erzeugt. Nur dessen SHA-256-Hash wird durch einen kontrollierten, einmaligen Datenbank-Seed in `PasswordSetupTokens` gespeichert.
+Der Betreiber ist fest an die normalisierte E-Mail `unterweisungmanagment@outlook.de` gebunden. Ein starker Roh-Token wird außerhalb des Repositorys erzeugt. Nur dessen SHA-256-Hash wird durch einen kontrollierten, einmaligen Datenbank-Seed gespeichert.
 
-Der Roh-Token wird ausschließlich dem Betreiber im Chat als Setup-Link übergeben.
+Der Bootstrap arbeitet fail-closed:
 
-Der Seed darf nur dann eine Zeile anlegen, wenn:
+- Existiert kein Betreiber-Datensatz, wird genau ein aktiver `system_admin` mit der festgelegten E-Mail an einer vorhandenen aktiven Startfirma angelegt. Als globaler `system_admin` muss er sich nach dem Login trotzdem explizit für eine Firma entscheiden.
+- Existiert genau ein Datensatz mit dieser E-Mail und noch ohne Passwort, wird er als aktiver `system_admin` normalisiert.
+- Existieren mehrere Datensätze mit dieser E-Mail, ist bereits ein Passwort gesetzt oder existiert keine aktive Startfirma, bricht der Bootstrap ohne Token-Anlage ab.
+- Vor dem neuen Seed werden alte unverbrauchte Setup-Tokens dieses Betreiberkontos widerrufen.
+- Der Seed akzeptiert ausschließlich `PASSWORD_SETUP_TOKEN_HASH`; Roh-Token und Klartextpasswort sind als Bootstrap-Variablen ausdrücklich verboten.
 
-- genau ein aktiver `system_admin` ohne gesetztes Passwort existiert
-- noch kein unverbrauchter `initial_password`-Token für diesen Benutzer existiert
-
-Bei abweichendem Zustand bricht der Seed ohne Änderung ab.
-
-Damit wird kein Passwort vorgegeben und kein dauerhafter Bootstrap-Schlüssel benötigt.
+Der Roh-Token wird ausschließlich dem Betreiber als einmaliger Setup-Link übergeben. Damit wird kein Passwort vorgegeben und kein dauerhafter Bootstrap-Schlüssel benötigt.
 
 ### 5. Setup-Endpunkt
 
-Neuer anonymer API-Endpunkt:
+Anonymer API-Endpunkt:
 
 `POST /api/auth/password/setup`
 
@@ -101,44 +98,44 @@ Payload:
 
 Serverablauf:
 
-1. Token normalisieren und SHA-256 bilden.
-2. Tokenzeile plus Zielbenutzer laden.
-3. Prüfen: nicht benutzt, nicht abgelaufen, Benutzer aktiv.
-4. Bei `initial_password` zusätzlich sicherstellen, dass der Benutzer noch kein Passwort gesetzt hat.
-5. Passwortregeln 10–256 Zeichen und Gleichheit von `password`/`passwordConfirm` anwenden.
-6. Passwort mit bestehendem scrypt-Verfahren hashen.
-7. In einer DB-Transaktion:
+1. Exakte Form des 256-Bit-Base64url-Tokens prüfen und SHA-256 bilden.
+2. Token vor der teuren scrypt-Berechnung auf Existenz, Ablauf, Verbrauch und aktiven Benutzer prüfen; ungültige Zufallsanfragen verursachen dadurch keine teure Passwort-Hash-Arbeit.
+3. Passwortregeln 10–256 Zeichen und Gleichheit von `password`/`passwordConfirm` anwenden.
+4. Passwort mit scrypt hashen.
+5. Token und Zielbenutzer innerhalb einer DB-Transaktion erneut mit Sperren laden, um Race Conditions auszuschließen.
+6. Bei `initial_password` sicherstellen, dass noch kein Passwort gesetzt wurde.
+7. In derselben Transaktion:
    - `passwordHash` aktualisieren
    - `passwordSetAt` setzen
    - Fehlversuche und Sperre zurücksetzen
    - `sessionVersion` erhöhen
-   - Provider auf `dual` setzen, sofern Microsoft-Zugang bestehen bleibt
-   - Token `usedAt` setzen
+   - Provider bei vorhandener AAD-Identität auf `dual`, beim reinen Betreiberzugang auf `password` belassen
+   - Token verbrauchen
    - weitere unverbrauchte Setup-Tokens desselben Benutzers widerrufen
-8. Sicherheitsereignis schreiben.
-9. Keine automatische Anmeldung über den Setup-Link; danach erfolgt normale Anmeldung über die zentrale Loginseite.
+8. Sicherheitsereignis ohne Roh-Token oder Passwortdaten schreiben.
+9. Keine automatische Anmeldung über den Setup-Link; danach erfolgt die normale Anmeldung über E-Mail und Passwort.
 
-Fehlermeldungen geben keine sensiblen Kontodetails preis. Ungültig, verbraucht oder abgelaufen wird einheitlich behandelt.
+Ungültig, verbraucht oder abgelaufen wird einheitlich behandelt.
 
 ### 6. Login-UI für Setup-Link
 
 `auth-login-v42.js` erkennt `passwordSetup` ausschließlich im URL-Fragment der aktuellen Seite.
 
-Bei vorhandenem Token zeigt die zentrale Loginseite statt des normalen Passwortformulars einen fokussierten Bereich:
+Bei vorhandenem Token zeigt die zentrale Loginseite statt des normalen Passwortformulars:
 
 - `Passwort festlegen`
 - Neues Passwort
 - Passwort bestätigen
 - Speichern
-- verständliche Passwortanforderung
+- Passwortanforderung
 
 Nach Erfolg:
 
 - Fragment und damit der Token werden mit `history.replaceState` aus der Browser-URL entfernt
-- Erfolgsmeldung erscheint
-- normales E-Mail/Passwort-Login wird wieder angezeigt
+- eine Erfolgsmeldung erscheint
+- das normale E-Mail/Passwort-Login wird wieder angezeigt
 
-Der Token darf nicht in Logs, Analytics, Fehlertexte, Referrer oder DOM-Debug-Ausgaben geschrieben werden.
+Ohne Token zeigt die Seite nur E-Mail und Passwort. Sie weist darauf hin, dass Erstzugang oder Passwort-Reset über einen Administrator-Setup-Link erfolgen. Externe Unterweisungslinks bleiben unabhängig erreichbar.
 
 ### 7. Admin-Funktion für weitere Benutzer
 
@@ -146,7 +143,7 @@ Nach erfolgreichem Adminzugang erhält `Benutzer / Rechte` bei berechtigten Ziel
 
 `Passwort-Setup-Link erstellen`
 
-Neuer geschützter Endpunkt:
+Geschützter Endpunkt:
 
 `POST /api/users/{id}/password-setup-link`
 
@@ -161,65 +158,67 @@ Ablauf:
 
 - neue 256-Bit-Zufallsfolge erzeugen
 - nur Hash speichern
-- bestehende unverbrauchte Setup-Tokens des Zielbenutzers widerrufen
+- bestehende unverbrauchte Setup-Tokens widerrufen
 - 30-Minuten-Ablaufzeit setzen
 - vollständigen Link genau einmal an den berechtigten Admin zurückgeben
 
-Solange Graph-Mail nicht konfiguriert ist, kopiert der Admin den Link manuell und gibt ihn dem Benutzer. Sobald Mail später verfügbar ist, kann derselbe Mechanismus um Mailversand ergänzt werden, ohne das Tokenmodell zu ändern.
+Solange Graph Mail nicht konfiguriert ist, kopiert der Admin den Link manuell und gibt ihn dem Benutzer. Später kann derselbe Mechanismus um Mailversand ergänzt werden, ohne das Tokenmodell zu ändern.
 
 ### 8. Sicherheitsgrenzen
 
 - Keine Selbstregistrierung.
-- Kein Endpoint, der anhand einer E-Mail-Adresse öffentlich einen Setup-Link zurückgibt.
-- Kein Klartextpasswort in Datenbank, Logs oder Repository.
+- Kein öffentlicher Endpoint, der anhand einer E-Mail-Adresse einen Setup-Link zurückgibt.
+- Kein Klartextpasswort in Datenbank, Logs, Auditdaten oder Repository.
 - Kein Roh-Setup-Token in Datenbank oder Repository.
-- Der Roh-Token steht nicht im Query-String und wird nicht als HTTP-Referrer übertragen.
-- Token wird nur einmal als URL an den berechtigten Empfänger ausgegeben.
+- Roh-Token nur im URL-Fragment, nicht im Query-String.
+- Token nur einmal als URL an einen berechtigten Empfänger ausgeben.
 - Alle Passwortänderungen erhöhen `sessionVersion` und machen bestehende Passwortsitzungen ungültig.
 - `company_admin` kann keinen `system_admin` verwalten.
 - Mandantenfilter werden serverseitig durchgesetzt.
-- Rate-Limit-/Fehlversuchsschutz des normalen Passwort-Logins bleibt unverändert.
+- Normales Passwort-Login behält Fehlversuchsschutz: fünf Fehlversuche führen zu 30 Minuten Sperre.
+- Der vollständige Arbeitsbereich bleibt bis erfolgreicher Anmeldung und gültigem Firmenkontext physisch verborgen.
 
 ### 9. Tests
 
-TDD-Verträge müssen mindestens abdecken:
+TDD-Verträge decken mindestens ab:
 
 1. Setup-Token-Hashing: Roh-Token wird nie persistiert.
-2. Ungültiger Token wird abgelehnt.
-3. Abgelaufener Token wird abgelehnt.
-4. Bereits verbrauchter Token wird abgelehnt.
-5. `initial_password` funktioniert nur, solange noch kein Passwort gesetzt ist.
-6. Erfolgreiche Passwortsetzung setzt scrypt-Hash, `passwordSetAt`, Provider und erhöht `sessionVersion`.
-7. Erfolgreiche Passwortsetzung verbraucht bzw. widerruft alle Setup-Tokens des Benutzers.
-8. Setup-Seite liest den Token aus dem URL-Fragment, zeigt Passwort + Bestätigung und entfernt das Fragment nach Erfolg.
+2. Ungültiger, abgelaufener oder verbrauchter Token wird abgelehnt.
+3. Ungültige Tokens werden vor scrypt abgewiesen.
+4. `initial_password` funktioniert nur solange noch kein Passwort gesetzt ist.
+5. Erfolgreiche Passwortsetzung setzt scrypt-Hash, `passwordSetAt`, Provider und erhöht `sessionVersion`.
+6. Erfolgreiche Passwortsetzung verbraucht/widerruft Setup-Tokens.
+7. Setup-Seite liest den Token aus dem URL-Fragment und entfernt ihn nach Erfolg.
+8. Microsoft-Login ist im aktuellen Release nicht Bestandteil der Login-UI.
 9. Admin-Link-Erzeugung ist mandantengebunden.
-10. `company_admin` kann niemals einen `system_admin` zurücksetzen.
-11. Das normale Login mit dem neu gesetzten Passwort funktioniert anschließend.
-12. Anonymer Zugriff auf Dashboard/Firmendaten bleibt weiterhin gesperrt.
-13. Weder Query-String noch Referrer-/Logpfad enthalten den Roh-Setup-Token.
+10. `company_admin` kann niemals einen `system_admin` verwalten oder zurücksetzen.
+11. Benutzerlisten geben nur `passwordEnabled`, niemals Hashes aus.
+12. Audit- und Security-Events enthalten keine Passwort-/Token-Rohdaten.
+13. Betreiber-Bootstrap akzeptiert ausschließlich den Token-Hash und ist an die festgelegte Betreiber-E-Mail gebunden.
+14. Anonymer Zugriff auf Dashboard/Firmendaten bleibt gesperrt.
 
 ### 10. Rollout
 
 Reihenfolge:
 
-1. Migration und API/UI auf einem Feature-Branch implementieren.
-2. Vollständige Tests grün.
-3. Additive Migration auf Azure SQL ausführen.
-4. Produktcode auf die eine zentrale Produktionsseite deployen.
-5. Einmaligen `initial_password`-Token für den bestehenden Systemadmin seeden.
-6. Roh-Link ausschließlich dem Betreiber übergeben.
-7. Betreiber setzt eigenes Passwort.
-8. Live-Login mit E-Mail/Passwort verifizieren.
-9. Erst danach weitere Benutzer wie Andreas über die Admin-Funktion mit Setup-Link versorgen.
+1. Produktcode, Migration und Bootstrap auf dem Feature-Branch vollständig implementieren.
+2. Vollständige Tests und API-Syntaxprüfungen grün.
+3. Bereinigten Kandidaten auf `main` freigeben und die eine zentrale Website deployen.
+4. Migration 010 auf Azure SQL ausführen.
+5. Erst unmittelbar danach einen neuen 256-Bit-Roh-Token außerhalb GitHubs erzeugen und nur dessen SHA-256-Hash seeden.
+6. Einmaligen Setup-Link ausschließlich dem Betreiber übergeben.
+7. Betreiber setzt sein Passwort und meldet sich mit `UnterweisungManagment@outlook.de` an.
+8. Systemadmin-Firmenauswahl und Live-Sitzung verifizieren.
+9. Danach weitere Benutzer wie Andreas über `Benutzer / Rechte` mit Setup-Link versorgen.
 
 ## Nicht im Scope
 
 - Offene Benutzerregistrierung
 - Klartext- oder Standardpasswörter
-- Zwang zu Microsoft für den Erstzugang
+- Sichtbarer Microsoft-Login im aktuellen Release
 - Vollständige Microsoft-Graph-Mail-Einrichtung
 - Separate Firmen- oder Login-Websites
 
 ## Erfolgskriterium
 
-Der Betreiber kann auf der einzigen zentralen Website ohne Microsoft-Login über einen einmaligen Setup-Link sein eigenes Systemadmin-Passwort setzen und sich danach regulär mit E-Mail/Passwort anmelden. Anschließend kann er für Andreas Zohren und andere berechtigte Benutzer sichere, einmalige Passwort-Setup-Links erzeugen.
+Der Betreiber kann auf der einzigen zentralen Website ohne Microsoft-Login über einen einmaligen Setup-Link sein eigenes Systemadmin-Passwort setzen und sich danach regulär mit `UnterweisungManagment@outlook.de` und seinem selbst gewählten Passwort anmelden. Anschließend kann er für Andreas Zohren und andere berechtigte Benutzer sichere, einmalige Passwort-Setup-Links erzeugen.
