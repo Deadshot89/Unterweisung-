@@ -26,6 +26,9 @@ jobs:
         with:
           node-version: "22"
 
+      - name: Install root runtime dependencies
+        run: npm install --omit=dev
+
       - name: Install dependencies
         working-directory: api
         run: npm install --omit=dev
@@ -33,6 +36,11 @@ jobs:
       - name: Run API syntax checks
         working-directory: api
         run: npm test
+
+      - name: Run database migrations
+        env:
+          SQL_CONNECTION_STRING: ${{ secrets.SQL_CONNECTION_STRING }}
+        run: npm run db:migrate
 
       - name: Deploy to Azure Functions
         uses: Azure/functions-action@v1
