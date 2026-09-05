@@ -52,6 +52,23 @@
 
       <section id="diagPushStatus" class="message info" hidden></section>
 
+      <section id="diagDevicesPanel" class="panel" hidden>
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">Handy-Push</p>
+            <h2>Registrierte Geräte</h2>
+            <p class="muted">Nur Geräte dieses Systemadmin-Kontos werden angezeigt. Push-Adressen bleiben verborgen.</p>
+          </div>
+          <button id="diagDevicesRefresh" type="button" class="button secondary">Geräte aktualisieren</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Gerät</th><th>Registriert</th><th>Letzte erfolgreiche Zustellung</th><th>Status</th><th>Aktionen</th></tr></thead>
+            <tbody id="diagDevices"><tr><td colspan="5">Geräte werden geladen …</td></tr></tbody>
+          </table>
+        </div>
+      </section>
+
       <section class="panel">
         <div class="panel-heading">
           <div>
