@@ -40,6 +40,30 @@ function alertRuntimeStatus() {
   };
 }
 
+
+async function emailDeliveryStatus(pool) {
+  const result = await pool.request().query(`
+    SELECT TOP 20 alertResultJson,alertedAt
+    FROM DiagnosticEvents
+    WHERE alertResultJson IS NOT NULL
+      AND alertedAt IS NOT NULL
+    ORDER BY alertedAt DESC,id DESC`);
+  for (const row of result.recordset) {
+    try {
+      const alertResult = JSON.parse(row.alertResultJson);
+      if (typeof alertResult?.email?.sent === 'boolean') {
+        return {
+          deliveryVerified: alertResult.email.sent,
+          lastDeliveryAttemptAt: row.alertedAt || null
+        };
+      }
+    } catch {
+      // Ungültige Altwerte überspringen; keine Diagnosedetails nach außen geben.
+    }
+  }
+  return { deliveryVerified: null, lastDeliveryAttemptAt: null };
+}
+
 function endpointHash(endpoint) {
   return createHash('sha256').update(String(endpoint || '')).digest('hex');
 }
@@ -158,6 +182,8 @@ app.http('diagnosticStatus', {
         FROM DiagnosticEvents WHERE ${where.join(' AND ')}`);
       const row = counts.recordset[0] || {};
       const alertStatus = alertRuntimeStatus();
+      const emailDelivery = await emailDeliveryStatus(pool);
+      const emailReady = !!alertStatus.emailConfigured && emailDelivery.deliveryVerified === true;
       return json({
         ok: true,
         scope: companyId || 'all',
@@ -166,6 +192,9 @@ app.http('diagnosticStatus', {
         alerts: {
           email: {
             configured: alertStatus.emailConfigured,
+            deliveryVerified: emailDelivery.deliveryVerified,
+            ready: emailReady,
+            lastDeliveryAttemptAt: emailDelivery.lastDeliveryAttemptAt,
             provider: alertStatus.emailProvider,
             missing: alertStatus.emailMissing
           },

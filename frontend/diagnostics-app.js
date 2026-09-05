@@ -125,7 +125,13 @@
   function renderStatus(status) {
     $('statusApi').textContent = String(status?.api || '—').toUpperCase();
     $('statusDatabase').textContent = String(status?.database || '—').toUpperCase();
-    $('statusEmail').textContent = status?.alerts?.email?.configured ? 'BEREIT' : 'NICHT BEREIT';
+    $('statusEmail').textContent = status?.alerts?.email?.ready
+    ? 'BEREIT'
+    : status?.alerts?.email?.deliveryVerified === false
+      ? 'NICHT BEREIT · LETZTER VERSAND FEHLGESCHLAGEN'
+      : status?.alerts?.email?.configured
+        ? 'NICHT BEREIT · VERSAND NICHT BESTÄTIGT'
+        : 'NICHT BEREIT';
     $('statusPush').textContent = status?.alerts?.push?.configured ? 'BEREIT' : 'NICHT BEREIT';
     $('countCritical').textContent = String(status?.counts?.critical ?? 0);
     $('countWarning').textContent = String(status?.counts?.warning ?? 0);
