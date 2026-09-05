@@ -47,7 +47,7 @@ function renderUsers(){
   const editable = canEditUsers();
   const currentCompany = state.companyId || DEFAULT_COMPANY_ID;
   $('users').innerHTML=`<div class="grid">
-    <div class="card span-12"><div class="toolbar"><div><h2>Benutzer / Rechte</h2><p class="muted">Aktuelle Firma: <b>${esc(currentCompany)}</b>. Microsoft und E-Mail/Passwort verwenden dieselben hinterlegten Rollen und Firmenrechte.</p></div><button class="ghost" onclick="refreshUsers()">Aktualisieren</button></div>
+    <div class="card span-12"><div class="toolbar"><div><h2>Benutzer / Rechte</h2><p class="muted">Aktuelle Firma: <b>${esc(currentCompany)}</b>. E-Mail/Passwort verwendet die hinterlegten Rollen und Firmenrechte.</p></div><button class="ghost" onclick="refreshUsers()">Aktualisieren</button></div>
       ${userAccessExplanation()}
       <div id="passwordSetupLinkResult"></div>
       ${userTable(rows, editable)}
@@ -57,7 +57,7 @@ function renderUsers(){
 }
 
 function userAccessExplanation(){
-  return `<div class="notice"><b>Zugang:</b> Ein aktiver Benutzer kann sich mit Microsoft anmelden, wenn die Identität passt. Für E-Mail/Passwort kann ein berechtigter Admin einen einmaligen Passwort-Setup-Link erstellen. Externe Unterweisungslinks benötigen kein internes Benutzerkonto.</div>`;
+  return `<div class="notice"><b>Zugang:</b> Ein aktiver Benutzer meldet sich mit E-Mail/Passwort an. Ein berechtigter Admin erstellt für Erstzugang oder Passwort-Reset einen einmaligen Passwort-Setup-Link. Externe Unterweisungslinks benötigen kein internes Benutzerkonto.</div>`;
 }
 
 function userActionButtons(user, editable=false){
