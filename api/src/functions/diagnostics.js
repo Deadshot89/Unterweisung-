@@ -1,9 +1,12 @@
+import { createHash, randomUUID } from 'node:crypto';
 import { app } from '@azure/functions';
 import { getPool, sql } from '../lib/db.js';
-import { json, serverError } from '../lib/http.js';
-import { getAuthorizedContext, Roles } from '../lib/auth.js';
+import { json, badRequest, serverError } from '../lib/http.js';
+import { getAuthorizedContext, assertRole, Roles } from '../lib/auth.js';
 import { assertDiagnosticAccess } from '../lib/diagnosticAccess.js';
 import { diagnosticListLimit, recordDiagnosticEvent } from '../lib/diagnostics.js';
+import { notifyCriticalDiagnostic } from '../lib/diagnosticAlerts.js';
+import { getVapidPublicKey } from '../lib/webPush.js';
 
 function clean(value, max) {
   const text = String(value ?? '').trim();
@@ -17,6 +20,21 @@ function isSystemAdmin(ctx) {
 function scopedCompanyId(ctx, request) {
   if (!isSystemAdmin(ctx)) return ctx.companyId;
   return clean(request?.query?.get('companyId'), 80);
+}
+
+function endpointHash(endpoint) {
+  return createHash('sha256').update(String(endpoint || '')).digest('hex');
+}
+
+function validPushEndpoint(value) {
+  const endpoint = clean(value, 2048);
+  if (!endpoint) return null;
+  try {
+    const url = new URL(endpoint);
+    return url.protocol === 'https:' ? url.href : null;
+  } catch {
+    return null;
+  }
 }
 
 function addEventFilters(dbRequest, where, request, companyId) {
@@ -76,7 +94,15 @@ app.http('diagnosticEvents', {
           appVersion: input.appVersion,
           userAgent: request.headers.get('user-agent')
         }, { source: 'frontend' });
-        return json({ ok: true, event }, 201);
+        let alert = null;
+        if (event.severity === 'critical') {
+          try {
+            alert = await notifyCriticalDiagnostic(pool, event);
+          } catch (err) {
+            alert = { skipped: false, delivered: false, error: clean(err?.message || err, 500) };
+          }
+        }
+        return json({ ok: true, event, alert }, 201);
       }
 
       await assertDiagnosticAccess(pool, ctx);
@@ -192,6 +218,62 @@ app.http('diagnosticExport', {
           'Cache-Control': 'no-store'
         }
       });
+    } catch (err) {
+      return serverError(err, context);
+    }
+  }
+});
+
+app.http('diagnosticPushConfig', {
+  methods: ['GET'],
+  authLevel: 'anonymous',
+  route: 'diagnostics/push/config',
+  handler: async (request, context) => {
+    try {
+      const ctx = await getAuthorizedContext(request);
+      assertRole(ctx, [Roles.SYSTEM_ADMIN]);
+      return json({ publicKey: getVapidPublicKey() });
+    } catch (err) {
+      return serverError(err, context);
+    }
+  }
+});
+
+app.http('diagnosticPushSubscriptions', {
+  methods: ['POST','DELETE'],
+  authLevel: 'anonymous',
+  route: 'diagnostics/push/subscriptions',
+  handler: async (request, context) => {
+    try {
+      const ctx = await getAuthorizedContext(request);
+      assertRole(ctx, [Roles.SYSTEM_ADMIN]);
+      const pool = await getPool();
+      const input = await request.json().catch(() => ({}));
+      const endpoint = validPushEndpoint(input.endpoint);
+      if (!endpoint) return badRequest('Gültiger HTTPS-Push-Endpunkt fehlt.');
+      const hash = endpointHash(endpoint);
+
+      if (request.method === 'DELETE') {
+        await pool.request()
+          .input('userId', sql.NVarChar(120), ctx.userId)
+          .input('endpointHash', sql.NVarChar(128), hash)
+          .query('DELETE FROM PushSubscriptions WHERE userId=@userId AND endpointHash=@endpointHash');
+        return json({ ok: true, active: false });
+      }
+
+      const id = `push-${randomUUID()}`;
+      await pool.request()
+        .input('id', sql.NVarChar(80), id)
+        .input('userId', sql.NVarChar(120), ctx.userId)
+        .input('endpoint', sql.NVarChar(2048), endpoint)
+        .input('endpointHash', sql.NVarChar(128), hash)
+        .query(`MERGE PushSubscriptions AS target
+                USING (SELECT @endpointHash AS endpointHash) AS source
+                ON target.endpointHash=source.endpointHash
+                WHEN MATCHED THEN UPDATE SET userId=@userId,endpoint=@endpoint,updatedAt=SYSUTCDATETIME(),lastError=NULL,lastErrorAt=NULL
+                WHEN NOT MATCHED THEN INSERT(id,userId,endpoint,endpointHash)
+                VALUES(@id,@userId,@endpoint,@endpointHash);`);
+      return json({ ok: true, active: true });
     } catch (err) {
       return serverError(err, context);
     }
