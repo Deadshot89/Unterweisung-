@@ -7,6 +7,7 @@ import { assertDiagnosticAccess } from '../lib/diagnosticAccess.js';
 import { diagnosticListLimit, recordDiagnosticEvent } from '../lib/diagnostics.js';
 import { notifyCriticalDiagnostic } from '../lib/diagnosticAlerts.js';
 import { getVapidPublicKey } from '../lib/webPush.js';
+import { mailConfigStatus } from '../lib/graphMail.js';
 
 function clean(value, max) {
   const text = String(value ?? '').trim();
@@ -20,6 +21,23 @@ function isSystemAdmin(ctx) {
 function scopedCompanyId(ctx, request) {
   if (!isSystemAdmin(ctx)) return ctx.companyId;
   return clean(request?.query?.get('companyId'), 80);
+}
+
+function alertRuntimeStatus() {
+  const mail = mailConfigStatus();
+  let pushConfigured = true;
+  try {
+    getVapidPublicKey();
+  } catch {
+    pushConfigured = false;
+  }
+  return {
+    emailConfigured: !!mail.configured,
+    emailProvider: mail.provider || 'microsoft-graph',
+    emailMissing: Array.isArray(mail.missing) ? mail.missing : [],
+    pushConfigured,
+    pushProvider: 'web-push'
+  };
 }
 
 function endpointHash(endpoint) {
@@ -139,11 +157,23 @@ app.http('diagnosticStatus', {
           MAX(createdAt) AS lastEventAt
         FROM DiagnosticEvents WHERE ${where.join(' AND ')}`);
       const row = counts.recordset[0] || {};
+      const alertStatus = alertRuntimeStatus();
       return json({
         ok: true,
         scope: companyId || 'all',
         database: 'ok',
         api: 'ok',
+        alerts: {
+          email: {
+            configured: alertStatus.emailConfigured,
+            provider: alertStatus.emailProvider,
+            missing: alertStatus.emailMissing
+          },
+          push: {
+            configured: alertStatus.pushConfigured,
+            provider: alertStatus.pushProvider
+          }
+        },
         windowHours: 24,
         counts: {
           critical: Number(row.critical || 0),
