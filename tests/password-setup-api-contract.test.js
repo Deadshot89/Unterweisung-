@@ -16,6 +16,15 @@ test('password setup consume endpoint is anonymous and token-bound', () => {
   assert.doesNotMatch(source, /body\.(email|userId|companyId)/);
 });
 
+test('invalid setup tokens are rejected before expensive password hashing', () => {
+  assert.match(source, /\^\[A-Za-z0-9_\-\]\{43\}\$/);
+  assert.match(source, /const preflight/);
+  assert.match(source, /preflight\.recordset\.length !== 1/);
+  const preflightIndex = source.indexOf('const preflight');
+  const passwordHashIndex = source.indexOf('const passwordHash = await hashPassword');
+  assert.ok(preflightIndex >= 0 && passwordHashIndex > preflightIndex, 'Token validity must be checked before scrypt password hashing');
+});
+
 test('password setup consumes token and updates password atomically', () => {
   assert.match(source, /hashPassword/);
   assert.match(source, /sessionVersion=sessionVersion\+1/);
