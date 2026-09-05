@@ -30,14 +30,19 @@
     const detail=String(message||'').replace(/^.*?Fehler:\s*/,'').trim();
     target.hidden=false;
     target.innerHTML=`<section class="dual-login-shell">
-      <div class="dual-login-head"><span class="portal-badge">Unterweisungsmanager</span><h2>Anmeldung</h2><p class="muted">Microsoft oder E-Mail und Passwort – beide Wege verwenden dieselben Rollen und Firmenrechte.</p></div>
-      <div class="dual-login-grid">
-        <div class="card dual-login-card"><h3>Mit Microsoft anmelden</h3><p>Für Benutzer mit Microsoft-/Entra-Konto. Deine hinterlegte Rolle bestimmt anschließend den Funktionsumfang.</p><a class="btn primary" href="/.auth/login/aad">Mit Microsoft anmelden</a></div>
-        <div class="card dual-login-card"><h3>E-Mail und Passwort</h3><p>Für interne Benutzer ohne Microsoft-Konto. Die Rechte entsprechen der im Benutzerkonto hinterlegten Rolle.</p>
-          <form id="authPasswordLogin"><div class="field"><label for="authLoginEmail">E-Mail</label><input id="authLoginEmail" type="email" autocomplete="username" required></div>
+      <div class="dual-login-head"><span class="portal-badge">Unterweisungsmanager</span><h2>Anmeldung</h2><p class="muted">Melde dich mit deiner E-Mail-Adresse und deinem persönlichen Passwort an.</p></div>
+      <div class="card dual-login-card" style="max-width:620px;margin:0 auto">
+        <h3>E-Mail und Passwort</h3>
+        <p>Deine hinterlegte Rolle und Firmenzuordnung bestimmen automatisch, welche Bereiche und Daten du verwenden darfst.</p>
+        <form id="authPasswordLogin">
+          <div class="field"><label for="authLoginEmail">E-Mail</label><input id="authLoginEmail" type="email" autocomplete="username" required></div>
           <div class="field"><label for="authLoginPassword">Passwort</label><input id="authLoginPassword" type="password" autocomplete="current-password" required></div>
-          <button class="primary" type="submit">Anmelden</button><div id="authLoginResult" class="employee-login-error">${detail?`<div class="notice warning">${escapeHtml(detail)}</div>`:''}</div></form></div>
-      </div><p class="muted" style="text-align:center;margin-top:18px">Externe Unterweisungen bleiben unabhängig davon über ihren persönlichen Link erreichbar.</p>
+          <button class="primary" type="submit">Anmelden</button>
+          <div id="authLoginResult" class="employee-login-error">${detail?`<div class="notice warning">${escapeHtml(detail)}</div>`:''}</div>
+        </form>
+        <p class="muted" style="margin-top:14px">Noch kein Passwort oder Passwort vergessen? Verwende den einmaligen Passwort-Setup-Link, den du von deinem Administrator erhalten hast.</p>
+      </div>
+      <p class="muted" style="text-align:center;margin-top:18px">Externe Unterweisungen bleiben unabhängig davon über ihren persönlichen Link erreichbar.</p>
     </section>`;
     document.getElementById('authPasswordLogin')?.addEventListener('submit',passwordLogin);
   }
@@ -66,7 +71,9 @@
   async function passwordLogin(event){
     event?.preventDefault();
     const result=document.getElementById('authLoginResult');
+    const submit=event?.currentTarget?.querySelector?.('button[type="submit"]');
     if(result)result.textContent='Anmeldung wird geprüft …';
+    if(submit)submit.disabled=true;
     try{
       const response=await fetch('/api/auth/password/login',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify({email:document.getElementById('authLoginEmail')?.value||'',password:document.getElementById('authLoginPassword')?.value||''})});
       const data=await response.json().catch(()=>({}));
@@ -74,6 +81,7 @@
       location.reload();
     }catch(error){
       if(result)result.innerHTML=`<div class="notice dangerbox">${escapeHtml(error.message||error)}</div>`;
+      if(submit)submit.disabled=false;
     }
   }
 
