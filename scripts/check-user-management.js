@@ -17,7 +17,8 @@ assert.match(usersUi, /function renderUsers/, 'Frontend muss renderUsers übersc
 assert.match(usersUi, /roleBadge/, 'Frontend muss Rollen sichtbar darstellen.');
 assert.match(usersUi, /toggleUser/, 'Frontend muss Benutzer sperren/freischalten können.');
 assert.match(usersUi, /system_admin/, 'Frontend muss System-Admin-Rolle für Betreiber unterstützen.');
-assert.match(usersUi, /Microsoft und E-Mail\/Passwort verwenden dieselben hinterlegten Rollen und Firmenrechte/, 'Frontend muss die gemeinsame Rollen-/Firmenlogik beider Loginwege erklären.');
+assert.match(usersUi, /E-Mail\/Passwort verwendet die hinterlegten Rollen und Firmenrechte/, 'Frontend muss die Rollen-/Firmenlogik des aktiven Passwort-Loginwegs erklären.');
+assert.doesNotMatch(usersUi, /Microsoft/i, 'Microsoft-Login darf im aktuellen Passwort-only-Release nicht beworben werden.');
 assert.match(usersUi, /Passwort-Setup-Link erstellen/, 'Frontend muss den sicheren Passwort-Erstzugang erklären und anbieten.');
 assert.match(index, /user-management-v19\.js/, 'Index muss User-Management-Script laden.');
 
