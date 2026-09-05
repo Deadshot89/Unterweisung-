@@ -18,7 +18,11 @@ const ALLOWED_RUNTIME_SETTINGS = Object.freeze([
   'BLOB_CONTAINER_BACKUPS',
   'BLOB_CONTAINER_EXPORTS',
   'DEFAULT_COMPANY_ID',
-  'COMPANY_ID'
+  'COMPANY_ID',
+  'GRAPH_TENANT_ID',
+  'GRAPH_CLIENT_ID',
+  'GRAPH_CLIENT_SECRET',
+  'MAIL_FROM'
 ]);
 
 function runtimeSettingsLocation() {
