@@ -6,6 +6,10 @@
     return String(params.get('passwordSetup') || '');
   }
 
+  function hasPasswordSetupToken(){
+    return !!passwordSetupToken();
+  }
+
   function renderSetup({target,token}){
     target.hidden=false;
     target.innerHTML=`<section class="dual-login-shell">
@@ -92,5 +96,5 @@
   }
 
   document.addEventListener('click',event=>{if(event.target?.closest?.('.logout-action'))logout(event);});
-  root.UMAuthLogin=Object.freeze({render,passwordLogin,logout});
+  root.UMAuthLogin=Object.freeze({render,passwordLogin,logout,hasPasswordSetupToken});
 })(globalThis);
