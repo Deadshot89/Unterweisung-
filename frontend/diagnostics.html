@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#132238">
+  <meta name="description" content="Fehlerdiagnose und Systemstatus für den Unterweisungsmanager">
+  <title>Fehlerdiagnose · Unterweisungsmanager</title>
+  <link rel="manifest" href="/diagnostics.webmanifest">
+  <link rel="icon" href="/diagnostics-icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/diagnostics.css">
+</head>
+<body>
+  <header class="diag-header">
+    <a class="diag-brand" href="/" aria-label="Zurück zum Unterweisungsmanager">
+      <span class="diag-logo">UM</span>
+      <span><strong>Fehlerdiagnose</strong><small>Unterweisungsmanager</small></span>
+    </a>
+    <div class="diag-header-actions">
+      <span id="diagUser" class="diag-user">Sitzung wird geprüft …</span>
+      <a class="button secondary" href="/">Zurück zum Unterweisungsmanager</a>
+    </div>
+  </header>
+
+  <main class="diag-main">
+    <section id="diagAccessMessage" class="message info">Diagnosezugriff wird geprüft …</section>
+
+    <div id="diagWorkspace" hidden>
+      <section class="hero-panel">
+        <div>
+          <p class="eyebrow">Service-App</p>
+          <h1>Fehlerdiagnose</h1>
+          <p>Systemzustand, technische Fehler und kritische Ereignisse an einem Ort. Zugangsdaten und Tokens werden nicht in Diagnoseereignissen gespeichert.</p>
+        </div>
+        <div class="hero-actions">
+          <button id="diagRefresh" type="button" class="button">Aktualisieren</button>
+          <button id="diagExport" type="button" class="button secondary">Diagnosepaket herunterladen</button>
+          <button id="diagPushEnable" type="button" class="button accent" hidden>Handy-Benachrichtigungen aktivieren</button>
+        </div>
+      </section>
+
+      <section class="status-grid" aria-label="Systemstatus">
+        <article class="status-card"><span class="status-label">API</span><strong id="statusApi">–</strong><small>Verbindung</small></article>
+        <article class="status-card"><span class="status-label">Datenbank</span><strong id="statusDatabase">–</strong><small>Azure SQL</small></article>
+        <article class="status-card critical"><span class="status-label">Kritisch</span><strong id="countCritical">0</strong><small>letzte 24 Stunden</small></article>
+        <article class="status-card warning"><span class="status-label">Warnungen</span><strong id="countWarning">0</strong><small>letzte 24 Stunden</small></article>
+        <article class="status-card"><span class="status-label">Information</span><strong id="countInfo">0</strong><small>letzte 24 Stunden</small></article>
+      </section>
+
+      <section id="diagPushStatus" class="message info" hidden></section>
+
+      <section class="panel">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">Ereignisprotokoll</p>
+            <h2>Letzte Fehler und Warnungen</h2>
+          </div>
+          <div class="filters">
+            <label>Schweregrad
+              <select id="diagSeverity">
+                <option value="">Alle</option>
+                <option value="critical">Kritisch</option>
+                <option value="warning">Warnung</option>
+                <option value="info">Information</option>
+              </select>
+            </label>
+            <label>Suche
+              <input id="diagSearch" type="search" placeholder="Bereich, Fehlercode, API …">
+            </label>
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Zeit</th><th>Schwere</th><th>Firma</th><th>Bereich / Aktion</th><th>Fehler</th><th>API</th><th>Benutzer</th></tr></thead>
+            <tbody id="diagEvents"><tr><td colspan="7">Daten werden geladen …</td></tr></tbody>
+          </table>
+        </div>
+        <p id="diagEventCount" class="muted"></p>
+      </section>
+
+      <section class="panel">
+        <div class="panel-heading"><div><p class="eyebrow">Details</p><h2>Ausgewähltes Ereignis</h2></div></div>
+        <div id="diagDetails" class="details-empty">Klicke auf ein Ereignis, um die technischen Details zu sehen.</div>
+      </section>
+    </div>
+  </main>
+
+  <script src="/diagnostics-app.js"></script>
+</body>
+</html>
