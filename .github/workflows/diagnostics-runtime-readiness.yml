@@ -1,0 +1,41 @@
+name: Diagnose Runtime Voraussetzungen
+
+on:
+  push:
+    branches:
+      - feature-diagnostics-pwa
+    paths:
+      - .github/workflows/diagnostics-runtime-readiness.yml
+
+permissions:
+  contents: read
+
+jobs:
+  readiness:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Voraussetzungen prüfen
+        env:
+          SQL_PRESENT: ${{ secrets.SQL_CONNECTION_STRING != '' }}
+          STORAGE_PRESENT: ${{ secrets.AZURE_STORAGE_CONNECTION_STRING != '' }}
+          AUTH_PRESENT: ${{ secrets.AUTH_SESSION_SECRET != '' }}
+          SWA_TOKEN_PRESENT: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN != '' }}
+          FUNCTION_PROFILE_PRESENT: ${{ secrets.AZURE_FUNCTIONAPP_PUBLISH_PROFILE != '' }}
+          GRAPH_TENANT_SECRET_PRESENT: ${{ secrets.GRAPH_TENANT_ID != '' }}
+          GRAPH_TENANT_VAR_PRESENT: ${{ vars.GRAPH_TENANT_ID != '' }}
+          GRAPH_CLIENT_SECRET_ID_PRESENT: ${{ secrets.GRAPH_CLIENT_ID != '' }}
+          GRAPH_CLIENT_VAR_ID_PRESENT: ${{ vars.GRAPH_CLIENT_ID != '' }}
+          GRAPH_CLIENT_SECRET_PRESENT: ${{ secrets.GRAPH_CLIENT_SECRET != '' }}
+          MAIL_FROM_SECRET_PRESENT: ${{ secrets.MAIL_FROM != '' }}
+          MAIL_FROM_VAR_PRESENT: ${{ vars.MAIL_FROM != '' }}
+        run: |
+          set -euo pipefail
+          echo "SQL_CONNECTION_STRING vorhanden: $SQL_PRESENT"
+          echo "AZURE_STORAGE_CONNECTION_STRING vorhanden: $STORAGE_PRESENT"
+          echo "AUTH_SESSION_SECRET vorhanden: $AUTH_PRESENT"
+          echo "SWA Deployment Token vorhanden: $SWA_TOKEN_PRESENT"
+          echo "Function Publish Profile vorhanden: $FUNCTION_PROFILE_PRESENT"
+          echo "GRAPH_TENANT_ID vorhanden: $([[ $GRAPH_TENANT_SECRET_PRESENT == true || $GRAPH_TENANT_VAR_PRESENT == true ]] && echo true || echo false)"
+          echo "GRAPH_CLIENT_ID vorhanden: $([[ $GRAPH_CLIENT_SECRET_ID_PRESENT == true || $GRAPH_CLIENT_VAR_ID_PRESENT == true ]] && echo true || echo false)"
+          echo "GRAPH_CLIENT_SECRET vorhanden: $GRAPH_CLIENT_SECRET_PRESENT"
+          echo "MAIL_FROM vorhanden: $([[ $MAIL_FROM_SECRET_PRESENT == true || $MAIL_FROM_VAR_PRESENT == true ]] && echo true || echo false)"
