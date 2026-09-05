@@ -99,7 +99,7 @@ app.http('passwordAuthLogin', {
       return responseWithCookie({ ok: true, companyId: user.companyId, displayName: user.displayName, role: user.role }, sessionCookie(token, { maxAge: ttlSeconds, secure: String(process.env.NODE_ENV || '').toLowerCase() !== 'development' }));
     } catch (err) {
       if (/Invalid column name 'passwordHash'|Invalid column name 'failedLoginCount'|Invalid column name 'sessionVersion'/i.test(String(err.message || err))) {
-        err = Object.assign(new Error('Passwort-Anmeldung ist vorbereitet, benötigt aber noch die freizugebende Datenbankmigration 011.'), { status: 503 });
+        err = Object.assign(new Error('Passwort-Anmeldung ist vorbereitet, benötigt aber noch die freizugebende Datenbankmigration 010.'), { status: 503 });
       }
       return serverError(err, context);
     }
