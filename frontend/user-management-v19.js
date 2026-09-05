@@ -140,10 +140,34 @@ async function createPasswordSetupLink(id){
     if(target) target.innerHTML=`<div class="notice warning">
       <b>Einmaliger Passwort-Setup-Link für ${esc(user.displayName||user.email)}</b><br>
       Dieser Link ist 30 Minuten gültig. Gib ihn nur an die vorgesehene Person weiter. Ein neuer Link macht den vorherigen unbrauchbar.
-      <div class="field" style="margin-top:10px"><label>Setup-Link</label><input type="text" readonly value="${esc(result.url)}"></div>
+      <div class="field full" style="margin-top:10px">
+        <label for="passwordSetupLinkValue">Setup-Link</label>
+        <textarea id="passwordSetupLinkValue" readonly rows="3" style="width:100%;min-height:78px;box-sizing:border-box;overflow-wrap:anywhere;resize:vertical">${esc(result.url)}</textarea>
+      </div>
+      <div style="margin-top:8px"><button class="primary small" type="button" data-password-setup-copy>Link kopieren</button> <span id="passwordSetupCopyStatus" class="muted"></span></div>
     </div>`;
   }catch(err){
     if(target) target.innerHTML=`<div class="notice dangerbox">Setup-Link konnte nicht erstellt werden: ${esc(String(err.message||err))}</div>`;
+  }
+}
+
+async function copyPasswordSetupLink(){
+  const field=$('passwordSetupLinkValue');
+  const url=String(field?.value||'');
+  if(!url) return;
+  try{
+    if(navigator.clipboard?.writeText){
+      await navigator.clipboard.writeText(url);
+    }else{
+      field.focus();
+      field.select();
+      document.execCommand('copy');
+    }
+    const status=$('passwordSetupCopyStatus');
+    if(status) status.textContent='Vollständiger Link kopiert.';
+  }catch(err){
+    const status=$('passwordSetupCopyStatus');
+    if(status) status.textContent='Kopieren fehlgeschlagen – Link bitte markieren und kopieren.';
   }
 }
 
@@ -182,6 +206,12 @@ async function toggleUser(id, active){
 }
 
 document.addEventListener('click',event=>{
+  const copyButton=event.target?.closest?.('[data-password-setup-copy]');
+  if(copyButton){
+    event.preventDefault();
+    copyPasswordSetupLink();
+    return;
+  }
   const button=event.target?.closest?.('[data-password-setup-action]');
   if(!button) return;
   event.preventDefault();
