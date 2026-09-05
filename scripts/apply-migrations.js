@@ -26,15 +26,36 @@ function checksum(text) {
 }
 
 const pool = await sql.connect(connectionString);
+const transaction = new sql.Transaction(pool);
+let transactionStarted = false;
+
+function request() {
+  return new sql.Request(transaction);
+}
+
 try {
-  await pool.request().query(`IF OBJECT_ID('dbo.DbMigrations','U') IS NULL
+  await transaction.begin(sql.ISOLATION_LEVEL.SERIALIZABLE);
+  transactionStarted = true;
+
+  await request().query(`
+    DECLARE @lockResult INT;
+    EXEC @lockResult = sys.sp_getapplock
+      @Resource = N'Unterweisungsmanager.DbMigrations',
+      @LockMode = 'Exclusive',
+      @LockOwner = 'Transaction',
+      @LockTimeout = 120000;
+    IF @lockResult < 0
+      THROW 51000, 'Datenbank-Migrationssperre konnte nicht bezogen werden.', 1;
+  `);
+
+  await request().query(`IF OBJECT_ID('dbo.DbMigrations','U') IS NULL
     CREATE TABLE dbo.DbMigrations(id NVARCHAR(180) NOT NULL PRIMARY KEY, appliedAt DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(), checksum NVARCHAR(128) NULL);`);
 
   for (const file of files) {
     const full = path.join(migrationsDir, file);
     const text = fs.readFileSync(full, 'utf8');
     const hash = checksum(text);
-    const existing = await pool.request().input('id', sql.NVarChar(180), file)
+    const existing = await request().input('id', sql.NVarChar(180), file)
       .query('SELECT id, checksum FROM dbo.DbMigrations WHERE id=@id');
     if (existing.recordset.length) {
       console.log('✓ bereits angewendet:', file);
@@ -43,16 +64,26 @@ try {
 
     console.log('→ Migration:', file);
     for (const batch of splitGoBatches(text)) {
-      await pool.request().query(batch);
+      await request().query(batch);
     }
-    await pool.request()
+    await request()
       .input('id', sql.NVarChar(180), file)
       .input('checksum', sql.NVarChar(128), hash)
       .query('INSERT INTO dbo.DbMigrations(id, checksum) VALUES(@id, @checksum)');
     console.log('✓ angewendet:', file);
   }
+
+  await transaction.commit();
+  transactionStarted = false;
   console.log('Alle Migrationen abgeschlossen.');
 } catch (err) {
+  if (transactionStarted) {
+    try {
+      await transaction.rollback();
+    } catch (rollbackError) {
+      console.error('Rollback der Migration fehlgeschlagen:', rollbackError.message);
+    }
+  }
   console.error('Migration fehlgeschlagen:', err.message);
   throw err;
 } finally {
