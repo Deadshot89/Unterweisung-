@@ -1,0 +1,20 @@
+name: Check Mail Config Once
+
+on:
+  push:
+    branches:
+      - verify-live-login-boundary
+    paths:
+      - .github/workflows/check-mail-config-once.yml
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check live mail configuration
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error https://delightful-sky-05dbf7603.7.azurestaticapps.net/api/mail/config
