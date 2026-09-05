@@ -98,20 +98,6 @@ function applyProfessionalShell(){
   setProfessionalVersion();
 }
 
-function ensureProfessionalFooter(){
-  const main = document.querySelector('main');
-  if(!main) return;
-  let footer = document.getElementById('appFooterV35');
-  const footerHtml = `<span>Unterweisungsmanager · Arbeitsbereich</span><span class="suite-chip">Betriebsbereit · ${PROFESSIONAL_SUITE_VERSION}</span>`;
-  if(!footer){
-    footer = document.createElement('footer');
-    footer.id = 'appFooterV35';
-    footer.className = 'app-footer-v35';
-    main.appendChild(footer);
-  }
-  if(footer.innerHTML !== footerHtml) footer.innerHTML = footerHtml;
-}
-
 function markCurrentWorkspace(){
   const active = document.querySelector('.view.active');
   if(!active) return;
@@ -124,7 +110,6 @@ function applyProfessionalSuite(){
   professionalSuiteApplying = true;
   try{
     applyProfessionalShell();
-    ensureProfessionalFooter();
     markCurrentWorkspace();
     if(typeof applyTableFormPolish === 'function') applyTableFormPolish();
     if(typeof applyViewHeaders === 'function') applyViewHeaders();
