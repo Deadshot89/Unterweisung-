@@ -1,0 +1,21 @@
+name: Single Site TDD Gate
+
+on:
+  push:
+    branches:
+      - hotfix-single-canonical-site
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install
+      - name: Run focused single-site contract
+        run: node --test tests/login-gate-hotfix.test.js
