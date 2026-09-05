@@ -1,6 +1,6 @@
 const $ = (id) => document.getElementById(id);
 const API_BASE_URL = String(window.UM_API_BASE_URL || '').replace(/\/$/, '');
-const DEFAULT_COMPANY_ID = window.UM_DEFAULT_COMPANY_ID || 'company-essentra';
+const DEFAULT_COMPANY_ID = window.UM_DEFAULT_COMPANY_ID || '';
 const state = { data: null, source: 'loading', statusRows: [], apiAvailable: false, mailConfig: null, me: null, companyId: null, users: [], operations: null, backups: [], healthHistory: [], securityEvents: [], auditEvents: [] };
 
 function esc(s=''){return String(s ?? '').replace(/[&<>\"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[c]))}
