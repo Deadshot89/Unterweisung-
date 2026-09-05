@@ -23,3 +23,12 @@ test('startup renders the login shell immediately before checking the existing s
   assert.ok(renderAt<loadAt,'login shell must render before the initial session check');
   assert.match(app,/authenticatedApp[\s\S]{0,180}hidden\s*=\s*!visible|\$\(['"]authenticatedApp['"]\)[\s\S]{0,180}hidden\s*=\s*!visible/,'workspace visibility must be controlled by the authenticatedApp hidden attribute');
 });
+
+test('password setup mode takes precedence over any existing authenticated session',()=>{
+  const auth=read('frontend/auth-login-v42.js');
+  const app=read('frontend/app.js');
+  assert.match(auth,/hasPasswordSetupToken/,'auth module must expose whether a password setup fragment is active');
+  assert.match(auth,/passwordSetupToken\(\)/,'setup-mode check must reuse the fragment token parser');
+  const startup=app.slice(app.lastIndexOf("document.getElementById('companySwitchAction')"));
+  assert.match(startup,/renderAuthenticationRequired\(\);\s*if\s*\(!UMAuthLogin\.hasPasswordSetupToken\(\)\)\s*loadData\(\);/,'initial session lookup must be skipped while a password setup token is active');
+});
