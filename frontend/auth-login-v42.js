@@ -1,8 +1,32 @@
 (function(root){
-  const escapeHtml=(value='')=>String(value??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+  const escapeHtml=(value='')=>String(value??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#39;'}[ch]));
+
+  function passwordSetupToken(){
+    const params=new URLSearchParams(String(location.hash || '').replace(/^#/,''));
+    return String(params.get('passwordSetup') || '');
+  }
+
+  function renderSetup({target,token}){
+    target.hidden=false;
+    target.innerHTML=`<section class="dual-login-shell">
+      <div class="dual-login-head"><span class="portal-badge">Unterweisungsmanager</span><h2>Passwort festlegen</h2><p class="muted">Lege dein persönliches Passwort für den Unterweisungsmanager fest.</p></div>
+      <div class="card dual-login-card" style="max-width:620px;margin:0 auto">
+        <form id="authPasswordSetup">
+          <div class="field"><label for="authSetupPassword">Neues Passwort</label><input id="authSetupPassword" type="password" autocomplete="new-password" minlength="10" maxlength="256" required></div>
+          <div class="field"><label for="authSetupPasswordConfirm">Passwort bestätigen</label><input id="authSetupPasswordConfirm" type="password" autocomplete="new-password" minlength="10" maxlength="256" required></div>
+          <p class="muted">Das Passwort muss 10 bis 256 Zeichen lang sein.</p>
+          <button class="primary" type="submit">Passwort speichern</button>
+          <div id="authSetupResult" class="employee-login-error"></div>
+        </form>
+      </div>
+    </section>`;
+    document.getElementById('authPasswordSetup')?.addEventListener('submit',event=>passwordSetup(event,target,token));
+  }
 
   function render({target,message=''}){
     if(!target)return;
+    const token=passwordSetupToken();
+    if(token){renderSetup({target,token});return;}
     const detail=String(message||'').replace(/^.*?Fehler:\s*/,'').trim();
     target.hidden=false;
     target.innerHTML=`<section class="dual-login-shell">
@@ -16,6 +40,27 @@
       </div><p class="muted" style="text-align:center;margin-top:18px">Externe Unterweisungen bleiben unabhängig davon über ihren persönlichen Link erreichbar.</p>
     </section>`;
     document.getElementById('authPasswordLogin')?.addEventListener('submit',passwordLogin);
+  }
+
+  async function passwordSetup(event,target,token){
+    event?.preventDefault();
+    const result=document.getElementById('authSetupResult');
+    const password=document.getElementById('authSetupPassword')?.value||'';
+    const passwordConfirm=document.getElementById('authSetupPasswordConfirm')?.value||'';
+    if(result)result.textContent='Passwort wird gespeichert …';
+    if(password!==passwordConfirm){
+      if(result)result.innerHTML='<div class="notice dangerbox">Die Passwörter stimmen nicht überein.</div>';
+      return;
+    }
+    try{
+      const response=await fetch('/api/auth/password/setup',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify({token,password,passwordConfirm})});
+      const data=await response.json().catch(()=>({}));
+      if(!response.ok)throw new Error(data.error||'Passwort konnte nicht festgelegt werden.');
+      history.replaceState(null,'',location.pathname + location.search);
+      render({target,message:'Passwort wurde festgelegt. Du kannst dich jetzt anmelden.'});
+    }catch(error){
+      if(result)result.innerHTML=`<div class="notice dangerbox">${escapeHtml(error.message||error)}</div>`;
+    }
   }
 
   async function passwordLogin(event){
