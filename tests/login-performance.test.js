@@ -20,12 +20,15 @@ test('erfolgreicher Passwort-Login lädt die Anwendung ohne Vollseiten-Reload we
   assert.match(app, /addEventListener\(['"]um:password-authenticated['"][\s\S]{0,240}loadData\s*\(/, 'Die Hauptanwendung muss das Login-Erfolgsereignis direkt übernehmen.');
 });
 
-test('Arbeitsbereich wird nach bestätigter Sitzung sichtbar bevor Firmendaten fertig geladen sind', () => {
+test('nach bestätigter Sitzung erscheint vor dem Datenladen sofort ein sicherer Angemeldet-Status', () => {
   const loadCompanyData = functionSlice(app, 'async function loadCompanyData(){', '\n\nasync function showCompanySelection');
   const firstAwait = loadCompanyData.indexOf('await ');
-  const visible = loadCompanyData.indexOf('setCoreWorkspaceVisible(true)');
+  const authenticatedProgress = Math.max(
+    loadCompanyData.indexOf('Angemeldet'),
+    loadCompanyData.indexOf('Firmendaten werden geladen')
+  );
   assert.ok(firstAwait >= 0, 'loadCompanyData muss weiterhin asynchron laden.');
-  assert.ok(visible >= 0 && visible < firstAwait, 'Der angemeldete Arbeitsbereich muss vor dem ersten blockierenden Daten-Await sichtbar werden.');
+  assert.ok(authenticatedProgress >= 0 && authenticatedProgress < firstAwait, 'Der Login muss vor dem ersten blockierenden Daten-Await sichtbar als erfolgreich bestätigt werden.');
 });
 
 test('Firmendaten starten parallel statt seriell nach der Anmeldung', () => {
