@@ -49,8 +49,9 @@ app.http('bootstrap', {
         pool.request().input('companyId', sql.NVarChar(80), companyId).query('SELECT id, title, fileName, blobPath AS path, category, description, active FROM Templates WHERE companyId=@companyId ORDER BY title'),
         pool.request().input('companyId', sql.NVarChar(80), companyId).query('SELECT r.id, r.employeeId, r.typeId, r.conductedAt AS date, r.validUntil AS nextDue, r.status, r.instructorId, r.durationMinutes, r.groupId, r.source, r.certificateFileId, f.fileName AS certificateFileName, f.scanStatus AS certificateScanStatus FROM InstructionRecords r LEFT JOIN Files f ON f.companyId=r.companyId AND f.id=r.certificateFileId WHERE r.companyId=@companyId'),
         pool.request().input('companyId', sql.NVarChar(80), companyId).query('SELECT id, employeeId, instructionTypeId AS typeId, reason, active FROM EmployeeInstructionExclusions WHERE companyId=@companyId AND active=1'),
-        pool.request().input('companyId', sql.NVarChar(80), companyId).query(`SELECT a.id,a.employeeId,a.instructionTypeId,a.assignedAt,a.dueAt,a.status,a.source,a.note,
-          a.plannedTrainingId,a.completedAt,a.completedRecordId,a.createdBy,a.createdAt,a.updatedAt,
+        pool.request().input('companyId', sql.NVarChar(80), companyId).query(`SELECT a.id,a.employeeId,a.instructionTypeId,a.assignedByUserId,a.assignedAt,a.dueAt,a.status,
+          a.testRequired,a.passPercent,a.startedAt,a.completedAt,a.linkedRecordId,a.lastReminderAt,a.reminderCount,
+          a.source,a.note,a.plannedTrainingId,a.createdBy,a.createdAt,a.updatedAt,
           e.name AS employeeName,t.name AS instructionName,t.category
           FROM TrainingAssignments a
           JOIN Employees e ON e.companyId=a.companyId AND e.id=a.employeeId
