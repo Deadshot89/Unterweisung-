@@ -118,5 +118,35 @@ jobs:
           console.log(`GRAPH_UNGUELTIGE_NACHRICHT_KONFIGURIERTER_ABSENDER: ${configuredStatus}`);
           console.log(`GRAPH_UNGUELTIGE_NACHRICHT_NICHTEXISTENTER_ABSENDER: ${nonexistentStatus}`);
           console.log(`GRAPH_ABSENDER_UNTERSCHEIDBAR: ${configuredStatus !== nonexistentStatus ? 'ja' : 'nein'}`);
+
+          async function probeAutodiscover(sender) {
+            const url = `https://outlook.office365.com/autodiscover/autodiscover.json/v1.0/${encodeURIComponent(sender)}?Protocol=EWS&ServerLocation=true`;
+            const result = await fetch(url, { redirect: 'manual', signal: AbortSignal.timeout(30000) });
+            let exchangeOnline = false;
+            let hasUrl = false;
+            if (result.status === 200) {
+              try {
+                const payload = await result.json();
+                exchangeOnline = String(payload?.ServerLocation || '').toLowerCase() === 'exchange online';
+                hasUrl = !!String(payload?.Url || '');
+                if (payload?.Url) console.log(`::add-mask::${payload.Url}`);
+              } catch {
+                await result.text().catch(() => '');
+              }
+            } else {
+              await result.text().catch(() => '');
+            }
+            return { status: result.status, exchangeOnline, hasUrl };
+          }
+
+          const autoConfigured = await probeAutodiscover(mailFrom);
+          const autoFake = await probeAutodiscover(fakeSender);
+          console.log(`AUTODISCOVER_KONFIGURIERTER_ABSENDER_STATUS: ${autoConfigured.status}`);
+          console.log(`AUTODISCOVER_KONFIGURIERTER_ABSENDER_EXCHANGE_ONLINE: ${autoConfigured.exchangeOnline ? 'ja' : 'nein'}`);
+          console.log(`AUTODISCOVER_KONFIGURIERTER_ABSENDER_URL: ${autoConfigured.hasUrl ? 'ja' : 'nein'}`);
+          console.log(`AUTODISCOVER_NICHTEXISTENTER_ABSENDER_STATUS: ${autoFake.status}`);
+          console.log(`AUTODISCOVER_NICHTEXISTENTER_ABSENDER_EXCHANGE_ONLINE: ${autoFake.exchangeOnline ? 'ja' : 'nein'}`);
+          console.log(`AUTODISCOVER_NICHTEXISTENTER_ABSENDER_URL: ${autoFake.hasUrl ? 'ja' : 'nein'}`);
+          console.log(`AUTODISCOVER_ABSENDER_UNTERSCHEIDBAR: ${JSON.stringify(autoConfigured) !== JSON.stringify(autoFake) ? 'ja' : 'nein'}`);
           console.log('TESTMAIL_GESENDET: nein');
           NODE
