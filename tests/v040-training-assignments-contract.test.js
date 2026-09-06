@@ -54,7 +54,7 @@ test('Bootstrap liefert gescopte interne Assignments', () => {
   const bootstrap = read('api/src/functions/bootstrap.js');
   assert.match(bootstrap, /TrainingAssignments/);
   assert.match(bootstrap, /assignments/);
-  assert.match(bootstrap, /filterRowsByEmployeeScope\(assignments\.recordset/);
+  assert.match(bootstrap, /filterRowsByEmployeeScope\(scope,\s*assignments\.recordset\)/);
 });
 
 test('Manuelle Unterweisung schließt passende aktive Assignments über einen zentralen Helper', () => {
