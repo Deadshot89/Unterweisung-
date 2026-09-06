@@ -9,12 +9,13 @@ Die Anwendung soll nach dem Login unmittelbar zeigen, was die jeweilige Person a
 ## Leitprinzipien
 
 1. Keine neue Reparaturschicht über alten Darstellungsblöcken. Ersetzte UI-Bausteine werden entfernt oder vollständig abgelöst.
-2. Die API bleibt die verbindliche Sicherheitsgrenze für Rollen, Firmenzuordnung, Downloads und direkte Dateizugriffe.
+2. Die API bleibt die verbindliche Sicherheitsgrenze für Rollen, Firmenzuordnung, Teamzuordnung, Downloads und direkte Dateizugriffe.
 3. Normale Benutzer sehen ausschließlich ihre zugewiesene Firma. Nur Systemadmins dürfen firmenübergreifend arbeiten.
-4. Das Portal passt Navigation, Startseite, Arbeitslisten und Aktionen an die Benutzerrolle an.
-5. Fachlich zusammengehörige Vorgänge werden als ein Prozess dargestellt statt über viele Menüpunkte verteilt.
-6. Desktop und Smartphone verwenden dieselbe Fachlogik, aber jeweils eine passende Darstellung.
-7. Bestehende funktionierende API-Endpunkte werden bevorzugt weiterverwendet. Neue Endpunkte werden nur ergänzt, wenn ein neuer Ablauf sie tatsächlich benötigt.
+4. Führungskräfte dürfen nur ihr serverseitig zugewiesenes Team sehen und bearbeiten; diese Grenze darf nicht nur durch ausgeblendete UI-Elemente entstehen.
+5. Das Portal passt Navigation, Startseite, Arbeitslisten und Aktionen an die Benutzerrolle an.
+6. Fachlich zusammengehörige Vorgänge werden als ein Prozess dargestellt statt über viele Menüpunkte verteilt.
+7. Desktop und Smartphone verwenden dieselbe Fachlogik, aber jeweils eine passende Darstellung.
+8. Bestehende funktionierende API-Endpunkte werden bevorzugt weiterverwendet. Neue Endpunkte werden nur ergänzt, wenn ein neuer Ablauf sie tatsächlich benötigt.
 
 ## Informationsarchitektur
 
@@ -58,7 +59,7 @@ Mitarbeiter sehen keine firmenweite Verwaltung und keine fremden Mitarbeiterdate
 
 Die Startseite kombiniert persönliche Aufgaben mit Teamarbeit:
 
-- eigene offenen Aufgaben
+- eigene offene Aufgaben
 - offene Aufgaben des zugewiesenen Teams
 - überfällige Team-Unterweisungen
 - nächste Teamtermine
@@ -67,7 +68,7 @@ Die Startseite kombiniert persönliche Aufgaben mit Teamarbeit:
 - direkte Aktion „Extern verschicken“
 - direkte Aktion „Team erinnern“
 
-Eine Führungskraft sieht nur ihr zugewiesenes Team innerhalb der eigenen Firma.
+Eine Führungskraft sieht nur ihr zugewiesenes Team innerhalb der eigenen Firma. Diese Grenze wird von der API geprüft und nicht nur durch die Oberfläche dargestellt.
 
 ### HSE / Firmenadmin
 
@@ -380,13 +381,14 @@ Die bestehende API-Fachlogik wird wiederverwendet, sofern sie den neuen Ablauf k
 6. Aktionen schreiben ausschließlich über die bestehenden bzw. gezielt erweiterten APIs.
 7. Nach erfolgreichen Änderungen werden nur die betroffenen Datenbereiche neu geladen.
 8. Ein alter Request einer zuvor aktiven Firma darf niemals Daten in den neuen Firmenkontext zurückschreiben.
+9. Teambezogene API-Antworten werden anhand der serverseitig gespeicherten Führungszuordnung begrenzt; vom Client gelieferte Mitarbeiter-IDs erweitern niemals den erlaubten Scope.
 
 ## Fehlerbehandlung
 
 - Ladefehler werden im betroffenen Bereich angezeigt, nicht als globale Browser-Alerts, soweit technisch möglich.
 - Erfolgreich geladene Daten bleiben sichtbar, wenn eine spätere Aktualisierung fehlschlägt.
 - Schreibfehler zeigen eine verständliche Meldung und verlieren keine Formulareingaben.
-- Rollen- oder Mandantenfehler führen zu einer klaren Zugriffsmeldung und niemals zur Anzeige fremder Daten.
+- Rollen-, Team- oder Mandantenfehler führen zu einer klaren Zugriffsmeldung und niemals zur Anzeige fremder Daten.
 - Netzwerkfehler dürfen keinen automatischen Firmenwechsel oder Auto-Login in einen falschen Kontext auslösen.
 
 ## Migration
@@ -413,7 +415,8 @@ Produktion wird erst nach vollständigem grünem Test- und Deployment-Nachweis a
 ### Sicherheit und Rollen
 
 - Mitarbeiter sieht nur eigene Firma und eigene Daten.
-- Line Manager sieht nur eigene Firma und zugewiesenes Team.
+- Line Manager sieht nur eigene Firma und serverseitig zugewiesenes Team.
+- Manipulierte Client-Requests dürfen einem Line Manager keinen Zugriff auf andere Mitarbeiter derselben Firma geben.
 - HSE/Firmenadmin sieht nur die eigene Firma.
 - Systemadmin sieht Firmenauswahl und arbeitet nach Auswahl im aktiven Firmenkontext.
 - Downloads und direkte Dateilinks respektieren dieselben Grenzen.
@@ -439,7 +442,7 @@ Produktion wird erst nach vollständigem grünem Test- und Deployment-Nachweis a
 ### Regression
 
 - vorhandene automatisierte Tests bleiben grün.
-- neue Tests decken Rollen-Dashboard, Navigation, Workflow, Planung und Mandantenwechsel ab.
+- neue Tests decken Rollen-Dashboard, Navigation, Workflow, Planung, Teamgrenzen und Mandantenwechsel ab.
 - Deployment-Workflow muss vollständig grün sein.
 
 ## Nicht-Ziele für v0.40
@@ -452,4 +455,4 @@ Produktion wird erst nach vollständigem grünem Test- und Deployment-Nachweis a
 
 ## Erfolgskriterium
 
-v0.40 ist erfolgreich, wenn ein Mitarbeiter, eine Führungskraft und ein Firmenadmin nach dem Login jeweils eine klar unterschiedliche, auf ihre Aufgabe zugeschnittene Oberfläche erhalten und die häufigsten Unterweisungsabläufe ohne Wechsel zwischen vielen technischen Einzelbereichen erledigen können, während Mandanten- und Rollenabgrenzung unverändert sicher bleiben.
+v0.40 ist erfolgreich, wenn ein Mitarbeiter, eine Führungskraft und ein Firmenadmin nach dem Login jeweils eine klar unterschiedliche, auf ihre Aufgabe zugeschnittene Oberfläche erhalten und die häufigsten Unterweisungsabläufe ohne Wechsel zwischen vielen technischen Einzelbereichen erledigen können, während Mandanten-, Team- und Rollenabgrenzung unverändert sicher bleiben.
