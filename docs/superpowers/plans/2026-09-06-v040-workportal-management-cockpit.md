@@ -24,6 +24,7 @@ Die API bleibt die einzige verbindliche Sicherheitsgrenze. UI-Ausblendungen sind
 - Zuordnung User -> Employee erfolgt innerhalb `ctx.companyId` über normalisierte E-Mail.
 - Fehlt die Zuordnung für eine Rolle, die Self/Team-Scope benötigt, wird fail-closed mit HTTP 403 gearbeitet.
 - Clientseitig übermittelte Employee-IDs dürfen den erlaubten Scope niemals erweitern.
+- Ein Systemadmin ohne ausgewählte Firma erhält in `/me` noch keinen Employee-Scope; `employeeScope` ist bis zur Firmenauswahl `null`.
 
 Neue Bibliothek:
 
@@ -37,7 +38,7 @@ export function assertEmployeeIdsAllowed(scope, employeeIds = []) {}
 export function filterRowsByEmployeeScope(scope, rows = [], key = 'employeeId') {}
 ```
 
-Rückgabeformat:
+Rückgabeformat nach gewähltem Firmenkontext:
 
 ```js
 {
@@ -57,6 +58,7 @@ API-Vertrag:
 GET   /api/assignments
 POST  /api/assignments
 PATCH /api/assignments/{id}
+POST  /api/assignments/{id}/send-reminder
 GET   /api/internal/{assignmentId}
 POST  /api/internal/{assignmentId}
 ```
@@ -67,11 +69,15 @@ POST `/assignments`:
 {
   "instructionTypeId": "type-1",
   "employeeIds": ["emp-1", "emp-2"],
-  "dueAt": "2026-09-30T23:59:59"
+  "dueAt": "2026-09-30T23:59:59",
+  "testRequired": true,
+  "passPercent": 80
 }
 ```
 
 Statuswerte: `assigned`, `in_progress`, `completed`, `cancelled`.
+
+Interne Erinnerungen verwenden denselben Firmen-Mailmodus wie externe Einladungen: `manual`, `outlook` oder `graph`. Bei Graph-Versand werden `lastReminderAt` und `reminderCount` serverseitig aktualisiert; bei manuell/Outlook erzeugt die UI einen vollständigen Mailtext, ohne einen erfolgreichen Versand vorzutäuschen.
 
 ### 3. Strukturierter Unterweisungsinhalt
 
@@ -94,6 +100,8 @@ Schema v1:
 
 Erlaubte `kind`: `text`, `image`, `notice`, `summary`. Erlaubte Notice-Töne: `info`, `warning`. Maximal 80 Blöcke; Textlängen und IDs werden serverseitig begrenzt.
 
+Employee-Nutzer erhalten strukturierten Inhalt nicht über einen frei aufrufbaren Type-Endpunkt, sondern ausschließlich über ihre erlaubte interne Assignment-Ausführung. Managementrollen dürfen den Content-Endpunkt zur Pflege/Vorschau verwenden.
+
 ### 4. Neue Frontend-Struktur
 
 Keine weitere Kette `*-v36`, `*-v37`, ... als Monkey-Patches. Neue aktive Module:
@@ -105,6 +113,7 @@ Keine weitere Kette `*-v36`, `*-v37`, ... als Monkey-Patches. Neue aktive Module
 - `frontend/work-center.js`
 - `frontend/instruction-workflow.js`
 - `frontend/instruction-player.js`
+- `frontend/instruction-content-editor.js`
 - `frontend/planning-calendar.js`
 - `frontend/proof-center.js`
 - `frontend/report-center.js`
@@ -112,6 +121,8 @@ Keine weitere Kette `*-v36`, `*-v37`, ... als Monkey-Patches. Neue aktive Module
 - `frontend/admin-center.js`
 - `frontend/system-admin.js`
 - `frontend/diagnostics-entry.js`
+
+Die Anwendung bleibt für v0.40 bei klassischen Browser-Skripten ohne neue Bundler-/Framework-Migration. Module veröffentlichen gezielte `window.UM...`-Schnittstellen und überschreiben keine globalen Renderer nachträglich.
 
 Primäre View-IDs:
 
@@ -162,6 +173,7 @@ Tests müssen mindestens abdecken:
 4. Employee-Datensatz aus anderer Firma wird nie akzeptiert.
 5. Fehlende oder doppelte User/Employee-Zuordnung führt für Self/Team-Scope zu Fehler mit `status=403`.
 6. `assertEmployeeIdsAllowed` lehnt eine gemischte erlaubte/nicht erlaubte Liste vollständig ab.
+7. Systemadmin ohne `companyId` wird nicht über `resolveEmployeeScope` auf einen beliebigen Employee gemappt.
 
 API-Testskript erweitern:
 
@@ -223,9 +235,9 @@ git commit -m "security: employee and team scope serverseitig absichern"
 
 Zusätzlich statisch prüfen:
 
-- `me.js` liefert `employeeScope: { mode, actorEmployeeId }`.
-- `files.js` erlaubt Employee-Downloads nur für eigene Nachweise bzw. freigegebenen Unterweisungsinhalt.
-- `mail.js` prüft vor `sendPlannedTrainingMail` alle Teilnehmer gegen Team-Scope.
+- `me.js` liefert nach Firmenauswahl `employeeScope: { mode, actorEmployeeId }`, vor Systemadmin-Firmenauswahl `employeeScope:null`.
+- `files.js` erlaubt Employee-Downloads nur für eigene Nachweise bzw. Bilder aus einer eigenen aktiven Assignment-Ausführung.
+- `mail.js` prüft vor `sendPlannedTrainingMail` alle internen Teilnehmer gegen Team-Scope.
 - Externe Einladung ohne `employeeId` bleibt für frei eingegebene externe Empfänger zulässig; sobald `employeeId` gesetzt ist, muss sie im Scope liegen.
 
 **RED**
@@ -240,8 +252,9 @@ node --test tests/v040-api-scope-contract.test.js
 - `/instruction-status`: gleiche Scope-Regel.
 - `/records`: gleiche Scope-Regel; optionaler `employeeId` darf Scope nicht überschreiten.
 - `/bootstrap`: Employees, Records, Exclusions, PlannedTrainings, Invitations und später Assignments scope-konform zurückgeben.
-- `/reports/manager-training-time`: Line Manager nur eigener Verantwortungs-/Teamkontext.
+- `/reports/manager-training-time`: für Line Manager direkt aus `InstructionRecords JOIN Employees` aggregieren und auf erlaubte Employee-IDs begrenzen; nicht die gesamte Firmen-View ungefiltert zurückgeben.
 - `/proof-files`: GET nur Dateien zu erlaubten Records/Groups.
+- `plannedTrainings.js` GET: ein Line Manager sieht Termine mit mindestens einem erlaubten Teilnehmer, aber Namen/Anzahl werden auf erlaubte Teilnehmer reduziert. Ein gemischter Termin mit Teilnehmern außerhalb des eigenen Teams darf vom Line Manager nicht geändert, versendet oder abgeschlossen werden.
 
 ### Schritt 3 – Schreib-Scope implementieren
 
@@ -261,8 +274,8 @@ Keine Teilmutation bei gemischter erlaubter/nicht erlaubter Employee-Liste.
 `files.js` lädt zusätzlich `linkedEntityType`, `linkedEntityId` und prüft:
 
 - `instruction_record`: Employee = eigener Record; Line Manager = eigener/Team-Record; Company Rollen = Firma.
-- `instruction_group`: alle relevanten Teilnehmer müssen im erlaubten Scope liegen; für Employee nur wenn eigener Record zur Gruppe existiert.
-- `instruction_type`: aktiver Unterweisungsinhalt der eigenen Firma darf für authentifizierte Benutzer gelesen werden, wenn die Datei als `instruction_image`/Template-Inhalt referenziert ist.
+- `instruction_group`: alle im Dokument enthaltenen Teilnehmer müssen im erlaubten Scope liegen; für Employee nur, wenn eigener Record zur Gruppe gehört.
+- `instruction_type`: Managementrollen dürfen Content-Bilder des aktiven Firmenkontexts lesen. Employee darf ein Content-Bild nur lesen, wenn es zum InstructionType eines eigenen aktiven/completed Assignments gehört.
 - Blockierte/quarantined Dateien bleiben immer gesperrt.
 
 ### Schritt 5 – GREEN
@@ -299,6 +312,7 @@ Test fordert:
 - Migration enthält additive/idempotente Spalte `InstructionTypes.contentJson`.
 - Tabelle `TrainingAssignments` mit Company-, Employee-, InstructionType-Bezug.
 - Check-Constraint für Statuswerte.
+- `passPercent` liegt zwischen 0 und 100.
 - Indizes `(companyId,employeeId,status,dueAt)` und `(companyId,instructionTypeId,status)`.
 - `scripts/check-database.js` erwartet `TrainingAssignments`.
 - Assignments-API verwendet Employee-Scope.
@@ -323,20 +337,27 @@ TrainingAssignments(
   assignedByUserId NVARCHAR(120) NULL,
   dueAt DATETIME2 NULL,
   status NVARCHAR(30) NOT NULL,
+  testRequired BIT NOT NULL DEFAULT 1,
+  passPercent INT NOT NULL DEFAULT 80,
   startedAt DATETIME2 NULL,
   completedAt DATETIME2 NULL,
   linkedRecordId NVARCHAR(80) NULL,
+  lastReminderAt DATETIME2 NULL,
+  reminderCount INT NOT NULL DEFAULT 0,
   createdAt DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
   updatedAt DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
 )
 ```
 
+Foreign Keys werden auf Companies, Employees und InstructionTypes gesetzt. `linkedRecordId` referenziert `InstructionRecords`, sofern die bestehende Migrationsreihenfolge dies ohne Zyklus erlaubt; andernfalls wird die referenzielle Existenz beim Schreiben serverseitig geprüft und durch einen Index abgesichert.
+
 ### Schritt 3 – Assignments-API
 
 - GET: scoped Liste, optional `status`.
 - POST: Rollen Systemadmin/Firmenadmin/HSE/Line Manager; `employeeIds` komplett scope-prüfen; pro Employee genau eine Assignment-Zeile erstellen.
-- PATCH: Managementrollen dürfen nur `cancelled` bzw. `dueAt` ändern; kein willkürliches Setzen von `completed`.
-- Audit-Ereignisse `assignment.created`, `assignment.updated`, `assignment.cancelled`.
+- PATCH: Managementrollen dürfen nur `cancelled`, `dueAt`, `testRequired` und `passPercent` ändern; kein willkürliches Setzen von `completed`.
+- POST `/{id}/send-reminder`: Assignment und Employee serverseitig scope-prüfen. Graph-Modus versendet und aktualisiert `lastReminderAt/reminderCount`; manual/outlook liefert nur vorbereiteten Betreff/Text/Empfänger zurück und markiert keinen Versand als erfolgt.
+- Audit-Ereignisse `assignment.created`, `assignment.updated`, `assignment.cancelled`, `assignment.reminderSent`.
 
 ### Schritt 4 – GREEN
 
@@ -412,6 +433,22 @@ node --test tests/v040-portal-shell.test.js tests/v040-login-boundary-regression
 
 Header enthält aktive Firma, Nutzer/Rolle, Benachrichtigungsglocke, Firmenwechsel (nur Systemadmin), Abmelden.
 
+Bereits in diesem Task werden die alten Router-/Design-Wrapper aus `index.html` entfernt, aber ihre Dateien noch nicht gelöscht:
+
+- `role-guard-v20.js`
+- `tenant-context-v36.js`
+- `design-polish-v31.js`
+- `dashboard-design-v32.js`
+- `table-form-design-v33.js`
+- `view-header-design-v34.js`
+- `professional-suite-v35.js`
+- `system-admin-v16.js`
+- `diagnostics-entry-v37.js`
+- `view-header-design-v34.css`
+- `professional-suite-v35.css`
+
+So können sie das neue Routing nicht mehr überschreiben; endgültig gelöscht werden sie erst nach Ersatztests in Paket 5.
+
 ### Schritt 3 – app.js vereinfachen
 
 Behalten:
@@ -426,6 +463,7 @@ Ersetzen:
 
 - altes `setView`/`render`-Mapping durch Portal-Router.
 - `renderAll()` rendert die aktuell aktive Portalansicht, nicht pauschal das alte Dashboard.
+- sekundäre Datenloads werden rollenbewusst; `/users` wird nicht mehr unnötig für Employee/Line Manager angefordert.
 
 Keine neuen Render-Wrapper um globale Funktionen.
 
@@ -439,6 +477,8 @@ Keine neuen Render-Wrapper um globale Funktionen.
 node --test tests/v040-portal-shell.test.js tests/v040-login-boundary-regression.test.js
 npm test
 ```
+
+Alte direkte Check-Skripte dürfen zu diesem Zwischenstand noch grün sein, weil ihre Dateien bis Paket 5 existieren; sie dürfen jedoch nicht mehr von `index.html` geladen werden.
 
 ### Schritt 6 – Commit
 
@@ -461,7 +501,7 @@ git commit -m "feat: neue v040 Portal Shell einführen"
 
 ### Schritt 1 – RED
 
-Tests mit JSDOM/Fixtures für:
+Tests mit dem bereits vorhandenen `jsdom` und Fixtures für:
 
 - Employee: nur eigene Aufgaben/Termine/Nachweise, CTA „Unterweisung starten“.
 - Line Manager: eigener + Teamstatus, Team-CTAs Planen/Extern/Erinnern.
@@ -537,6 +577,7 @@ Testet:
 - Bulk-Auswahl behält nur aktuell ausgewählte IDs.
 - KPI-Deep-Link setzt Filter korrekt.
 - Schreibfehler bleiben lokal im Arbeitszentrum; vorhandene Daten bleiben sichtbar.
+- Erinnern benötigt keine Funktion aus `reminder-center-v30.js`.
 
 ```bash
 node --test tests/v040-work-center.test.js
@@ -557,6 +598,7 @@ Arbeitszeile:
   responsibleName,
   certificateFileId,
   assignmentId,
+  lastReminderAt,
   nextActions: []
 }
 ```
@@ -571,7 +613,8 @@ Status- und Assignment-Daten werden zu einer fachlichen Sicht zusammengeführt, 
 - Durchführen -> richtiger Dialog, POST `/records`.
 - Nachweis -> Proof-Center/Datei.
 - Ausnahme -> bestehende Exclusions-API.
-- Erinnern -> bestehender Mail-/Reminder-Pfad, nicht Browser-`prompt()`.
+- Erinnern bei Assignment -> POST `/assignments/{id}/send-reminder`; bei manual/outlook vollständigen Text/Empfänger in Dialog bzw. Mailclient übergeben; bei Graph tatsächliches Ergebnis anzeigen.
+- Erinnern bei externer Einladung -> bestehendes POST `/invitations/{id}/send-mail` mit `reminder:true`.
 
 ### Schritt 4 – GREEN
 
@@ -589,7 +632,7 @@ git commit -m "feat: Aufgaben und Team Arbeitszentrum aufbauen"
 
 ---
 
-## Task 7: Strukturierter Inhalt, Bildblöcke und professioneller Player
+## Task 7: Strukturierter Inhalt, Inhaltseditor, Bildblöcke und professioneller Player
 
 **Dateien**
 
@@ -599,7 +642,9 @@ git commit -m "feat: Aufgaben und Team Arbeitszentrum aufbauen"
 - Ändern: `api/src/functions/files.js`
 - Neu: `api/test/instructionContent.test.js`
 - Neu: `frontend/instruction-player.js`
+- Neu: `frontend/instruction-content-editor.js`
 - Neu: `tests/v040-instruction-player.test.js`
+- Neu: `tests/v040-instruction-content-editor.test.js`
 - Ändern: `frontend/index.html`
 - Ändern: `package.json`
 
@@ -613,6 +658,7 @@ Testet Parser/Validator:
 - File-ID nur einfache ID, kein URL-Injection-Feld.
 - Fallback aus `description`.
 - Image-Upload akzeptiert JPG/PNG/WEBP, lehnt PDF im Image-Endpunkt ab.
+- Employee darf den Management-Content-Endpunkt nicht als Ersatz für ein Assignment verwenden.
 
 ```bash
 cd api && npm test
@@ -628,7 +674,7 @@ PATCH /api/instruction-content/{typeId}
 POST  /api/instruction-content/{typeId}/images
 ```
 
-PATCH/POST: Systemadmin/Firmenadmin/HSE. GET: authentifiziert im aktiven Firmenkontext.
+GET/PATCH/POST: `system_admin`, `company_admin`, `hse`; GET zusätzlich `line_manager` für Vorschau, sofern der InstructionType in der eigenen Firma aktiv ist. Employee erhält Inhalt nur über `/internal/{assignmentId}`.
 
 Image-Dateien:
 
@@ -638,7 +684,7 @@ linkedEntityType = instruction_type
 linkedEntityId = {typeId}
 ```
 
-### Schritt 3 – RED Frontend
+### Schritt 3 – RED Frontend Player
 
 `v040-instruction-player.test.js` prüft:
 
@@ -652,23 +698,37 @@ linkedEntityId = {typeId}
 - kein ungefiltertes `innerHTML` aus Content-Texten.
 - Fallback für alte `description`.
 
-### Schritt 4 – Player implementieren
+### Schritt 4 – RED Inhaltseditor
+
+`v040-instruction-content-editor.test.js` prüft:
+
+- Text-, Bild-, Hinweis- und Summary-Block hinzufügen.
+- Reihenfolge per Auf/Ab-Aktion ändern; kein Drag-and-drop-Zwang auf Smartphone.
+- Bild hochladen und resultierende `fileId` speichern.
+- Bildtitel, Caption, `emphasis` editieren.
+- Block löschen mit Dialogbestätigung.
+- Speichern per PATCH behält Entwurf bei Serverfehler.
+- Nur Managementrollen sehen Bearbeitungsaktionen.
+
+### Schritt 5 – Player und Editor implementieren
 
 `instruction-player.js` bekommt reine Render-Funktionen für Content-Blöcke und einen Zustand für Fortschritt/aktiven Abschnitt. Keine externen URLs aus `contentJson`; Bild-URL kommt ausschließlich aus API-resolvierter File-ID.
 
-### Schritt 5 – GREEN
+`instruction-content-editor.js` wird über den Bereich Unterweisungen/Verwaltung geöffnet und speichert ausschließlich validiertes Schema v1.
+
+### Schritt 6 – GREEN
 
 ```bash
 cd api && npm test
-cd .. && node --test tests/v040-instruction-player.test.js
+cd .. && node --test tests/v040-instruction-player.test.js tests/v040-instruction-content-editor.test.js
 npm test
 ```
 
-### Schritt 6 – Commit
+### Schritt 7 – Commit
 
 ```bash
-git add api/src/lib/instructionContent.js api/src/functions/instructionContent.js api/src/functions/instructionTypes.js api/src/functions/files.js api/test/instructionContent.test.js frontend/instruction-player.js frontend/index.html tests/v040-instruction-player.test.js package.json
-git commit -m "feat: strukturierte Unterweisungsinhalte und Bild Player ergänzen"
+git add api/src/lib/instructionContent.js api/src/functions/instructionContent.js api/src/functions/instructionTypes.js api/src/functions/files.js api/test/instructionContent.test.js frontend/instruction-player.js frontend/instruction-content-editor.js frontend/index.html tests/v040-instruction-player.test.js tests/v040-instruction-content-editor.test.js package.json
+git commit -m "feat: strukturierte Unterweisungsinhalte mit Editor und Bild Player ergänzen"
 ```
 
 ---
@@ -709,9 +769,10 @@ cd api && npm test
 GET `/internal/{assignmentId}`:
 
 - Assignment laden.
-- Employee-Scope prüfen; der ausführende Benutzer muss bei Self-Execution dem Assignment-Employee entsprechen.
+- Employee-Scope prüfen; der ausführende Benutzer muss dem Assignment-Employee entsprechen.
 - `assigned -> in_progress` setzen.
 - Content + Template + sichere, zufällig angeordnete Testfragen liefern.
+- Nur die zum Content referenzierten Bilddateien als kurzlebige, berechtigte URLs auflösen.
 
 POST `/internal/{assignmentId}`:
 
@@ -722,7 +783,8 @@ POST `/internal/{assignmentId}`:
 }
 ```
 
-- Test auswerten.
+- `testRequired=false`: Bestätigung genügt.
+- `testRequired=true`: Test mit gespeichertem `passPercent` aus Assignment auswerten.
 - Bei Nichtbestehen bleibt Assignment `in_progress`.
 - Bei Bestehen genau einen `InstructionRecord` mit `source='internal_assignment'` erzeugen.
 - Assignment `completed`, `completedAt`, `linkedRecordId` setzen.
@@ -742,9 +804,11 @@ Wizard-Schritte:
 
 Modus-spezifisch:
 
-- internal -> `/assignments`
-- planned -> `/planned-trainings`
+- internal -> `/assignments`, inklusive Test erforderlich/Bestehensgrenze.
+- planned -> `/planned-trainings`.
 - external -> `/invitations`, Mailmodus `manual|outlook|graph` bleibt erhalten; Default bleibt Firmenkonfiguration/`manual`.
+
+Der externe Workflow enthält außerdem die bisherige externe Einladungs-/Abschlusshistorie mit Status, Testergebnis, Ablauf, Abschluss und Nachweis, damit `external-fix-v12.js` später vollständig entfallen kann.
 
 Keine Browser-`prompt()`-Dialoge.
 
@@ -793,6 +857,7 @@ Testet:
 - Bearbeiten, Teilnehmer ergänzen, Mail senden, Abschließen, Stornieren.
 - Abschluss nutzt `<dialog>`/Portal-Dialog mit Datum, Dauer, Notiz; kein `prompt(` in neuem Planungsmodul.
 - Line Manager kann nur Teamteilnehmer speichern/senden/abschließen.
+- Gemischte HSE-Planung mit fremden Teilnehmern darf Line Manager zwar mit auf sein Team reduzierter Anzeige sehen, aber nicht ändern, versenden oder komplett abschließen.
 - Mail-Endpunkt versendet keine Einladung an außerhalb des Scopes manipulierte Teilnehmer.
 
 ```bash
@@ -870,6 +935,7 @@ Notifications:
 - bald fällig.
 - Nachweis fehlt.
 - Gruppenunterweisung steht bevor.
+- Assignment-Frist steht bevor.
 - externer Link läuft bald ab (nur Rollen, die Einladungen sehen dürfen).
 - Diagnosehinweis nur bei `system_admin` oder `diagnostics.view`.
 - Klick führt zum korrekten Deep Link.
@@ -881,6 +947,8 @@ node --test tests/v040-proof-report-notifications.test.js
 ### Schritt 2 – Proof-/Report-Module implementieren
 
 Kein eigener unsicherer Datenfetch: Module verwenden scoped Bootstrap/Status bzw. die serverseitig gescopten Report-/Proof-Endpunkte.
+
+`managerReport.js` wird für Team-Scope nicht über eine ungefilterte Firmenaggregation beantwortet; der Teilnehmer-/Employee-Scope ist Bestandteil der Query.
 
 ### Schritt 3 – Notification-Modell
 
@@ -916,12 +984,17 @@ git commit -m "feat: Nachweise Auswertungen und Benachrichtigungen bündeln"
 - Neu: `frontend/system-admin.js`
 - Neu: `frontend/diagnostics-entry.js`
 - Ändern: `frontend/index.html`
-- Bei Bedarf gezielt anpassen: `frontend/employee-management-v18.js`
-- Bei Bedarf gezielt anpassen: `frontend/instruction-type-management-v23.js`
-- Bei Bedarf gezielt anpassen: `frontend/user-management-v19.js`
-- Bei Bedarf gezielt anpassen: `frontend/company-settings-v15.js`
 - Neu: `tests/v040-admin-center.test.js`
 - Ändern: `package.json`
+
+Unverändert weiterverwendete Fachrenderer, die keine primäre Navigation injizieren:
+
+- `frontend/employee-management-v18.js`
+- `frontend/instruction-type-management-v23.js`
+- `frontend/user-management-v19.js`
+- `frontend/company-settings-v15.js`
+
+`admin-center.js` stellt für diese Renderer eindeutige Mount-Container mit den bestehenden IDs `employees`, `instructions`, `users` und `companies` bereit. Betrieb/Sicherheit werden ebenfalls als Admin-Unterbereiche gemountet. Es gibt keine doppelten IDs außerhalb des aktiven Admin-Bereichs.
 
 ### Schritt 1 – RED
 
@@ -933,6 +1006,7 @@ Testet Rollenmatrix für Admin-Unterbereiche:
 - Systemadmin: Firma, Benutzer/Rollen, Betrieb, Sicherheit, Diagnose.
 - Diagnostics-Unterbereich nur mit `system_admin` oder `diagnostics.view`.
 - Kein Skript injiziert dynamisch einen zusätzlichen primären Tab.
+- Bestehende Fachrenderer finden genau einen vorgesehenen Mount-Container.
 
 ```bash
 node --test tests/v040-admin-center.test.js
@@ -952,7 +1026,7 @@ npm test
 ### Schritt 4 – Commit
 
 ```bash
-git add frontend/admin-center.js frontend/system-admin.js frontend/diagnostics-entry.js frontend/index.html frontend/employee-management-v18.js frontend/instruction-type-management-v23.js frontend/user-management-v19.js frontend/company-settings-v15.js tests/v040-admin-center.test.js package.json
+git add frontend/admin-center.js frontend/system-admin.js frontend/diagnostics-entry.js frontend/index.html tests/v040-admin-center.test.js package.json
 git commit -m "feat: Verwaltung in v040 Admin Center bündeln"
 ```
 
@@ -1007,6 +1081,8 @@ Test fordert:
 - <= 760 px: primär `Start`, `Aufgaben`, `Unterweisungen`, `Mehr`.
 - Tabellen des Work-/Proof-Centers werden zu bedienbaren Karten oder haben explizit kontrolliertes Scrolling ohne Viewport-Überlauf.
 - Touch-Ziele mindestens ca. 44 px bei primären Aktionen.
+- Planungsdialog und Inhaltseditor sind auf Smartphone vollständig bedienbar.
+- Externe Unterweisungsseite rendert strukturierte Bild-/Textblöcke responsiv.
 - kein alter Override-Skriptname mehr in `index.html`.
 - keine `setInterval(applyRoleVisibility...)`, `render = function`-Monkey-Patches oder v35-Suite-Aktivierung mehr im aktiven Frontend.
 - Login-Gate bleibt unangetastet sicher.
@@ -1022,6 +1098,7 @@ node --test tests/v040-responsive-migration.test.js
 - Formulare einspaltig.
 - Dialoge als nahezu Vollbild auf Smartphone.
 - Kalender wechselt auf kompakte Wochen-/Agenda-Darstellung.
+- Inhaltseditor verwendet explizite Auf/Ab-Buttons statt Touch-Drag-Zwang.
 - Keine horizontale Seitenverschiebung.
 
 ### Schritt 3 – Altcode nur nach grüner Ersatzabdeckung löschen
@@ -1038,11 +1115,11 @@ Nach der Löschgruppe erneut:
 npm test
 ```
 
-Wenn ein alter Check noch einen echten Fachvertrag schützt, wird der Vertrag in einen v0.40-Test übertragen, bevor das Check-Skript entfernt wird.
+Wenn ein alter Check noch einen echten Fachvertrag schützt, wird der Vertrag in einen v0.40-Test übertragen, bevor das Check-Skript entfernt wird. `scripts/check-main-layout.js` und `scripts/check-system-admin.js` werden auf v0.40-Shell/Admin-Verträge umgeschrieben und bleiben Teil der Testkette.
 
 ### Schritt 4 – package.json bereinigen
 
-- `pretest`: neue v0.40-Tests verbindlich aufnehmen.
+- `pretest`: alle neuen v0.40-Tests verbindlich aufnehmen.
 - `test`: entfernte alte Check-Skripte aus der Kette nehmen.
 - `version`: auf `0.40.0` setzen.
 - `frontend/index.html` sichtbare Version auf `v0.40.0`.
@@ -1082,6 +1159,8 @@ Test verlangt, dass Workflow zusätzlich zu bestehender Diagnostics-Prüfung fol
 - `/work-center.js`
 - `/instruction-workflow.js`
 - `/instruction-player.js`
+- `/instruction-content-editor.js`
+- `/planning-calendar.js`
 
 ```bash
 node --test tests/v040-deploy-contract.test.js
@@ -1115,8 +1194,9 @@ PR von `v040-workportal-management-cockpit` nach `main` mit Zusammenfassung:
 
 - Rollen-/Team-Sicherheit
 - neue Portalstruktur
-- interne Assignments
-- strukturierte Inhalte/Bilder
+- interne Assignments und Erinnerungen
+- strukturierte Inhalte/Bilder + Editor
+- interne/geplante/externe Abläufe
 - Planung/Nachweise/Reports/Notifications
 - entfernte Override-Schichten
 - Migration 011
@@ -1159,11 +1239,13 @@ Mit echten Rollen/Firmenkontexten prüfen:
 3. Line Manager -> nur eigenes Team, manipulierte Employee-ID wird serverseitig 403.
 4. Employee -> nur eigene Aufgaben/Nachweise.
 5. Interne Zuweisung -> starten -> Test -> Abschluss -> Record/Nachweis.
-6. Gruppenplanung -> Mail -> Abschluss ohne Browser-Prompt.
-7. Externer Link -> ohne normales Konto -> Inhalt/Bilder -> Test -> Abschluss.
-8. KPI -> korrekte gefilterte Arbeitsliste.
-9. Smartphone -> vier Primärpunkte und touchfähige Abläufe.
-10. Firmenwechsel Systemadmin -> kein alter Firmeninhalt blitzt auf.
+6. Interne Erinnerung -> Mailmodus korrekt, Zähler nur bei bestätigtem Graph-Versand.
+7. Gruppenplanung -> Mail -> Abschluss ohne Browser-Prompt.
+8. Externer Link -> ohne normales Konto -> Inhalt/Bilder -> Test -> Abschluss.
+9. Inhaltseditor -> Text/Bild/Hinweis speichern und wieder öffnen.
+10. KPI -> korrekte gefilterte Arbeitsliste.
+11. Smartphone -> vier Primärpunkte und touchfähige Abläufe.
+12. Firmenwechsel Systemadmin -> kein alter Firmeninhalt blitzt auf.
 
 ### Schritt 9 – Finaler Commit vor PR, falls Workflow-Vertrag separat geändert wurde
 
@@ -1182,10 +1264,11 @@ git commit -m "ci: v040 Portal Deployment verbindlich verifizieren"
 | Employee-Daten | nur selbst | selbst + direktes Team | Firma | ausgewählte Firma |
 | Dashboard | persönliche Arbeit | eigene + Teamarbeit | Management | Firmenauswahl/Management |
 | Intern zuweisen | nein | Team | Firma | ausgewählte Firma |
+| Interne Ausführung | eigene Assignments | eigene Assignments | eigene Assignments falls Employee-Zuordnung | eigene Assignments nach Firmenauswahl falls Employee-Zuordnung |
 | Planen | nein | Team | Firma | ausgewählte Firma |
 | Extern versenden | nein | Team/verknüpft + freie externe Mail | Firma | ausgewählte Firma |
 | Nachweise | eigene | Team | Firma | ausgewählte Firma |
-| Reports | eigene Historie nur im persönlichen Bereich | Team | Firma | ausgewählte Firma |
+| Reports | eigene Historie im persönlichen Bereich | Team | Firma | ausgewählte Firma |
 | Verwaltung | nein | nein | gemäß Fachrolle | vollständig |
 | Diagnostics | nur explizit, falls freigegeben | nur explizit, falls freigegeben | nur explizit, falls freigegeben | ja |
 
@@ -1200,4 +1283,4 @@ git commit -m "ci: v040 Portal Deployment verbindlich verifizieren"
 
 # Abschlusskriterium
 
-v0.40 ist abgeschlossen, wenn sämtliche neuen und bestehenden Tests grün sind, die serverseitige Self-/Team-/Company-Abgrenzung nachweislich greift, die alten UI-Override-Schichten aus der aktiven Anwendung entfernt sind, interne/geplante/externe Unterweisungen über die neue Oberfläche vollständig funktionieren und ein frischer Produktionsworkflow inklusive SQL-Migration und Asset-Verifikation erfolgreich abgeschlossen wurde.
+v0.40 ist abgeschlossen, wenn sämtliche neuen und bestehenden Tests grün sind, die serverseitige Self-/Team-/Company-Abgrenzung nachweislich greift, die alten UI-Override-Schichten aus der aktiven Anwendung entfernt sind, interne/geplante/externe Unterweisungen über die neue Oberfläche vollständig funktionieren, professionelle Inhalte inklusive Bildblöcken über den Editor gepflegt werden können und ein frischer Produktionsworkflow inklusive SQL-Migration und Asset-Verifikation erfolgreich abgeschlossen wurde.
