@@ -1,6 +1,8 @@
 // v0.19: Benutzer/Rechte je Firma sauber verwalten.
 // Firmen-Admin sieht nur eigene Firma. System-Admin kann den geöffneten Mandanten verwalten.
 
+let focusedUserId = '';
+
 function canEditUsers(){
   const roles = state.me?.roles || [];
   return roles.includes('system_admin') || roles.includes('company_admin');
@@ -42,6 +44,16 @@ function userRoleOptions(selected='employee'){
   return options.map(([value,label])=>`<option value="${value}" ${selected===value?'selected':''}>${label}</option>`).join('');
 }
 
+function setFocusedUserRow(row){
+  if(!row) return;
+  focusedUserId = row.dataset.userRow || '';
+  document.querySelectorAll('#users [data-user-row]').forEach(item=>{
+    const focused = item === row;
+    item.classList.toggle('is-focused', focused);
+    item.setAttribute('aria-selected', focused ? 'true' : 'false');
+  });
+}
+
 function renderUsers(){
   const rows = state.users || [];
   const editable = canEditUsers();
@@ -69,13 +81,16 @@ function userActionButtons(user, editable=false){
   const diagnosticsAction=state.me?.roles?.includes('system_admin') && user.role !== 'system_admin'
     ? ` <button class="small ${user.diagnosticsView?'ghost':''}" type="button" data-diagnostics-permission data-user-id="${esc(user.id)}" data-enabled="${user.diagnosticsView?'true':'false'}">${user.diagnosticsView?'Fehlerdiagnose entziehen':'Fehlerdiagnose freigeben'}</button>`
     : '';
-  return normalActions + setupAction + diagnosticsAction;
+  return `<div class="user-actions">${normalActions + setupAction + diagnosticsAction}</div>`;
 }
 
 function userTable(rows, editable=false){
   if(!rows.length) return '<p class="muted">Keine Benutzer geladen oder keine Berechtigung.</p>';
-  return `<div class="table-wrap"><table><thead><tr><th>Name</th><th>E-Mail</th><th>Rolle</th><th>Status</th><th>Login</th><th>Letzter Zugriff</th><th>Provider</th><th>Aktion</th></tr></thead><tbody>${rows.map(u=>`<tr>
-    <td><b>${esc(u.displayName||u.email)}</b><br><span class="muted">${esc(u.id||'')}</span></td>
+  return `<div class="table-wrap user-table-wrap"><table class="user-table"><thead><tr><th>Name</th><th>E-Mail</th><th>Rolle</th><th>Status</th><th>Login</th><th>Letzter Zugriff</th><th>Provider</th><th>Aktion</th></tr></thead><tbody>${rows.map(u=>{
+    const userId = String(u.id || '');
+    const focused = focusedUserId === userId;
+    return `<tr class="user-row ${focused?'is-focused':''}" data-user-row="${esc(userId)}" tabindex="0" aria-selected="${focused?'true':'false'}">
+    <td><b>${esc(u.displayName||u.email)}</b><br><span class="muted">${esc(userId)}</span></td>
     <td>${esc(u.email||'—')}</td>
     <td>${roleBadge(u.role)}</td>
     <td>${u.active!==false?'<span class="badge ok">Aktiv</span>':'<span class="badge warn">Gesperrt</span>'}</td>
@@ -83,7 +98,8 @@ function userTable(rows, editable=false){
     <td>${fmtDate(u.lastSeenAt)}</td>
     <td>${esc(u.provider||'aad')}</td>
     <td>${userActionButtons(u, editable)}</td>
-  </tr>`).join('')}</tbody></table></div>`;
+  </tr>`;
+  }).join('')}</tbody></table></div>`;
 }
 
 function userCreateCard(){
@@ -224,6 +240,9 @@ async function toggleUser(id, active){
 }
 
 document.addEventListener('click',event=>{
+  const userRow=event.target?.closest?.('#users [data-user-row]');
+  if(userRow) setFocusedUserRow(userRow);
+
   const diagnosticsButton=event.target?.closest?.('[data-diagnostics-permission]');
   if(diagnosticsButton){
     event.preventDefault();
@@ -240,4 +259,9 @@ document.addEventListener('click',event=>{
   if(!button) return;
   event.preventDefault();
   createPasswordSetupLink(button.dataset.userId);
+});
+
+document.addEventListener('focusin',event=>{
+  const userRow=event.target?.closest?.('#users [data-user-row]');
+  if(userRow) setFocusedUserRow(userRow);
 });
