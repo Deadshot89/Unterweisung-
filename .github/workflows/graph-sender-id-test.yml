@@ -26,7 +26,7 @@ jobs:
         run: |
           git config user.name "Deadshot89"
           git config user.email "86518220+Deadshot89@users.noreply.github.com"
-          git add api/src/lib/graphMail.js api/src/lib/runtime-settings.js scripts/prepare-managed-api-settings.js .github/workflows/azure-static-web-apps.yml package.json
+          git add api/src/lib/graphMail.js api/src/lib/runtime-settings.js scripts/prepare-managed-api-settings.js package.json
           if git diff --cached --quiet; then
             echo "Kein neuer Produktpatch erforderlich."
           else
