@@ -24,17 +24,22 @@ test('diagnostic status distinguishes configured mail from verified delivery rea
   assert.doesNotMatch(diagnosticsApi, /GRAPH_CLIENT_SECRET\s*:/);
 });
 
-test('diagnostics PWA never calls configured-only email delivery ready', () => {
+test('diagnostics PWA keeps the mobile email status compact and puts delivery details below it', () => {
   assert.match(diagnosticsHtml, /id="statusEmail"/);
+  assert.match(diagnosticsHtml, /id="statusEmailDetail"/);
   assert.match(diagnosticsHtml, /E-Mail-Alarm/);
   assert.match(diagnosticsHtml, /id="statusPush"/);
   assert.match(diagnosticsHtml, /Handy-Push/);
   assert.match(diagnosticsApp, /statusEmail/);
-  assert.match(diagnosticsApp, /statusPush/);
+  assert.match(diagnosticsApp, /statusEmailDetail/);
   assert.match(diagnosticsApp, /alerts\?\.email\?\.ready/);
-  assert.match(diagnosticsApp, /VERSAND NICHT BESTÄTIGT/);
-  assert.match(diagnosticsApp, /LETZTER VERSAND FEHLGESCHLAGEN/);
-  assert.doesNotMatch(diagnosticsApp, /alerts\?\.email\?\.configured\s*\?\s*'BEREIT'/);
+  assert.match(diagnosticsApp, /'BEREIT'/);
+  assert.match(diagnosticsApp, /'KONFIGURIERT'/);
+  assert.match(diagnosticsApp, /'FEHLER'/);
+  assert.match(diagnosticsApp, /Versand noch nicht bestätigt/);
+  assert.match(diagnosticsApp, /Letzter Versand fehlgeschlagen/);
+  assert.doesNotMatch(diagnosticsApp, /NICHT BEREIT · VERSAND NICHT BESTÄTIGT/);
+  assert.doesNotMatch(diagnosticsApp, /NICHT BEREIT · LETZTER VERSAND FEHLGESCHLAGEN/);
   assert.match(diagnosticsApp, /alerts\?\.push\?\.configured/);
 });
 
