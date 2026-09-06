@@ -27,6 +27,14 @@ function forbidden(message = 'Keine Berechtigung für diese Einladung.') {
   throw error;
 }
 
+async function assertCompanyEmployee(pool, companyId, employeeId) {
+  const result = await pool.request()
+    .input('companyId', sql.NVarChar(80), companyId)
+    .input('employeeId', sql.NVarChar(80), employeeId)
+    .query('SELECT TOP 1 id FROM Employees WHERE companyId=@companyId AND id=@employeeId AND active=1');
+  if (!result.recordset.length) forbidden('Mitarbeiter gehört nicht zur aktiven Firma oder ist inaktiv.');
+}
+
 function invitationAllowed(scope, ctx, row) {
   if (scope.mode === 'company') return true;
   if (row?.employeeId) return employeeAllowed(scope, row.employeeId);
@@ -92,7 +100,10 @@ app.http('invitations', {
 
       if (request.method === 'POST') {
         if (!body.email || !body.instructionTypeId) return badRequest('email and instructionTypeId are required');
-        if (body.employeeId) assertEmployeeAllowed(scope, body.employeeId);
+        if (body.employeeId) {
+          await assertCompanyEmployee(pool, ctx.companyId, body.employeeId);
+          assertEmployeeAllowed(scope, body.employeeId);
+        }
         const id = body.id || uuidv4();
         const token = makeToken();
         const publicBase = publicBaseUrl();
