@@ -6,7 +6,7 @@ on:
       - fix-diagnostics-own-login
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   test:
@@ -16,20 +16,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Eigenen Diagnose-Login implementieren
-        run: node scripts/apply-diagnostics-own-login-patch.mjs
       - name: Abhängigkeiten installieren
         run: npm install
-      - name: Diagnose-Login-Test
-        run: node --test tests/diagnostics-own-login.test.js
-      - name: Produktänderung committen
-        run: |
-          if git diff --quiet; then
-            echo "Keine uncommitteten Produktänderungen."
-            exit 0
-          fi
-          git config user.name "Deadshot89"
-          git config user.email "86518220+Deadshot89@users.noreply.github.com"
-          git add frontend/diagnostics.html frontend/diagnostics.css frontend/diagnostics-app.js
-          git commit -m "fix: Diagnose-App mit eigenem Login"
-          git push origin HEAD:fix-diagnostics-own-login
+      - name: Vollständige Tests
+        run: npm test
