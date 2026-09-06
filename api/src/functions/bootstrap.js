@@ -72,7 +72,7 @@ app.http('bootstrap', {
         templates: templates.recordset,
         records: filterRowsByEmployeeScope(scope, records.recordset),
         exclusions: filterRowsByEmployeeScope(scope, exclusions.recordset),
-        assignments: filterRowsByEmployeeScope(assignments.recordset ? scope : scope, assignments.recordset),
+        assignments: filterRowsByEmployeeScope(scope, assignments.recordset),
         plannedTrainings: scopedPlans(scope, ctx, plannedTrainings.recordset, participants.recordset),
         invitations: scopedInvitations(scope, ctx, invitations.recordset),
         tests: [],
