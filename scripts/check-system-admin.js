@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 
 const auth = readFileSync('api/src/lib/auth.js', 'utf8');
 const systemApi = readFileSync('api/src/functions/systemCompanies.js', 'utf8');
-const systemUi = readFileSync('frontend/system-admin-v16.js', 'utf8');
+const systemUi = readFileSync('frontend/portal-shell.js', 'utf8');
 const index = readFileSync('frontend/index.html', 'utf8');
 
 assert.match(auth, /AUTH_DEV_SYSTEM_ADMIN/, 'Auth muss einen expliziten Dev-System-Admin-Schalter unterstützen.');
@@ -24,14 +24,15 @@ assert.match(systemApi, /TestQuestions/, 'Starterdaten müssen Testfragen kopier
 assert.match(systemApi, /targetCompanyId === sourceCompanyId/, 'Starterdaten dürfen nicht in dieselbe Firma zurückkopiert werden.');
 assert.match(systemApi, /tenantHasStarterData/, 'Starterdaten dürfen nicht versehentlich doppelt kopiert werden.');
 
-assert.match(systemUi, /System Admin/, 'Frontend muss System-Admin-Ansicht anzeigen.');
-assert.match(systemUi, /createSystemCompany/, 'Frontend muss Firma anlegen können.');
-assert.match(systemUi, /switchSystemCompany/, 'Frontend muss zwischen Firmen wechseln können.');
-assert.match(systemUi, /Starterdaten übernehmen/, 'Frontend muss Starterdaten manuell übernehmen können.');
-assert.match(systemUi, /copyStarterData/, 'Frontend muss Starterdaten-API aufrufen können.');
-assert.match(systemUi, /copyStarterData:\s*\$\('sysCopyStarter'\)\.value === '1'/, 'Neue Firmen müssen optional direkt mit Startpaket angelegt werden können.');
+assert.match(systemUi, /Systemverwaltung/, 'v0.40 muss die Systemverwaltung in der Portal-Shell anzeigen.');
+assert.match(systemUi, /portalCreateSystemCompany/, 'Frontend muss Firma anlegen können.');
+assert.match(systemUi, /portalSwitchSystemCompany/, 'Frontend muss zwischen Firmen wechseln können.');
+assert.match(systemUi, /Startpaket/, 'Frontend muss Starterdaten manuell übernehmen können.');
+assert.match(systemUi, /portalCopyStarterData/, 'Frontend muss Starterdaten-API aufrufen können.');
+assert.match(systemUi, /copyStarterData:true/, 'Neue Firmen müssen in v0.40 direkt mit Startpaket angelegt werden können.');
 assert.match(systemUi, /system\/companies/, 'Frontend muss System-Companies-API nutzen.');
-assert.match(index, /system-admin-v16\.js/, 'Index muss System-Admin-Script laden.');
+assert.match(index, /portal-shell\.js/, 'Index muss die v0.40 Portal-Shell laden.');
+assert.doesNotMatch(index, /system-admin-v16\.js/, 'v0.40 darf den alten System-Admin-Wrapper nicht parallel laden.');
 assert.match(index, /v0\.(1[7-9]|[2-9][0-9])/, 'Index muss mindestens Stand v0.17 anzeigen.');
 
 console.log('System admin checks passed');

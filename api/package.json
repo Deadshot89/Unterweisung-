@@ -6,7 +6,7 @@
   "main": "src/functions/*.js",
   "scripts": {
     "start": "func start",
-    "test": "node --check src/functions/*.js && node --check src/lib/*.js"
+    "test": "node --test test/*.test.js && node --check src/functions/*.js && node --check src/lib/*.js"
   },
   "dependencies": {
     "@azure/functions": "^4.7.0",

@@ -4,6 +4,8 @@ import { getPool, sql } from '../lib/db.js';
 import { json, badRequest, serverError } from '../lib/http.js';
 import { getAuthorizedContext, assertRole, Roles } from '../lib/auth.js';
 import { writeAudit } from '../lib/audit.js';
+import { resolveEmployeeScope, assertEmployeeAllowed, assertEmployeeIdsAllowed, filterRowsByEmployeeScope } from '../lib/employeeScope.js';
+import { completeAssignmentsForRecord } from '../lib/assignmentLifecycle.js';
 
 function addMonths(date, months) {
   const d = new Date(date);
@@ -19,6 +21,22 @@ async function getInterval(pool, companyId, typeId) {
   return result.recordset[0]?.intervalMonths || 12;
 }
 
+async function assertCompanyEmployees(pool, companyId, employeeIds) {
+  const ids = [...new Set(employeeIds.filter(Boolean))];
+  if (!ids.length) return;
+  const req = pool.request().input('companyId', sql.NVarChar(80), companyId);
+  const params = ids.map((id, index) => {
+    req.input(`targetEmployeeId${index}`, sql.NVarChar(80), id);
+    return `@targetEmployeeId${index}`;
+  });
+  const result = await req.query(`SELECT id FROM Employees WHERE companyId=@companyId AND active=1 AND id IN (${params.join(',')})`);
+  if (result.recordset.length !== ids.length) {
+    const error = new Error('Mindestens ein Mitarbeiter gehört nicht zur aktiven Firma oder ist inaktiv.');
+    error.status = 403;
+    throw error;
+  }
+}
+
 app.http('records', {
   methods: ['GET', 'POST'],
   authLevel: 'anonymous',
@@ -27,11 +45,13 @@ app.http('records', {
     try {
       const ctx = await getAuthorizedContext(request);
       const pool = await getPool();
+      const scope = await resolveEmployeeScope(pool, ctx);
 
       if (request.method === 'GET') {
         const url = new URL(request.url);
         const employeeId = url.searchParams.get('employeeId');
         const typeId = url.searchParams.get('typeId');
+        if (employeeId) assertEmployeeAllowed(scope, employeeId);
         const req = pool.request().input('companyId', sql.NVarChar(80), ctx.companyId);
         let where = 'WHERE r.companyId=@companyId';
         if (employeeId) { req.input('employeeId', sql.NVarChar(80), employeeId); where += ' AND r.employeeId=@employeeId'; }
@@ -45,18 +65,22 @@ app.http('records', {
                   LEFT JOIN Employees ins ON ins.id=r.instructorId AND ins.companyId=r.companyId
                   LEFT JOIN Files f ON f.id=r.certificateFileId AND f.companyId=r.companyId
                   ${where} ORDER BY r.conductedAt DESC`);
-        return json(result.recordset);
+        return json(filterRowsByEmployeeScope(scope, result.recordset));
       }
 
       assertRole(ctx, [Roles.COMPANY_ADMIN, Roles.HSE, Roles.LINE_MANAGER]);
       const body = await request.json();
       if (!body.typeId && !body.instructionTypeId) return badRequest('typeId is required');
       const typeId = body.typeId || body.instructionTypeId;
-      const employeeIds = Array.isArray(body.employeeIds) ? body.employeeIds : [body.employeeId].filter(Boolean);
+      const employeeIds = [...new Set((Array.isArray(body.employeeIds) ? body.employeeIds : [body.employeeId]).filter(Boolean))];
       if (!employeeIds.length) return badRequest('employeeId or employeeIds is required');
+      await assertCompanyEmployees(pool, ctx.companyId, employeeIds);
+      assertEmployeeIdsAllowed(scope, employeeIds);
       const conductedAt = body.conductedAt ? new Date(body.conductedAt) : new Date();
+      if (Number.isNaN(conductedAt.getTime())) return badRequest('conductedAt ist ungültig');
       const intervalMonths = await getInterval(pool, ctx.companyId, typeId);
       const validUntil = body.validUntil ? new Date(body.validUntil) : addMonths(conductedAt, intervalMonths);
+      if (Number.isNaN(validUntil.getTime())) return badRequest('validUntil ist ungültig');
       const groupId = body.groupId || (employeeIds.length > 1 ? uuidv4() : null);
       const created = [];
 
@@ -78,6 +102,9 @@ app.http('records', {
           .input('createdBy', sql.NVarChar(120), ctx.userId)
           .query(`INSERT INTO InstructionRecords(id,companyId,employeeId,typeId,conductedAt,validUntil,status,source,instructorId,durationMinutes,groupId,confirmationText,createdBy)
                   VALUES(@id,@companyId,@employeeId,@typeId,@conductedAt,@validUntil,@status,@source,@instructorId,@durationMinutes,@groupId,@confirmationText,@createdBy)`);
+        if ((body.status || 'completed') === 'completed') {
+          await completeAssignmentsForRecord(pool, ctx.companyId, employeeId, typeId, id, conductedAt);
+        }
         created.push(id);
       }
       await writeAudit(pool, ctx, groupId ? 'instruction.groupCompleted' : 'instruction.completed', 'instructionRecord', groupId || created[0], { typeId, employeeIds, conductedAt, validUntil });

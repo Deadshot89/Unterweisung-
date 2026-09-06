@@ -4,6 +4,7 @@ import { getPool, sql } from '../lib/db.js';
 import { json, badRequest, serverError } from '../lib/http.js';
 import { getAuthorizedContext, assertRole, Roles } from '../lib/auth.js';
 import { writeAudit } from '../lib/audit.js';
+import { resolveEmployeeScope, filterRowsByEmployeeScope } from '../lib/employeeScope.js';
 
 function clean(value, max) {
   const text = String(value ?? '').trim();
@@ -30,10 +31,11 @@ app.http('employees', {
       const ctx = await getAuthorizedContext(request);
       const { companyId, userId } = ctx;
       const pool = await getPool();
+      const scope = await resolveEmployeeScope(pool, ctx);
       if (request.method === 'GET') {
         const result = await pool.request().input('companyId', sql.NVarChar(80), companyId)
           .query('SELECT id, name, chipNr, email, department, active, role, lineManagerId, title, createdAt, updatedAt FROM Employees WHERE companyId=@companyId ORDER BY name');
-        return json(result.recordset);
+        return json(filterRowsByEmployeeScope(scope, result.recordset, 'id'));
       }
 
       assertRole(ctx, [Roles.COMPANY_ADMIN, Roles.HSE]);

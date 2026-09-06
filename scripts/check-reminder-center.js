@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 
 const index = fs.readFileSync('frontend/index.html', 'utf8');
-const roleGuard = fs.readFileSync('frontend/role-guard-v20.js', 'utf8');
+const portal = fs.readFileSync('frontend/portal-shell.js', 'utf8');
 const reminderUi = fs.readFileSync('frontend/reminder-center-v30.js', 'utf8');
 
 function assertIncludes(source, needle, label) {
@@ -19,13 +19,15 @@ function assertMatches(source, pattern, label) {
 }
 
 assertMatches(index, /Unterweisungsmanager Online · v0\./, 'sichtbare Online-Version');
-assertIncludes(index, 'data-view="reminders"', 'Erinnerungen-Reiter');
-assertIncludes(index, '<section id="reminders"', 'Erinnerungen-Section');
+assertIncludes(index, '<section id="work"', 'v0.40 Arbeitsbereich');
 assertIncludes(index, '/reminder-center-v30.js', 'Erinnerungscenter geladen');
+assertIncludes(index, '/portal-shell.js', 'v0.40 Portal-Shell geladen');
 
-assertIncludes(roleGuard, 'reminders:', 'Rollenmatrix fuer Erinnerungen');
-assertIncludes(roleGuard, "'dashboard','status','reminders'", 'Erinnerungen in erlaubter Startreihenfolge');
-assertIncludes(roleGuard, "'company_admin','hse','line_manager','system_admin'", 'Erinnerungen Rollenfreigabe');
+assertMatches(portal, /reminders:\s*\{view:'work',\s*tab:'reminders'\}/, 'Legacy-Route Erinnerungen auf Arbeit/Erinnerungen');
+assertIncludes(portal, "['line_manager','hse','company_admin','system_admin'].includes(r)", 'Erinnerungen Rollenfreigabe');
+assertIncludes(portal, "tabs.push({id:'reminders',label:'Erinnerungen'})", 'Erinnerungen als Arbeits-Unteransicht');
+assertIncludes(portal, '<div id="reminders" class="portal-subview"', 'Erinnerungs-Unteransicht');
+assertIncludes(portal, "if(active === 'reminders' && typeof renderReminders === 'function') renderReminders();", 'Erinnerungsrenderer wird aus Portal-Shell aufgerufen');
 
 assertIncludes(reminderUi, 'function renderReminderCenter', 'Erinnerungscenter rendern');
 assertIncludes(reminderUi, 'function copyReminderMailText', 'Mailtext erzeugen');
@@ -36,4 +38,4 @@ assertIncludes(reminderUi, 'createExternalInvitationFromRow', 'externe Linklogik
 assertIncludes(reminderUi, 'REMINDER_LOG_KEY', 'lokaler Erinnerungsverlauf');
 assertIncludes(reminderUi, "['missing','expired','critical','soon']", 'offene Status werden gefiltert');
 
-console.log('Reminder center regression check passed.');
+console.log('Reminder center v0.40 regression check passed.');

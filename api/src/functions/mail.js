@@ -5,6 +5,7 @@ import { json, badRequest, notFound, serverError } from '../lib/http.js';
 import { getAuthorizedContext, assertRole, Roles } from '../lib/auth.js';
 import { writeAudit } from '../lib/audit.js';
 import { writeMailLog } from '../lib/mailLog.js';
+import { resolveEmployeeScope, employeeAllowed, assertEmployeeAllowed, assertEmployeeIdsAllowed } from '../lib/employeeScope.js';
 import {
   mailConfigStatus,
   sendGraphMail,
@@ -20,6 +21,11 @@ function publicUrlFor(token) {
   const base = process.env.PUBLIC_BASE_URL || process.env.APP_BASE_URL || 'http://localhost:4280';
   return `${base}/external/instruction.html?t=${token}`;
 }
+function forbidden(message = 'Keine Berechtigung für diesen Mailversand.') {
+  const error = new Error(message);
+  error.status = 403;
+  throw error;
+}
 
 async function loadInvitation(pool, companyId, id) {
   const result = await pool.request()
@@ -33,6 +39,15 @@ async function loadInvitation(pool, companyId, id) {
             LEFT JOIN Employees e ON e.id=i.employeeId AND e.companyId=i.companyId
             WHERE i.companyId=@companyId AND i.id=@id`);
   return result.recordset[0];
+}
+
+function assertInvitationMailAllowed(scope, ctx, invitation) {
+  if (scope.mode === 'company') return;
+  if (invitation.employeeId) {
+    if (!employeeAllowed(scope, invitation.employeeId)) assertEmployeeAllowed(scope, invitation.employeeId);
+    return;
+  }
+  if (scope.mode !== 'team' || invitation.createdBy !== ctx.userId) forbidden('Externe Einladungen ohne Mitarbeiterbezug dürfen nur vom Ersteller versendet werden.');
 }
 
 async function sendInvitationWithFreshToken(pool, ctx, invitation, { reminder = false, validDays = null } = {}) {
@@ -81,7 +96,7 @@ async function sendInvitationWithFreshToken(pool, ctx, invitation, { reminder = 
       bodyPreview: mail.text,
       status: 'sent'
     });
-    await writeAudit(pool, ctx, reminder ? 'mail.invitationReminderSent' : 'mail.invitationSent', 'externalInvitation', invitation.id, { email: invitation.email });
+    await writeAudit(pool, ctx, reminder ? 'mail.invitationReminderSent' : 'mail.invitationSent', 'externalInvitation', invitation.id, { employeeId: invitation.employeeId || null });
     return { ok: true, url, expiresAt: expiresAt.toISOString() };
   } catch (err) {
     await pool.request()
@@ -123,8 +138,10 @@ app.http('sendExternalInvitationMail', {
       assertRole(ctx, [Roles.COMPANY_ADMIN, Roles.HSE, Roles.LINE_MANAGER]);
       const body = await request.json().catch(() => ({}));
       const pool = await getPool();
+      const scope = await resolveEmployeeScope(pool, ctx);
       const invitation = await loadInvitation(pool, ctx.companyId, request.params.id);
       if (!invitation) return notFound('Einladung nicht gefunden');
+      assertInvitationMailAllowed(scope, ctx, invitation);
       if (invitation.status === 'completed') return badRequest('Einladung ist bereits abgeschlossen');
       const result = await sendInvitationWithFreshToken(pool, ctx, invitation, { reminder: !!body.reminder, validDays: body.validDays });
       return json(result);
@@ -142,6 +159,7 @@ app.http('sendDueInvitationReminders', {
       assertRole(ctx, [Roles.COMPANY_ADMIN, Roles.HSE]);
       const body = await request.json().catch(() => ({}));
       const pool = await getPool();
+      await resolveEmployeeScope(pool, ctx);
       const dueDays = Number(body.dueDays || 3);
       const max = Math.min(Number(body.max || 50), 100);
       const result = await pool.request()
@@ -177,6 +195,7 @@ app.http('sendPlannedTrainingMail', {
       const ctx = await getAuthorizedContext(request);
       assertRole(ctx, [Roles.COMPANY_ADMIN, Roles.HSE, Roles.LINE_MANAGER]);
       const pool = await getPool();
+      const scope = await resolveEmployeeScope(pool, ctx);
       const trainingId = request.params.id;
       const trainingRes = await pool.request()
         .input('companyId', sql.NVarChar(80), ctx.companyId)
@@ -197,6 +216,11 @@ app.http('sendPlannedTrainingMail', {
                 LEFT JOIN Employees e ON e.id=tp.employeeId AND e.companyId=tp.companyId
                 WHERE tp.companyId=@companyId AND tp.plannedTrainingId=@trainingId`);
       const participants = participantsRes.recordset;
+      const internalEmployeeIds = [...new Set(participants.map(p => p.employeeId).filter(Boolean))];
+      assertEmployeeIdsAllowed(scope, internalEmployeeIds);
+      const hasExternal = participants.some(p => !p.employeeId && p.externalEmail);
+      const ownedByActor = scope.mode === 'team' && (training.lineManagerId === scope.actorEmployeeId || training.createdBy === ctx.userId);
+      if (scope.mode === 'team' && hasExternal && !ownedByActor) forbidden('Externe Teilnehmer dürfen nur aus einer eigenen Team-Planung angeschrieben werden.');
       const to = participants.map(p => p.employeeEmail || p.externalEmail).filter(Boolean);
       if (!to.length) return badRequest('Keine Teilnehmer mit E-Mail-Adresse vorhanden');
       const participantsText = participants.map(p => p.employeeName || p.externalEmail || p.employeeEmail).filter(Boolean).join(', ');
@@ -233,7 +257,7 @@ app.http('sendPlannedTrainingMail', {
           .query(`UPDATE TrainingParticipants SET mailSentAt=SYSUTCDATETIME(), mailError=NULL WHERE companyId=@companyId AND plannedTrainingId=@trainingId;
                   UPDATE PlannedTrainings SET status='invited' WHERE companyId=@companyId AND id=@trainingId;`);
         await writeMailLog(pool, ctx, { companyId: ctx.companyId, relatedEntityType: 'plannedTraining', relatedEntityId: trainingId, fromEmail: result.from, to: result.to, cc: result.cc, subject: mail.subject, bodyPreview: mail.text, status: 'sent' });
-        await writeAudit(pool, ctx, 'mail.plannedTrainingSent', 'plannedTraining', trainingId, { recipientCount: to.length });
+        await writeAudit(pool, ctx, 'mail.plannedTrainingSent', 'plannedTraining', trainingId, { recipientCount: to.length, internalParticipantCount: internalEmployeeIds.length });
         return json({ ok: true, recipients: to.length });
       } catch (err) {
         await pool.request()

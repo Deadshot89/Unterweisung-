@@ -2,11 +2,12 @@ import { app } from '@azure/functions';
 import { v4 as uuidv4 } from 'uuid';
 import crypto from 'node:crypto';
 import { getPool, sql } from '../lib/db.js';
-import { json, badRequest, serverError } from '../lib/http.js';
+import { json, badRequest, notFound, serverError } from '../lib/http.js';
 import { getAuthorizedContext, assertRole, Roles } from '../lib/auth.js';
 import { writeAudit } from '../lib/audit.js';
 import { sendGraphMail, buildExternalInvitationMail } from '../lib/graphMail.js';
 import { writeMailLog } from '../lib/mailLog.js';
+import { resolveEmployeeScope, employeeAllowed, assertEmployeeAllowed } from '../lib/employeeScope.js';
 
 function makeToken() {
   return crypto.randomBytes(32).toString('base64url');
@@ -20,6 +21,26 @@ function publicBaseUrl() {
   return String(process.env.PUBLIC_BASE_URL || process.env.APP_BASE_URL || 'http://localhost:4280').replace(/\/$/, '');
 }
 
+function forbidden(message = 'Keine Berechtigung für diese Einladung.') {
+  const error = new Error(message);
+  error.status = 403;
+  throw error;
+}
+
+async function assertCompanyEmployee(pool, companyId, employeeId) {
+  const result = await pool.request()
+    .input('companyId', sql.NVarChar(80), companyId)
+    .input('employeeId', sql.NVarChar(80), employeeId)
+    .query('SELECT TOP 1 id FROM Employees WHERE companyId=@companyId AND id=@employeeId AND active=1');
+  if (!result.recordset.length) forbidden('Mitarbeiter gehört nicht zur aktiven Firma oder ist inaktiv.');
+}
+
+function invitationAllowed(scope, ctx, row) {
+  if (scope.mode === 'company') return true;
+  if (row?.employeeId) return employeeAllowed(scope, row.employeeId);
+  return scope.mode === 'team' && row?.createdBy === ctx.userId;
+}
+
 app.http('invitations', {
   methods: ['GET', 'POST', 'PATCH'],
   authLevel: 'anonymous',
@@ -28,6 +49,7 @@ app.http('invitations', {
     try {
       const ctx = await getAuthorizedContext(request);
       const pool = await getPool();
+      const scope = await resolveEmployeeScope(pool, ctx);
 
       if (request.method === 'GET') {
         const result = await pool.request()
@@ -51,6 +73,7 @@ app.http('invitations', {
                     vi.certificateFileId,
                     vi.certificateFileName,
                     vi.createdAt,
+                    vi.createdBy,
                     tr.id AS testResultId,
                     tr.scorePercent,
                     tr.passed,
@@ -69,7 +92,7 @@ app.http('invitations', {
                   ) tr
                   WHERE vi.companyId=@companyId
                   ORDER BY vi.createdAt DESC`);
-        return json(result.recordset);
+        return json(result.recordset.filter(row => invitationAllowed(scope, ctx, row)));
       }
 
       assertRole(ctx, [Roles.COMPANY_ADMIN, Roles.HSE, Roles.LINE_MANAGER]);
@@ -77,10 +100,15 @@ app.http('invitations', {
 
       if (request.method === 'POST') {
         if (!body.email || !body.instructionTypeId) return badRequest('email and instructionTypeId are required');
+        if (body.employeeId) {
+          await assertCompanyEmployee(pool, ctx.companyId, body.employeeId);
+          assertEmployeeAllowed(scope, body.employeeId);
+        }
         const id = body.id || uuidv4();
         const token = makeToken();
         const publicBase = publicBaseUrl();
         const expiresAt = body.expiresAt ? new Date(body.expiresAt) : new Date(Date.now() + Number(body.validDays || 14) * 24 * 3600 * 1000);
+        if (Number.isNaN(expiresAt.getTime())) return badRequest('expiresAt ist ungültig');
         await pool.request()
           .input('id', sql.NVarChar(80), id)
           .input('companyId', sql.NVarChar(80), ctx.companyId)
@@ -96,7 +124,7 @@ app.http('invitations', {
           .input('createdBy', sql.NVarChar(120), ctx.userId)
           .query(`INSERT INTO ExternalInvitations(id,companyId,tokenHash,email,recipientName,employeeId,instructionTypeId,language,expiresAt,createdBy,status,testRequired,passPercent)
                   VALUES(@id,@companyId,@tokenHash,@email,@recipientName,@employeeId,@instructionTypeId,@language,@expiresAt,@createdBy,'sent',@testRequired,@passPercent)`);
-        await writeAudit(pool, ctx, 'invitation.created', 'externalInvitation', id, { email: body.email, instructionTypeId: body.instructionTypeId });
+        await writeAudit(pool, ctx, 'invitation.created', 'externalInvitation', id, { employeeId: body.employeeId || null, instructionTypeId: body.instructionTypeId });
         const url = `${publicBase}/external/instruction.html?t=${token}`;
         let mail = null;
         if (body.sendMail === true || body.sendMail === 'true') {
@@ -143,6 +171,13 @@ app.http('invitations', {
 
       const id = request.params.id;
       if (!id) return badRequest('id is required');
+      const target = await pool.request()
+        .input('id', sql.NVarChar(80), id)
+        .input('companyId', sql.NVarChar(80), ctx.companyId)
+        .query('SELECT TOP 1 id,employeeId,createdBy,status FROM ExternalInvitations WHERE id=@id AND companyId=@companyId');
+      const targetRow = target.recordset[0];
+      if (!targetRow) return notFound('Einladung nicht gefunden.');
+      if (!invitationAllowed(scope, ctx, targetRow)) forbidden();
       const status = body.status || 'cancelled';
       if (!['cancelled','sent','opened','failed'].includes(status)) return badRequest('invalid status');
       await pool.request()
@@ -150,7 +185,7 @@ app.http('invitations', {
         .input('companyId', sql.NVarChar(80), ctx.companyId)
         .input('status', sql.NVarChar(40), status)
         .query(`UPDATE ExternalInvitations SET status=@status WHERE id=@id AND companyId=@companyId AND status<>'completed'`);
-      await writeAudit(pool, ctx, 'invitation.updated', 'externalInvitation', id, { status });
+      await writeAudit(pool, ctx, 'invitation.updated', 'externalInvitation', id, { status, employeeId: targetRow.employeeId || null });
       return json({ ok: true });
     } catch (err) {
       return serverError(err, context);

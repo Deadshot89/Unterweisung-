@@ -1,8 +1,8 @@
 import fs from 'node:fs';
 
 const index = fs.readFileSync('frontend/index.html', 'utf8');
-const css = fs.readFileSync('frontend/styles.css', 'utf8');
-const design = fs.readFileSync('frontend/design-polish-v31.js', 'utf8');
+const portal = fs.readFileSync('frontend/portal-shell.js', 'utf8');
+const css = fs.readFileSync('frontend/portal-v040.css', 'utf8');
 
 function assert(condition, message) {
   if (!condition) {
@@ -11,8 +11,8 @@ function assert(condition, message) {
   }
 }
 
-assert(/Unterweisungsmanager Online · v0\./.test(index), 'Browser-Titel muss kompatible sichtbare Version behalten.');
-assert(index.includes('<h1>Unterweisungsmanager</h1>'), 'Sichtbarer Header darf nicht mehr "Online" im Titel tragen.');
+assert(/Unterweisungsmanager Online · v0\./.test(index), 'Browser-Titel muss eine sichtbare v0-Version behalten.');
+assert(index.includes('<h1>Unterweisungsmanager</h1>'), 'Professioneller Haupttitel fehlt.');
 assert(index.includes('Digitales Unterweisungs- und Schulungsmanagement'), 'Professionelle Subline fehlt.');
 assert(index.includes('class="system-strip"'), 'Kompakte Systemstatus-Leiste fehlt.');
 assert(index.includes('Systemstatus:'), 'Systemstatus fehlt.');
@@ -20,22 +20,18 @@ assert(index.includes('Betriebsbereit'), 'Betriebsbereit-Text fehlt.');
 assert(index.includes('id="companySelectionGate"'), 'Zentraler Login-/Firmenauswahlbereich fehlt.');
 assert(index.includes('Keine Firma ausgewählt'), 'Vor Anmeldung darf keine Firma als aktiv dargestellt werden.');
 assert(!index.includes('Essentra aktiv'), 'Essentra darf vor erfolgreicher Anmeldung nicht als aktiv angezeigt werden.');
-assert(index.includes('/design-polish-v31.js'), 'Design-Polish-Datei wird nicht geladen.');
-assert(!index.includes('Azure Static Web Apps + Functions + SQL/Blob'), 'Technischer Azure-Text darf nicht mehr sichtbar im Header stehen.');
-assert(!index.includes('Login läuft im Dev-Bypass'), 'Dev-Bypass darf nicht mehr sichtbar in der Hauptoberflaeche stehen.');
-assert(!index.includes('Online-Grundstruktur v0.'), 'Langer Online-Grundstruktur-Status darf nicht mehr sichtbar sein.');
+assert(index.includes('/portal-v040.css'), 'v0.40 Portal-CSS wird nicht geladen.');
+assert(index.includes('/portal-shell.js'), 'v0.40 Portal-Shell wird nicht geladen.');
+assert(!index.includes('/design-polish-v31.js'), 'Alter Design-Polish-Wrapper darf in v0.40 nicht parallel geladen werden.');
+assert(!index.includes('Azure Static Web Apps + Functions + SQL/Blob'), 'Technischer Azure-Text darf nicht sichtbar im Header stehen.');
+assert(!index.includes('Login läuft im Dev-Bypass'), 'Dev-Bypass darf nicht sichtbar in der Hauptoberflaeche stehen.');
 
-assert(css.includes('.brand-wrap'), 'Neues Header-Layout CSS fehlt.');
-assert(css.includes('.system-strip'), 'Systemstrip CSS fehlt.');
-assert(css.includes('.primary-tabs'), 'Moderne Navigation CSS fehlt.');
-assert(css.includes('.professional-user'), 'Professionelle Benutzerkarte CSS fehlt.');
-assert(css.includes('.identity-name'), 'Benutzername CSS fehlt.');
-assert(css.includes('.identity-roles'), 'Rollenbereich CSS fehlt.');
+for (const token of ['.portal-topbar','.brand-wrap','.system-strip','.portal-sidebar','.professional-user','.portal-user-card']) {
+  assert(css.includes(token), `${token} fehlt im zentralen Portal-CSS.`);
+}
+assert(portal.includes('function portalRoleLabel'), 'Sprechende Rollenanzeige fehlt.');
+assert(portal.includes("r !== 'authenticated'"), 'Technische authenticated-Rolle muss aus der sichtbaren Rollenanzeige entfernt werden.');
+assert(portal.includes('function portalCompanyName'), 'Firmenname wird nicht zentral aus dem aktiven Mandanten abgeleitet.');
+assert(portal.includes('function renderPortalUserCard'), 'Zentrale Benutzerkarte fehlt.');
 
-assert(design.includes('FRIENDLY_ROLE_LABELS'), 'Rollen werden nicht in sprechende Labels umgewandelt.');
-assert(design.includes("r !== 'authenticated'"), 'authenticated muss aus der sichtbaren Rollenanzeige entfernt werden.');
-assert(design.includes('designCompanyName'), 'Firmenname muss sauber angezeigt werden.');
-assert(design.includes('company-essentra') === false, 'Technische companyId darf im Designscript nicht angezeigt werden.');
-assert(design.includes('login.style.display'), 'Login/Logout Anzeige muss gesteuert werden.');
-
-console.log('Design polish regression check passed.');
+console.log('v0.40 design polish regression check passed.');

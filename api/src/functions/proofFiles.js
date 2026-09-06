@@ -6,6 +6,7 @@ import { getAuthorizedContext, assertRole, Roles } from '../lib/auth.js';
 import { writeAudit } from '../lib/audit.js';
 import { uploadBufferToBlob } from '../lib/blob.js';
 import { decodeBase64Upload, validateUploadedFile, blobPathForUpload, initialScanStatus } from '../lib/uploadSecurity.js';
+import { resolveEmployeeScope, employeeAllowed, assertEmployeeAllowed, assertEmployeeIdsAllowed } from '../lib/employeeScope.js';
 
 async function getRecord(pool, companyId, recordId) {
   const result = await pool.request()
@@ -23,8 +24,66 @@ async function getGroupRecords(pool, companyId, groupId) {
   const result = await pool.request()
     .input('companyId', sql.NVarChar(80), companyId)
     .input('groupId', sql.NVarChar(80), groupId)
-    .query(`SELECT id FROM InstructionRecords WHERE companyId=@companyId AND groupId=@groupId`);
+    .query(`SELECT id,employeeId FROM InstructionRecords WHERE companyId=@companyId AND groupId=@groupId`);
   return result.recordset || [];
+}
+
+function groupAllowed(scope, rows) {
+  if (scope.mode === 'company') return true;
+  const employeeIds = [...new Set(rows.map(row => row.employeeId).filter(Boolean))];
+  if (scope.mode === 'self') return employeeIds.includes(scope.actorEmployeeId);
+  assertEmployeeIdsAllowed(scope, employeeIds);
+  return true;
+}
+
+async function assertLinkedEntityAllowed(pool, scope, companyId, linkedEntityType, linkedEntityId) {
+  if (scope.mode === 'company') return;
+  if (linkedEntityType === 'instruction_record') {
+    const record = await getRecord(pool, companyId, linkedEntityId);
+    if (!record) {
+      const error = new Error('Unterweisungseintrag nicht gefunden');
+      error.status = 404;
+      throw error;
+    }
+    assertEmployeeAllowed(scope, record.employeeId);
+    return;
+  }
+  if (linkedEntityType === 'instruction_group') {
+    const rows = await getGroupRecords(pool, companyId, linkedEntityId);
+    if (!rows.length) {
+      const error = new Error('Gruppenunterweisung nicht gefunden');
+      error.status = 404;
+      throw error;
+    }
+    groupAllowed(scope, rows);
+    return;
+  }
+  const error = new Error('Kein Zugriff auf diesen Nachweis.');
+  error.status = 403;
+  throw error;
+}
+
+async function filterProofRows(pool, scope, companyId, rows) {
+  if (scope.mode === 'company') return rows;
+  const records = await pool.request()
+    .input('companyId', sql.NVarChar(80), companyId)
+    .query('SELECT id,employeeId,groupId FROM InstructionRecords WHERE companyId=@companyId');
+  const byId = new Map(records.recordset.map(row => [row.id, row]));
+  const byGroup = new Map();
+  for (const row of records.recordset) {
+    if (!row.groupId) continue;
+    if (!byGroup.has(row.groupId)) byGroup.set(row.groupId, []);
+    byGroup.get(row.groupId).push(row);
+  }
+  return rows.filter(file => {
+    if (file.linkedEntityType === 'instruction_record') return employeeAllowed(scope, byId.get(file.linkedEntityId)?.employeeId);
+    if (file.linkedEntityType === 'instruction_group') {
+      const group = byGroup.get(file.linkedEntityId) || [];
+      if (scope.mode === 'self') return group.some(row => row.employeeId === scope.actorEmployeeId);
+      try { return groupAllowed(scope, group); } catch { return false; }
+    }
+    return false;
+  });
 }
 
 async function insertFile(pool, ctx, file) {
@@ -60,18 +119,29 @@ app.http('proofFiles', {
     try {
       const ctx = await getAuthorizedContext(request);
       const pool = await getPool();
+      const scope = await resolveEmployeeScope(pool, ctx);
 
       if (request.method === 'GET') {
         const url = new URL(request.url);
         const recordId = url.searchParams.get('recordId');
         const groupId = url.searchParams.get('groupId');
+        if (recordId) {
+          const record = await getRecord(pool, ctx.companyId, recordId);
+          if (!record) return notFound('Unterweisungseintrag nicht gefunden');
+          assertEmployeeAllowed(scope, record.employeeId);
+        }
+        if (groupId) {
+          const group = await getGroupRecords(pool, ctx.companyId, groupId);
+          if (!group.length) return notFound('Gruppenunterweisung nicht gefunden');
+          groupAllowed(scope, group);
+        }
         const req = pool.request().input('companyId', sql.NVarChar(80), ctx.companyId);
         let where = `WHERE companyId=@companyId AND kind='proof'`;
         if (recordId) { req.input('recordId', sql.NVarChar(80), recordId); where += ` AND linkedEntityType='instruction_record' AND linkedEntityId=@recordId`; }
         if (groupId) { req.input('groupId', sql.NVarChar(80), groupId); where += ` AND linkedEntityType='instruction_group' AND linkedEntityId=@groupId`; }
         const result = await req.query(`SELECT TOP 200 id,fileName,originalFileName,contentType,sizeBytes,sha256,status,scanStatus,linkedEntityType,linkedEntityId,createdAt,createdBy
                                         FROM Files ${where} ORDER BY createdAt DESC`);
-        return json(result.recordset);
+        return json(await filterProofRows(pool, scope, ctx.companyId, result.recordset));
       }
 
       assertRole(ctx, [Roles.COMPANY_ADMIN, Roles.HSE, Roles.LINE_MANAGER]);
@@ -79,6 +149,13 @@ app.http('proofFiles', {
       if (request.method === 'PATCH') {
         const id = request.params.id;
         if (!id) return badRequest('id is required');
+        const target = await pool.request()
+          .input('companyId', sql.NVarChar(80), ctx.companyId)
+          .input('id', sql.NVarChar(80), id)
+          .query(`SELECT TOP 1 id,linkedEntityType,linkedEntityId FROM Files WHERE companyId=@companyId AND id=@id AND kind='proof'`);
+        const file = target.recordset[0];
+        if (!file) return notFound('Nachweis nicht gefunden');
+        await assertLinkedEntityAllowed(pool, scope, ctx.companyId, file.linkedEntityType, file.linkedEntityId);
         const body = await request.json();
         const allowed = new Set(['pending','clean','not_configured','quarantined','blocked']);
         const scanStatus = String(body.scanStatus || '').toLowerCase();
@@ -106,11 +183,13 @@ app.http('proofFiles', {
       if (recordId) {
         record = await getRecord(pool, ctx.companyId, recordId);
         if (!record) return notFound('Unterweisungseintrag nicht gefunden');
-        recordsToUpdate = [{ id: record.id }];
+        assertEmployeeAllowed(scope, record.employeeId);
+        recordsToUpdate = [{ id: record.id, employeeId: record.employeeId }];
       }
       if (groupId) {
         recordsToUpdate = await getGroupRecords(pool, ctx.companyId, groupId);
         if (!recordsToUpdate.length) return notFound('Gruppenunterweisung nicht gefunden');
+        groupAllowed(scope, recordsToUpdate);
       }
 
       const buffer = decodeBase64Upload(body);

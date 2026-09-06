@@ -5,6 +5,7 @@ import { json, badRequest, serverError } from '../lib/http.js';
 import { createReadSasUrl } from '../lib/blob.js';
 import { saveCertificateHtml } from '../lib/certificate.js';
 import { writeAudit } from '../lib/audit.js';
+import { completeAssignmentsForRecord } from '../lib/assignmentLifecycle.js';
 
 function hashToken(token) {
   return crypto.createHash('sha256').update(token || '').digest('hex');
@@ -237,6 +238,10 @@ app.http('externalInstruction', {
         .input('createdBy', sql.NVarChar(120), `external:${invitation.email}`)
         .query(`INSERT INTO InstructionRecords(id,companyId,employeeId,typeId,conductedAt,validUntil,status,source,durationMinutes,confirmationText,certificateFileId,createdBy)
                 VALUES(@id,@companyId,@employeeId,@typeId,@conductedAt,@validUntil,@status,@source,@durationMinutes,@confirmationText,@certificateFileId,@createdBy)`);
+
+      if (invitation.employeeId) {
+        await completeAssignmentsForRecord(pool, invitation.companyId, invitation.employeeId, invitation.instructionTypeId, recordId, now);
+      }
 
       if (test.required) {
         await pool.request()
