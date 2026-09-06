@@ -419,28 +419,90 @@
     });
   }
 
-  async function initialize() {
-    bindInstallPrompt();
+  function setLoginMessage(text, kind = 'error') {
+    const el = $('diagLoginMessage');
+    if (!el) return;
+    el.className = `message ${kind}`;
+    el.textContent = text;
+    el.hidden = !text;
+  }
+
+  function showLogin(message = '') {
+    state.me = null;
+    if ($('diagWorkspace')) $('diagWorkspace').hidden = true;
+    if ($('diagLoginPanel')) $('diagLoginPanel').hidden = false;
+    if ($('diagUser')) $('diagUser').textContent = 'Nicht angemeldet';
+    setMessage('');
+    setLoginMessage(message, message ? 'error' : 'info');
+    setTimeout(() => $('diagLoginEmail')?.focus(), 0);
+  }
+
+  function hideLogin() {
+    if ($('diagLoginPanel')) $('diagLoginPanel').hidden = true;
+    if ($('diagLoginPassword')) $('diagLoginPassword').value = '';
+    setLoginMessage('');
+  }
+
+  async function loadAuthenticatedDiagnostics() {
+    state.me = await api('/me');
+    $('diagUser').textContent = `${state.me.displayName || state.me.email || 'Benutzer'} · ${(state.me.roles || []).includes('system_admin') ? 'System Admin' : 'Diagnosezugriff'}`;
+    hideLogin();
+    if (!hasDiagnosticAccess()) {
+      if ($('diagWorkspace')) $('diagWorkspace').hidden = true;
+      setMessage('Für dieses Benutzerkonto ist die Fehlerdiagnose nicht freigegeben.', 'error');
+      return;
+    }
+    $('diagWorkspace').hidden = false;
+    setMessage('');
+    await loadCompanies();
+    await Promise.all([loadDiagnostics(), updatePushState()]);
+  }
+
+  async function submitLogin(event) {
+    event.preventDefault();
+    const email = $('diagLoginEmail')?.value.trim() || '';
+    const password = $('diagLoginPassword')?.value || '';
+    const button = $('diagLoginSubmit');
+    if (button) button.disabled = true;
+    setLoginMessage('Anmeldung wird geprüft …', 'info');
     try {
-      state.me = await api('/me');
-      $('diagUser').textContent = `${state.me.displayName || state.me.email || 'Benutzer'} · ${(state.me.roles || []).includes('system_admin') ? 'System Admin' : 'Diagnosezugriff'}`;
-      if (!hasDiagnosticAccess()) {
-        setMessage('Für dieses Benutzerkonto ist die Fehlerdiagnose nicht freigegeben.', 'error');
-        return;
+      const response = await fetch(apiUrl('/auth/password/login'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        mode: 'cors',
+        cache: 'no-store',
+        body: JSON.stringify({ email, password })
+      });
+      const text = await response.text();
+      let payload = {};
+      if (text) {
+        try { payload = JSON.parse(text); } catch { payload = {}; }
       }
-      $('diagWorkspace').hidden = false;
-      setMessage('');
-      await loadCompanies();
-      await Promise.all([loadDiagnostics(), updatePushState()]);
+      if (!response.ok) throw new Error(payload?.error || text || `Anmeldung fehlgeschlagen (HTTP ${response.status}).`);
+      await loadAuthenticatedDiagnostics();
     } catch (err) {
-      $('diagUser').textContent = 'Nicht angemeldet';
-      const text = Number(err?.status) === 401
-        ? 'Bitte zuerst im Unterweisungsmanager anmelden und die Fehlerdiagnose danach erneut öffnen.'
-        : `Fehlerdiagnose konnte nicht gestartet werden: ${err.message || err}`;
-      setMessage(text, 'error');
+      showLogin(err.message || String(err));
+    } finally {
+      if (button) button.disabled = false;
     }
   }
 
+  async function initialize() {
+    bindInstallPrompt();
+    try {
+      await loadAuthenticatedDiagnostics();
+    } catch (err) {
+      if (Number(err?.status) === 401) {
+        showLogin();
+        return;
+      }
+      $('diagUser').textContent = 'Nicht angemeldet';
+      setMessage(`Fehlerdiagnose konnte nicht gestartet werden: ${err.message || err}`, 'error');
+    }
+  }
+
+  $('diagLoginForm')?.addEventListener('submit', submitLogin);
   $('diagRefresh')?.addEventListener('click', loadDiagnostics);
   $('diagExport')?.addEventListener('click', downloadExport);
   $('diagPushEnable')?.addEventListener('click', enablePush);

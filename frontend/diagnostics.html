@@ -25,6 +25,24 @@
   <main class="diag-main">
     <section id="diagAccessMessage" class="message info">Diagnosezugriff wird geprüft …</section>
 
+    <section id="diagLoginPanel" class="diag-login-panel" hidden aria-labelledby="diagLoginTitle">
+      <div class="diag-login-card">
+        <p class="eyebrow">Service-App</p>
+        <h1 id="diagLoginTitle">Anmelden</h1>
+        <p>Mit demselben E-Mail-/Passwort-Zugang wie im Unterweisungsmanager. Die Diagnose-App bleibt danach über die sichere Sitzung angemeldet.</p>
+        <form id="diagLoginForm" class="diag-login-form">
+          <label>E-Mail
+            <input id="diagLoginEmail" type="email" autocomplete="username" inputmode="email" required>
+          </label>
+          <label>Passwort
+            <input id="diagLoginPassword" type="password" autocomplete="current-password" required>
+          </label>
+          <button id="diagLoginSubmit" type="submit" class="button">Anmelden</button>
+          <p id="diagLoginMessage" class="message error" hidden></p>
+        </form>
+      </div>
+    </section>
+
     <div id="diagWorkspace" hidden>
       <section class="hero-panel">
         <div>
