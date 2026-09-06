@@ -20,6 +20,22 @@ async function getInterval(pool, companyId, typeId) {
   return result.recordset[0]?.intervalMonths || 12;
 }
 
+async function assertCompanyEmployees(pool, companyId, employeeIds) {
+  const ids = [...new Set(employeeIds.filter(Boolean))];
+  if (!ids.length) return;
+  const req = pool.request().input('companyId', sql.NVarChar(80), companyId);
+  const params = ids.map((id, index) => {
+    req.input(`targetEmployeeId${index}`, sql.NVarChar(80), id);
+    return `@targetEmployeeId${index}`;
+  });
+  const result = await req.query(`SELECT id FROM Employees WHERE companyId=@companyId AND active=1 AND id IN (${params.join(',')})`);
+  if (result.recordset.length !== ids.length) {
+    const error = new Error('Mindestens ein Mitarbeiter gehört nicht zur aktiven Firma oder ist inaktiv.');
+    error.status = 403;
+    throw error;
+  }
+}
+
 app.http('records', {
   methods: ['GET', 'POST'],
   authLevel: 'anonymous',
@@ -57,6 +73,7 @@ app.http('records', {
       const typeId = body.typeId || body.instructionTypeId;
       const employeeIds = [...new Set((Array.isArray(body.employeeIds) ? body.employeeIds : [body.employeeId]).filter(Boolean))];
       if (!employeeIds.length) return badRequest('employeeId or employeeIds is required');
+      await assertCompanyEmployees(pool, ctx.companyId, employeeIds);
       assertEmployeeIdsAllowed(scope, employeeIds);
       const conductedAt = body.conductedAt ? new Date(body.conductedAt) : new Date();
       if (Number.isNaN(conductedAt.getTime())) return badRequest('conductedAt ist ungültig');
