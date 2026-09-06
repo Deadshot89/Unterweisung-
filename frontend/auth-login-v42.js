@@ -1,5 +1,6 @@
 (function(root){
   const escapeHtml=(value='')=>String(value??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+  let databaseWarmupPromise=null;
 
   function passwordSetupToken(){
     const params=new URLSearchParams(String(location.hash || '').replace(/^#/,''));
@@ -8,6 +9,12 @@
 
   function hasPasswordSetupToken(){
     return !!passwordSetupToken();
+  }
+
+  function warmDatabaseForLogin(){
+    if(databaseWarmupPromise)return databaseWarmupPromise;
+    databaseWarmupPromise=fetch('/api/health',{method:'GET',credentials:'include',cache:'no-store'}).catch(()=>null);
+    return databaseWarmupPromise;
   }
 
   function renderSetup({target,token}){
@@ -29,6 +36,7 @@
 
   function render({target,message=''}){
     if(!target)return;
+    warmDatabaseForLogin();
     const token=passwordSetupToken();
     if(token){renderSetup({target,token});return;}
     const detail=String(message||'').replace(/^.*?Fehler:\s*/,'').trim();
