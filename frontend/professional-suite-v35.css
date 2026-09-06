@@ -46,8 +46,11 @@ body.app-shell-v35 .system-strip{
 body.app-shell-v35 .primary-tabs.pro-navigation{
   grid-column:1;
   grid-row:2;
-  position:sticky;
+  position:fixed;
   top:94px;
+  left:max(24px,calc((100vw - 1760px) / 2 + 24px));
+  width:272px;
+  height:calc(100vh - 118px);
   display:flex;
   flex-direction:column;
   flex-wrap:nowrap;
@@ -55,6 +58,8 @@ body.app-shell-v35 .primary-tabs.pro-navigation{
   max-height:calc(100vh - 118px);
   overflow-x:hidden;
   overflow-y:auto;
+  overscroll-behavior:contain;
+  scrollbar-width:none;
   min-width:0;
   margin:0;
   padding:14px;
@@ -62,6 +67,24 @@ body.app-shell-v35 .primary-tabs.pro-navigation{
   background:rgba(255,255,255,.88);
   box-shadow:var(--suite-shadow-soft);
   backdrop-filter:blur(14px);
+  z-index:2;
+}
+
+body.app-shell-v35 .primary-tabs.pro-navigation:is(:hover,:focus-within){
+  scrollbar-width:thin;
+}
+
+body.app-shell-v35 .primary-tabs.pro-navigation::-webkit-scrollbar{
+  width:0;
+}
+
+body.app-shell-v35 .primary-tabs.pro-navigation:is(:hover,:focus-within)::-webkit-scrollbar{
+  width:8px;
+}
+
+body.app-shell-v35 .primary-tabs.pro-navigation::-webkit-scrollbar-thumb{
+  background:#c7d8e2;
+  border-radius:999px;
 }
 
 body.app-shell-v35 .primary-tabs.pro-navigation::before{
@@ -199,6 +222,90 @@ body.app-shell-v35 .btn.primary{
   box-shadow:0 10px 22px rgba(15,111,143,.18);
 }
 
+/* Benutzerliste: ohne horizontales Scrollen, mit klarer Fokuszeile. */
+#users .user-table-wrap{
+  overflow-x:hidden;
+  max-height:calc(100vh - 250px);
+}
+
+#users .user-table{
+  width:100%;
+  min-width:0;
+  table-layout:fixed;
+}
+
+#users .user-table th,
+#users .user-table td{
+  padding:8px 7px;
+  white-space:normal;
+  overflow-wrap:anywhere;
+  vertical-align:middle;
+}
+
+#users .user-table th:nth-child(1){width:12%}
+#users .user-table th:nth-child(2){width:17%}
+#users .user-table th:nth-child(3){width:13%}
+#users .user-table th:nth-child(4){width:8%}
+#users .user-table th:nth-child(5){width:10%}
+#users .user-table th:nth-child(6){width:10%}
+#users .user-table th:nth-child(7){width:7%}
+#users .user-table th:nth-child(8){width:23%}
+
+#users .user-table .actions-cell{
+  white-space:normal;
+  text-align:left;
+}
+
+#users .user-actions{
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  gap:5px;
+}
+
+#users .user-actions button{
+  margin:0;
+  padding:6px 8px;
+  font-size:11px;
+  line-height:1.15;
+  white-space:normal;
+  max-width:100%;
+}
+
+#users .user-row{
+  cursor:pointer;
+  transition:background .14s ease,box-shadow .14s ease;
+}
+
+#users .user-row:hover{
+  background:#f6fbfd;
+}
+
+#users .user-row:focus{
+  outline:none;
+}
+
+#users .user-row td:first-child{
+  position:relative;
+  padding-left:13px;
+}
+
+#users .user-row.is-focused{
+  background:#eaf7fb;
+  box-shadow:inset 0 0 0 1px rgba(15,111,143,.18);
+}
+
+#users .user-row.is-focused td:first-child::before{
+  content:'';
+  position:absolute;
+  left:0;
+  top:7px;
+  bottom:7px;
+  width:4px;
+  border-radius:999px;
+  background:var(--suite-brand);
+}
+
 /* Bounded participant selector; do not inherit full-width form input styling. */
 #planning .planning-participants{min-width:0}
 #planning .participant-toolbar{display:flex;align-items:end;gap:12px;flex-wrap:wrap;margin-bottom:10px}
@@ -238,8 +345,14 @@ body.app-shell-v35 .btn.primary{
   }
   body.app-shell-v35 .primary-tabs.pro-navigation{
     position:static;
+    width:auto;
+    height:auto;
+    left:auto;
+    top:auto;
     flex-direction:row;
     overflow:auto;
+    overscroll-behavior:auto;
+    scrollbar-width:none;
     max-height:none;
     margin-bottom:16px;
     border-radius:20px;
@@ -252,6 +365,9 @@ body.app-shell-v35 .btn.primary{
     width:auto;
     white-space:nowrap;
     flex:0 0 auto;
+  }
+  #users .user-table-wrap{
+    max-height:none;
   }
 }
 
