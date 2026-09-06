@@ -42,13 +42,22 @@ app.http('bootstrap', {
       const { companyId } = ctx;
       const pool = await getPool();
       const scope = await resolveEmployeeScope(pool, ctx);
-      const [companies, employees, types, templates, records, exclusions, plannedTrainings, participants, invitations] = await Promise.all([
+      const [companies, employees, types, templates, records, exclusions, assignments, plannedTrainings, participants, invitations] = await Promise.all([
         pool.request().input('companyId', sql.NVarChar(80), companyId).query('SELECT id, name, legalName, addressLine, defaultLanguage, active FROM Companies WHERE id=@companyId'),
         pool.request().input('companyId', sql.NVarChar(80), companyId).query('SELECT id, name, chipNr, email, department, active, role, lineManagerId AS shiftLeaderId, title FROM Employees WHERE companyId=@companyId ORDER BY name'),
         pool.request().input('companyId', sql.NVarChar(80), companyId).query('SELECT id, name, category, intervalMonths, description, templateId, active FROM InstructionTypes WHERE companyId=@companyId ORDER BY category, name'),
         pool.request().input('companyId', sql.NVarChar(80), companyId).query('SELECT id, title, fileName, blobPath AS path, category, description, active FROM Templates WHERE companyId=@companyId ORDER BY title'),
         pool.request().input('companyId', sql.NVarChar(80), companyId).query('SELECT r.id, r.employeeId, r.typeId, r.conductedAt AS date, r.validUntil AS nextDue, r.status, r.instructorId, r.durationMinutes, r.groupId, r.source, r.certificateFileId, f.fileName AS certificateFileName, f.scanStatus AS certificateScanStatus FROM InstructionRecords r LEFT JOIN Files f ON f.companyId=r.companyId AND f.id=r.certificateFileId WHERE r.companyId=@companyId'),
         pool.request().input('companyId', sql.NVarChar(80), companyId).query('SELECT id, employeeId, instructionTypeId AS typeId, reason, active FROM EmployeeInstructionExclusions WHERE companyId=@companyId AND active=1'),
+        pool.request().input('companyId', sql.NVarChar(80), companyId).query(`SELECT a.id,a.employeeId,a.instructionTypeId,a.assignedAt,a.dueAt,a.status,a.source,a.note,
+          a.plannedTrainingId,a.completedAt,a.completedRecordId,a.createdBy,a.createdAt,a.updatedAt,
+          e.name AS employeeName,t.name AS instructionName,t.category
+          FROM TrainingAssignments a
+          JOIN Employees e ON e.companyId=a.companyId AND e.id=a.employeeId
+          JOIN InstructionTypes t ON t.companyId=a.companyId AND t.id=a.instructionTypeId
+          WHERE a.companyId=@companyId
+          ORDER BY CASE WHEN a.status IN ('assigned','in_progress') THEN 0 ELSE 1 END,
+                   CASE WHEN a.dueAt IS NULL THEN 1 ELSE 0 END,a.dueAt,a.assignedAt DESC`),
         pool.request().input('companyId', sql.NVarChar(80), companyId).query('SELECT id, instructionTypeId, plannedAt, durationMinutes, location, lineManagerId, status, createdBy FROM PlannedTrainings WHERE companyId=@companyId ORDER BY plannedAt DESC'),
         pool.request().input('companyId', sql.NVarChar(80), companyId).query(`SELECT tp.plannedTrainingId,tp.employeeId,tp.externalEmail,e.name AS employeeName
           FROM TrainingParticipants tp
@@ -63,6 +72,7 @@ app.http('bootstrap', {
         templates: templates.recordset,
         records: filterRowsByEmployeeScope(scope, records.recordset),
         exclusions: filterRowsByEmployeeScope(scope, exclusions.recordset),
+        assignments: filterRowsByEmployeeScope(assignments.recordset ? scope : scope, assignments.recordset),
         plannedTrainings: scopedPlans(scope, ctx, plannedTrainings.recordset, participants.recordset),
         invitations: scopedInvitations(scope, ctx, invitations.recordset),
         tests: [],
