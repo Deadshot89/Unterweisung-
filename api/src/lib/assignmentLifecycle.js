@@ -13,7 +13,7 @@ export async function completeAssignmentsForRecord(pool, companyId, employeeId, 
     .query(`UPDATE dbo.TrainingAssignments
             SET status='completed',
                 completedAt=@completedAt,
-                completedRecordId=@recordId,
+                linkedRecordId=@recordId,
                 updatedAt=SYSUTCDATETIME()
             WHERE companyId=@companyId
               AND employeeId=@employeeId
