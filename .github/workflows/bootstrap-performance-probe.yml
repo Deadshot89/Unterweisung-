@@ -33,6 +33,15 @@ jobs:
           const pool = await sql.connect(connectionString);
           console.log(`BOOTSTRAP_CONNECT_MS: ${Math.round(performance.now() - connectStart)}`);
 
+          const serviceResult = await pool.request().query(`
+            SELECT edition, service_objective
+            FROM sys.database_service_objectives
+            WHERE database_id=DB_ID();
+          `);
+          const service = serviceResult.recordset?.[0] || {};
+          console.log(`BOOTSTRAP_DB_EDITION: ${String(service.edition || 'unknown')}`);
+          console.log(`BOOTSTRAP_DB_SERVICE_OBJECTIVE: ${String(service.service_objective || 'unknown')}`);
+
           const companyResult = await pool.request().query(`
             SELECT id
             FROM dbo.Companies
