@@ -1,0 +1,127 @@
+name: Bootstrap-Performanceanalyse
+
+on:
+  push:
+    branches:
+      - diag-bootstrap-performance
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Abhängigkeiten installieren
+        run: npm install --omit=dev
+      - name: Bootstrap gegen Produktionsdatenbank anonym vermessen
+        env:
+          SQL_CONNECTION_STRING: ${{ secrets.SQL_CONNECTION_STRING }}
+        run: |
+          node --input-type=module <<'NODE'
+          import sql from 'mssql';
+          import { performance } from 'node:perf_hooks';
+
+          const connectionString = String(process.env.SQL_CONNECTION_STRING || '');
+          if (!connectionString) throw new Error('SQL_CONNECTION_STRING fehlt.');
+
+          const connectStart = performance.now();
+          const pool = await sql.connect(connectionString);
+          console.log(`BOOTSTRAP_CONNECT_MS: ${Math.round(performance.now() - connectStart)}`);
+
+          const companyResult = await pool.request().query(`
+            SELECT id
+            FROM dbo.Companies
+            WHERE active=1
+            ORDER BY createdAt,id;
+          `);
+          const companyIds = (companyResult.recordset || []).map(row => String(row.id || '')).filter(Boolean);
+          console.log(`BOOTSTRAP_ACTIVE_COMPANIES: ${companyIds.length}`);
+
+          async function runQuery(companyId, query) {
+            const start = performance.now();
+            const result = await pool.request().input('companyId', sql.NVarChar(80), companyId).query(query);
+            const queryMs = Math.round(performance.now() - start);
+            const rows = result.recordset || [];
+            const stringifyStart = performance.now();
+            const bytes = Buffer.byteLength(JSON.stringify(rows), 'utf8');
+            const stringifyMs = Math.round(performance.now() - stringifyStart);
+            return { queryMs, rows: rows.length, bytes, stringifyMs };
+          }
+
+          const queries = [
+            ['companies', `SELECT id, name, legalName, addressLine, defaultLanguage, active FROM dbo.Companies WHERE id=@companyId`],
+            ['employees', `SELECT id, name, chipNr, email, department, active, role, lineManagerId AS shiftLeaderId, title FROM dbo.Employees WHERE companyId=@companyId ORDER BY name`],
+            ['types', `SELECT id, name, category, intervalMonths, description, templateId, active FROM dbo.InstructionTypes WHERE companyId=@companyId ORDER BY category, name`],
+            ['templates', `SELECT id, title, fileName, blobPath AS path, category, description, active FROM dbo.Templates WHERE companyId=@companyId ORDER BY title`],
+            ['records', `SELECT r.id, r.employeeId, r.typeId, r.conductedAt AS date, r.validUntil AS nextDue, r.status, r.instructorId, r.durationMinutes, r.groupId, r.source, r.certificateFileId, f.fileName AS certificateFileName, f.scanStatus AS certificateScanStatus FROM dbo.InstructionRecords r LEFT JOIN dbo.Files f ON f.companyId=r.companyId AND f.id=r.certificateFileId WHERE r.companyId=@companyId`],
+            ['exclusions', `SELECT id, employeeId, instructionTypeId AS typeId, reason, active FROM dbo.EmployeeInstructionExclusions WHERE companyId=@companyId AND active=1`],
+            ['plannedTrainings', `SELECT id, instructionTypeId, plannedAt, durationMinutes, location, lineManagerId, status FROM dbo.PlannedTrainings WHERE companyId=@companyId ORDER BY plannedAt DESC`],
+            ['invitations', `SELECT TOP 300 id,email,recipientName,employeeId,employeeName,instructionTypeId,instructionName,category,language,status,expiresAt,startedAt,completedAt,testRequired,passPercent,certificateFileId,certificateFileName,createdAt FROM dbo.vExternalInvitations WHERE companyId=@companyId ORDER BY createdAt DESC`]
+          ];
+
+          for (let companyIndex = 0; companyIndex < companyIds.length; companyIndex++) {
+            const companyId = companyIds[companyIndex];
+            console.log(`BOOTSTRAP_COMPANY_${companyIndex + 1}_BEGIN`);
+
+            const userSeed = await pool.request().input('companyId', sql.NVarChar(80), companyId).query(`
+              SELECT TOP 1 id,email
+              FROM dbo.Users
+              WHERE companyId=@companyId AND active=1
+              ORDER BY createdAt,id;
+            `);
+            if (userSeed.recordset?.length) {
+              const candidate = userSeed.recordset[0];
+              const authStart = performance.now();
+              const authResult = await pool.request()
+                .input('userId', sql.NVarChar(120), candidate.id)
+                .input('email', sql.NVarChar(254), candidate.email)
+                .query(`SELECT id,companyId,email,displayName,role,active,entraObjectId,sessionVersion FROM dbo.Users WHERE active=1 AND id=@userId AND LOWER(email)=LOWER(@email)`);
+              console.log(`BOOTSTRAP_COMPANY_${companyIndex + 1}_AUTH_MS: ${Math.round(performance.now() - authStart)} ROWS: ${authResult.recordset?.length || 0}`);
+            } else {
+              console.log(`BOOTSTRAP_COMPANY_${companyIndex + 1}_AUTH_MS: no-user`);
+            }
+
+            let totalBytes = 0;
+            let totalRows = 0;
+            for (const [name, query] of queries) {
+              const metric = await runQuery(companyId, query);
+              totalBytes += metric.bytes;
+              totalRows += metric.rows;
+              console.log(`BOOTSTRAP_COMPANY_${companyIndex + 1}_${name.toUpperCase()}_MS: ${metric.queryMs} ROWS: ${metric.rows} BYTES: ${metric.bytes} JSON_MS: ${metric.stringifyMs}`);
+            }
+            console.log(`BOOTSTRAP_COMPANY_${companyIndex + 1}_SERIAL_ROWS: ${totalRows}`);
+            console.log(`BOOTSTRAP_COMPANY_${companyIndex + 1}_SERIAL_BYTES: ${totalBytes}`);
+
+            const parallelStart = performance.now();
+            const parallelResults = await Promise.all(queries.map(async ([name, query]) => [name, await runQuery(companyId, query)]));
+            const parallelMs = Math.round(performance.now() - parallelStart);
+            const parallelRows = parallelResults.reduce((sum, [, metric]) => sum + metric.rows, 0);
+            const parallelBytes = parallelResults.reduce((sum, [, metric]) => sum + metric.bytes, 0);
+            console.log(`BOOTSTRAP_COMPANY_${companyIndex + 1}_PARALLEL_MS: ${parallelMs}`);
+            console.log(`BOOTSTRAP_COMPANY_${companyIndex + 1}_PARALLEL_ROWS: ${parallelRows}`);
+            console.log(`BOOTSTRAP_COMPANY_${companyIndex + 1}_PARALLEL_BYTES: ${parallelBytes}`);
+            console.log(`BOOTSTRAP_COMPANY_${companyIndex + 1}_END`);
+          }
+
+          const indexResult = await pool.request().query(`
+            SELECT OBJECT_NAME(i.object_id) AS tableName, i.name AS indexName
+            FROM sys.indexes i
+            WHERE i.object_id IN (
+              OBJECT_ID('dbo.Users'), OBJECT_ID('dbo.Employees'), OBJECT_ID('dbo.InstructionTypes'),
+              OBJECT_ID('dbo.Templates'), OBJECT_ID('dbo.InstructionRecords'), OBJECT_ID('dbo.Files'),
+              OBJECT_ID('dbo.EmployeeInstructionExclusions'), OBJECT_ID('dbo.PlannedTrainings'), OBJECT_ID('dbo.ExternalInvitations')
+            )
+              AND i.name IS NOT NULL
+            ORDER BY tableName,indexName;
+          `);
+          for (const row of indexResult.recordset || []) {
+            console.log(`BOOTSTRAP_INDEX: ${row.tableName}.${row.indexName}`);
+          }
+
+          await pool.close();
+          NODE
