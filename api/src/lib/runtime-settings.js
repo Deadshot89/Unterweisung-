@@ -22,7 +22,8 @@ const ALLOWED_RUNTIME_SETTINGS = Object.freeze([
   'GRAPH_TENANT_ID',
   'GRAPH_CLIENT_ID',
   'GRAPH_CLIENT_SECRET',
-  'MAIL_FROM'
+  'MAIL_FROM',
+  'GRAPH_SENDER_ID'
 ]);
 
 function runtimeSettingsLocation() {

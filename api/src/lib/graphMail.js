@@ -53,6 +53,7 @@ async function getGraphToken() {
 
 export async function sendGraphMail({ to, cc, subject, html, text, attachments = [], from, saveToSentItems = true }) {
   const fromEmail = from || cfg('MAIL_FROM');
+  const graphSenderId = from || cfg('GRAPH_SENDER_ID') || fromEmail;
   const toList = splitEmails(to);
   const ccList = splitEmails(cc);
   if (!toList.length) {
@@ -73,7 +74,7 @@ export async function sendGraphMail({ to, cc, subject, html, text, attachments =
       contentBytes: a.contentBytes || b64(a.content || '')
     }))
   };
-  const res = await fetch(`https://graph.microsoft.com/v1.0/users/${encodeURIComponent(fromEmail)}/sendMail`, {
+  const res = await fetch(`https://graph.microsoft.com/v1.0/users/${encodeURIComponent(graphSenderId)}/sendMail`, {
     method: 'POST',
     headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
     body: JSON.stringify({ message, saveToSentItems })
