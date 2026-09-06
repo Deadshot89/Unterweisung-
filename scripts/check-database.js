@@ -8,7 +8,7 @@ if (!connectionString) {
 
 const requiredTables = [
   'Companies','CompanySettings','Users','Employees','Templates','InstructionTypes','EmployeeInstructionExclusions',
-  'InstructionRecords','PlannedTrainings','TrainingParticipants','ExternalInvitations','TestQuestions','TestResults','Files','AuditLog'
+  'InstructionRecords','PlannedTrainings','TrainingParticipants','TrainingAssignments','ExternalInvitations','TestQuestions','TestResults','Files','AuditLog'
 ];
 const requiredViews = ['vInstructionStatus','vManagerTrainingTimeMonthly'];
 
@@ -20,7 +20,7 @@ try {
   const missingTables = requiredTables.filter(t => !names.has(t));
   const missingViews = requiredViews.filter(v => !names.has(v));
   const counts = {};
-  for (const t of ['Companies','Employees','InstructionTypes','Templates','InstructionRecords']) {
+  for (const t of ['Companies','Employees','InstructionTypes','Templates','InstructionRecords','TrainingAssignments']) {
     if (names.has(t)) {
       const c = await pool.request().query(`SELECT COUNT(*) AS count FROM dbo.${t}`);
       counts[t] = c.recordset[0].count;
