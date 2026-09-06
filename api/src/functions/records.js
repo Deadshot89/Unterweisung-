@@ -5,6 +5,7 @@ import { json, badRequest, serverError } from '../lib/http.js';
 import { getAuthorizedContext, assertRole, Roles } from '../lib/auth.js';
 import { writeAudit } from '../lib/audit.js';
 import { resolveEmployeeScope, assertEmployeeAllowed, assertEmployeeIdsAllowed, filterRowsByEmployeeScope } from '../lib/employeeScope.js';
+import { completeAssignmentsForRecord } from '../lib/assignmentLifecycle.js';
 
 function addMonths(date, months) {
   const d = new Date(date);
@@ -101,6 +102,9 @@ app.http('records', {
           .input('createdBy', sql.NVarChar(120), ctx.userId)
           .query(`INSERT INTO InstructionRecords(id,companyId,employeeId,typeId,conductedAt,validUntil,status,source,instructorId,durationMinutes,groupId,confirmationText,createdBy)
                   VALUES(@id,@companyId,@employeeId,@typeId,@conductedAt,@validUntil,@status,@source,@instructorId,@durationMinutes,@groupId,@confirmationText,@createdBy)`);
+        if ((body.status || 'completed') === 'completed') {
+          await completeAssignmentsForRecord(pool, ctx.companyId, employeeId, typeId, id, conductedAt);
+        }
         created.push(id);
       }
       await writeAudit(pool, ctx, groupId ? 'instruction.groupCompleted' : 'instruction.completed', 'instructionRecord', groupId || created[0], { typeId, employeeIds, conductedAt, validUntil });
