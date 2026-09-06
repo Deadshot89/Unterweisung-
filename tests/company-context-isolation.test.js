@@ -3,35 +3,39 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
 const index = fs.readFileSync('frontend/index.html','utf8');
-const tenant = fs.readFileSync('frontend/tenant-context-v36.js','utf8');
-const design = fs.readFileSync('frontend/design-polish-v31.js','utf8');
+const app = fs.readFileSync('frontend/app.js','utf8');
+const portal = fs.readFileSync('frontend/portal-shell.js','utf8');
 
-test('company switch rerenders the currently visible view instead of leaving stale tenant content', () => {
-  assert.match(index, /tenant-context-v36\.js/,
-    'Der Mandantenkontext-Schutz muss produktiv geladen werden.');
-  assert.match(tenant, /renderAll\s*=\s*function\s*\(\)\s*\{[\s\S]*querySelector\(['\"]\.view\.active['\"]\)[\s\S]*render\(/,
-    'Nach einem Firmenwechsel muss die aktuell sichtbare Ansicht mit den neuen Mandantendaten neu gerendert werden.');
-  assert.doesNotMatch(tenant, /render\(['\"]dashboard['\"]\)\s*;?\s*\}/,
-    'Der Mandantenwechsel darf alte Benutzer-/Mitarbeiteransichten nicht durch reines Dashboard-Rendering stehen lassen.');
+test('Firmenwechsel nutzt die neue Portal-Shell und setzt alten Portalzustand sicher zurück', () => {
+  assert.match(index, /portal-shell\.js/,
+    'Die neue Portal-Shell muss produktiv geladen werden.');
+  assert.doesNotMatch(index, /tenant-context-v36\.js/,
+    'Der alte Mandantenkontext-Wrapper darf nicht parallel zur v0.40-Shell geladen werden.');
+  assert.match(portal, /function\s+portalResetForCompanySwitch\s*\(/,
+    'Vor dem Firmenwechsel muss der alte Portalzustand zentral zurückgesetzt werden.');
+  assert.match(portal, /function\s+portalSwitchSystemCompany\s*\([\s\S]*portalResetForCompanySwitch\(\)[\s\S]*await\s+loadCompanyData\(\)[\s\S]*portalNavigate\(['\"]dashboard['\"]/,
+    'Ein Systemadmin-Firmenwechsel muss erst resetten, dann neue Firmendaten laden und anschließend sicher neu navigieren.');
 });
 
-test('professional header derives the company from the selected tenant only', () => {
-  assert.match(tenant, /function\s+activeCompanyName\s*\(/,
+test('Portal-Kopf leitet den Firmennamen ausschließlich aus dem ausgewählten Mandanten ab', () => {
+  assert.match(portal, /function\s+portalCompanyName\s*\(/,
     'Es fehlt eine zentrale Ermittlung des aktuell ausgewählten Firmennamens.');
-  assert.match(design, /activeCompanyName\s*\(/,
-    'Die Benutzerbox muss denselben aktiven Firmenkontext wie die Systemleiste verwenden.');
-  assert.doesNotMatch(design, /companiesList\[0\]/,
-    'Die Benutzerbox darf nicht auf die erste Firma der geladenen Liste zurückfallen.');
-  assert.doesNotMatch(design, /Essentra Components GmbH/,
+  assert.match(portal, /find\(company\s*=>\s*company\?\.id\s*===\s*state\.companyId\)/,
+    'Die Anzeige muss die tatsächlich ausgewählte companyId verwenden.');
+  assert.doesNotMatch(portal, /companiesList\s*\[\s*0\s*\]/,
+    'Die Benutzerbox darf nicht auf die erste Firma einer Liste zurückfallen.');
+  assert.doesNotMatch(portal, /Essentra Components GmbH/,
     'Die Benutzerbox darf keinen festen Essentra-Fallback enthalten.');
 });
 
-test('late responses from a previous tenant cannot overwrite the newly selected tenant', () => {
-  const block = tenant.slice(tenant.indexOf('loadCompanyData = async function'), tenant.indexOf('window.activeCompanyName'));
-  assert.match(block, /const\s+companyId\s*=\s*state\.companyId/,
+test('späte Antworten eines vorherigen Mandanten können den neuen Firmenstate nicht überschreiben', () => {
+  const start = app.indexOf('async function loadCompanyData');
+  const end = app.indexOf('async function showCompanySelection', start);
+  const block = app.slice(start, end);
+  assert.match(block, /const\s+companyIdAtStart\s*=\s*state\.companyId/,
     'loadCompanyData muss den Firmenkontext zu Beginn festhalten.');
-  assert.match(block, /['\"]x-company-id['\"]\s*:\s*companyId/,
-    'Alle Requests eines Firmen-Ladevorgangs müssen explizit an denselben Mandanten gebunden sein.');
-  assert.match(block, /state\.companyId\s*!==\s*companyId[\s\S]*return\s+false/,
-    'Verspätete Antworten eines alten Mandanten müssen verworfen werden.');
+  assert.match(block, /await\s+bootstrapPromise[\s\S]*state\.companyId\s*!==\s*companyIdAtStart[\s\S]*return/,
+    'Eine verspätete Bootstrap-Antwort des alten Mandanten muss verworfen werden.');
+  assert.match(block, /await\s+secondaryPromise[\s\S]*state\.companyId\s*!==\s*companyIdAtStart[\s\S]*return/,
+    'Auch verspätete sekundäre Antworten des alten Mandanten müssen verworfen werden.');
 });
