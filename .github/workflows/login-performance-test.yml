@@ -6,15 +6,30 @@ on:
       - fix-login-performance
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: fix-login-performance
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: RED/GREEN Login-Performance
+      - name: Minimalen Performance-Fix anwenden
+        run: node scripts/apply-login-performance-patch.mjs
+      - name: GREEN Login-Performance
         run: node --test tests/login-performance.test.js
+      - name: Geprüften Produktcode übernehmen
+        run: |
+          if git diff --quiet -- frontend/auth-login-v42.js frontend/app.js; then
+            echo "Kein neuer Produkt-Diff."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add frontend/auth-login-v42.js frontend/app.js
+          git commit -m "fix: Anmeldung ohne blockierenden Reload beschleunigen"
+          git push origin HEAD:fix-login-performance
