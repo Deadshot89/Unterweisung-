@@ -2,8 +2,10 @@ import { app } from '@azure/functions';
 import { v4 as uuidv4 } from 'uuid';
 import { getPool, sql } from '../lib/db.js';
 import { json, badRequest, notFound, serverError } from '../lib/http.js';
-import { getAuthorizedContext, Roles } from '../lib/auth.js';
+import { getAuthorizedContext, assertRole, Roles } from '../lib/auth.js';
 import { writeAudit } from '../lib/audit.js';
+import { sendGraphMail } from '../lib/graphMail.js';
+import { writeMailLog } from '../lib/mailLog.js';
 import {
   resolveEmployeeScope as getEmployeeScope,
   assertEmployeeAllowed,
@@ -27,18 +29,16 @@ function parseDate(value) {
   return Number.isNaN(date.getTime()) ? false : date;
 }
 
+function normalisePercent(value, fallback = 80) {
+  if (value === undefined || value === null || value === '') return fallback;
+  const percent = Number(value);
+  return Number.isFinite(percent) && percent >= 0 && percent <= 100 ? Math.round(percent) : false;
+}
+
 function forbidden(message = 'Keine Berechtigung für diese Unterweisungsaufgabe.') {
   const error = new Error(message);
   error.status = 403;
   throw error;
-}
-
-function hasRole(ctx, role) {
-  return Array.isArray(ctx?.roles) && ctx.roles.includes(role);
-}
-
-function canManageAssignments(ctx) {
-  return [Roles.SYSTEM_ADMIN, Roles.COMPANY_ADMIN, Roles.HSE, Roles.LINE_MANAGER].some(role => hasRole(ctx, role));
 }
 
 async function assertCompanyEmployees(pool, companyId, employeeIds) {
@@ -69,14 +69,43 @@ async function loadAssignment(pool, companyId, id) {
   const result = await pool.request()
     .input('companyId', sql.NVarChar(80), companyId)
     .input('id', sql.NVarChar(80), id)
-    .query(`SELECT TOP 1 a.id,a.companyId,a.employeeId,a.instructionTypeId,a.assignedAt,a.dueAt,a.status,a.source,a.note,
-                   a.plannedTrainingId,a.completedAt,a.completedRecordId,a.createdBy,a.createdAt,a.updatedAt,
-                   e.name AS employeeName,t.name AS instructionName,t.category
+    .query(`SELECT TOP 1 a.id,a.companyId,a.employeeId,a.instructionTypeId,a.assignedByUserId,a.assignedAt,a.dueAt,
+                   a.status,a.testRequired,a.passPercent,a.startedAt,a.completedAt,a.linkedRecordId,
+                   a.lastReminderAt,a.reminderCount,a.source,a.note,a.plannedTrainingId,a.createdBy,a.createdAt,a.updatedAt,
+                   e.name AS employeeName,e.email AS employeeEmail,t.name AS instructionName,t.category,c.name AS companyName
             FROM dbo.TrainingAssignments a
             JOIN dbo.Employees e ON e.companyId=a.companyId AND e.id=a.employeeId
             JOIN dbo.InstructionTypes t ON t.companyId=a.companyId AND t.id=a.instructionTypeId
+            JOIN dbo.Companies c ON c.id=a.companyId
             WHERE a.companyId=@companyId AND a.id=@id`);
   return result.recordset?.[0] || null;
+}
+
+async function loadCompanyMailMode(pool, companyId) {
+  const result = await pool.request()
+    .input('companyId', sql.NVarChar(80), companyId)
+    .query(`SELECT TOP 1
+              COALESCE(mailMode,'manual') AS mailMode,
+              COALESCE(mailSubjectPrefix,'Unterweisung') AS mailSubjectPrefix,
+              COALESCE(mailSignature,'Vielen Dank.') AS mailSignature,
+              mailFromEmail
+            FROM dbo.CompanySettings WHERE companyId=@companyId`);
+  const row = result.recordset?.[0] || {};
+  const mode = String(row.mailMode || 'manual').toLowerCase();
+  return {
+    mailMode: ['manual','outlook','graph'].includes(mode) ? mode : 'manual',
+    mailSubjectPrefix: row.mailSubjectPrefix || 'Unterweisung',
+    mailSignature: row.mailSignature || 'Vielen Dank.',
+    mailFromEmail: row.mailFromEmail || null
+  };
+}
+
+function reminderDraft(assignment, settings) {
+  const due = assignment.dueAt ? new Date(assignment.dueAt).toLocaleDateString('de-DE') : 'ohne feste Frist';
+  const subject = `${settings.mailSubjectPrefix}: Erinnerung ${assignment.instructionName}`;
+  const text = `Hallo ${assignment.employeeName},\n\nbitte erledigen Sie die zugewiesene Unterweisung „${assignment.instructionName}“.\nFälligkeit: ${due}.\n\n${settings.mailSignature}`;
+  const html = `<div style="font-family:Segoe UI,Arial,sans-serif;line-height:1.5;color:#101828"><p>Hallo ${String(assignment.employeeName || '').replace(/[&<>"']/g, '')},</p><p>bitte erledigen Sie die zugewiesene Unterweisung <b>${String(assignment.instructionName || '').replace(/[&<>"']/g, '')}</b>.</p><p>Fälligkeit: ${due}.</p><p>${String(settings.mailSignature || '').replace(/\n/g,'<br>')}</p></div>`;
+  return { to: assignment.employeeEmail, subject, text, html };
 }
 
 app.http('assignments', {
@@ -104,8 +133,9 @@ app.http('assignments', {
           req.input('status', sql.NVarChar(40), status);
           where += ' AND a.status=@status';
         }
-        const result = await req.query(`SELECT a.id,a.employeeId,a.instructionTypeId,a.assignedAt,a.dueAt,a.status,a.source,a.note,
-                                               a.plannedTrainingId,a.completedAt,a.completedRecordId,a.createdBy,a.createdAt,a.updatedAt,
+        const result = await req.query(`SELECT a.id,a.employeeId,a.instructionTypeId,a.assignedByUserId,a.assignedAt,a.dueAt,
+                                               a.status,a.testRequired,a.passPercent,a.startedAt,a.completedAt,a.linkedRecordId,
+                                               a.lastReminderAt,a.reminderCount,a.source,a.note,a.plannedTrainingId,a.createdBy,a.createdAt,a.updatedAt,
                                                e.name AS employeeName,t.name AS instructionName,t.category
                                         FROM dbo.TrainingAssignments a
                                         JOIN dbo.Employees e ON e.companyId=a.companyId AND e.id=a.employeeId
@@ -116,15 +146,19 @@ app.http('assignments', {
         return json(filterRowsByEmployeeScope(scope, result.recordset));
       }
 
+      assertRole(ctx, [Roles.SYSTEM_ADMIN, Roles.COMPANY_ADMIN, Roles.HSE, Roles.LINE_MANAGER]);
+      const body = await request.json();
+
       if (request.method === 'POST') {
-        if (!canManageAssignments(ctx)) forbidden();
-        const body = await request.json();
         const instructionTypeId = clean(body.instructionTypeId || body.typeId, 80);
         const employeeIds = uniqueIds(body.employeeIds || body.employeeId);
         if (!instructionTypeId) return badRequest('instructionTypeId ist erforderlich.');
         if (!employeeIds.length) return badRequest('Mindestens ein Mitarbeiter ist erforderlich.');
         const dueAt = parseDate(body.dueAt);
         if (dueAt === false) return badRequest('Fälligkeitsdatum ist ungültig.');
+        const passPercent = normalisePercent(body.passPercent, 80);
+        if (passPercent === false) return badRequest('passPercent muss zwischen 0 und 100 liegen.');
+        const testRequired = body.testRequired === false ? 0 : 1;
         await assertInstructionType(pool, ctx.companyId, instructionTypeId);
         await assertCompanyEmployees(pool, ctx.companyId, employeeIds);
         assertEmployeeIdsAllowed(scope, employeeIds);
@@ -137,32 +171,35 @@ app.http('assignments', {
             .input('companyId', sql.NVarChar(80), ctx.companyId)
             .input('employeeId', sql.NVarChar(80), employeeId)
             .input('instructionTypeId', sql.NVarChar(80), instructionTypeId)
+            .input('assignedByUserId', sql.NVarChar(120), ctx.userId)
             .input('dueAt', sql.DateTime2, dueAt || null)
-            .input('source', sql.NVarChar(40), clean(body.source, 40) || 'manual')
-            .input('note', sql.NVarChar(1000), clean(body.note, 1000))
-            .input('plannedTrainingId', sql.NVarChar(80), clean(body.plannedTrainingId, 80))
+            .input('testRequired', sql.Bit, testRequired)
+            .input('passPercent', sql.Int, passPercent)
             .input('createdBy', sql.NVarChar(120), ctx.userId)
             .query(`UPDATE dbo.TrainingAssignments WITH (UPDLOCK,HOLDLOCK)
                     SET dueAt=@dueAt,
-                        note=@note,
-                        plannedTrainingId=COALESCE(@plannedTrainingId,plannedTrainingId),
+                        testRequired=@testRequired,
+                        passPercent=@passPercent,
+                        assignedByUserId=@assignedByUserId,
                         updatedAt=SYSUTCDATETIME()
                     OUTPUT inserted.id
                     WHERE companyId=@companyId AND employeeId=@employeeId AND instructionTypeId=@instructionTypeId
                       AND status IN ('assigned','in_progress');
                     IF @@ROWCOUNT=0
                     BEGIN
-                      INSERT INTO dbo.TrainingAssignments(id,companyId,employeeId,instructionTypeId,dueAt,status,source,note,plannedTrainingId,createdBy)
+                      INSERT INTO dbo.TrainingAssignments(id,companyId,employeeId,instructionTypeId,assignedByUserId,dueAt,status,testRequired,passPercent,source,createdBy)
                       OUTPUT inserted.id
-                      VALUES(@id,@companyId,@employeeId,@instructionTypeId,@dueAt,'assigned',@source,@note,@plannedTrainingId,@createdBy);
+                      VALUES(@id,@companyId,@employeeId,@instructionTypeId,@assignedByUserId,@dueAt,'assigned',@testRequired,@passPercent,'manual',@createdBy);
                     END`);
           const returnedId = result.recordset?.[0]?.id || result.recordsets?.flat?.().find(row => row?.id)?.id || id;
           ids.push(returnedId);
         }
-        await writeAudit(pool, ctx, 'assignment.createdOrUpdated', 'trainingAssignment', ids[0], {
+        await writeAudit(pool, ctx, 'assignment.created', 'trainingAssignment', ids[0], {
           employeeIds,
           instructionTypeId,
           dueAt: dueAt?.toISOString() || null,
+          testRequired: !!testRequired,
+          passPercent,
           count: ids.length
         });
         return json({ ids, count: ids.length }, 201);
@@ -173,54 +210,106 @@ app.http('assignments', {
       const assignment = await loadAssignment(pool, ctx.companyId, id);
       if (!assignment) return notFound('Unterweisungsaufgabe nicht gefunden.');
       assertEmployeeAllowed(scope, assignment.employeeId);
-      const body = await request.json();
       const requestedStatus = body.status === undefined ? undefined : clean(body.status, 40);
-
       if (requestedStatus === 'completed') {
         return badRequest('Status completed darf nicht direkt gesetzt werden. Eine Aufgabe wird nur durch einen echten Unterweisungseintrag (InstructionRecord) abgeschlossen.');
       }
-
-      const employeeSelf = hasRole(ctx, Roles.EMPLOYEE) && !canManageAssignments(ctx);
-      if (employeeSelf) {
-        if (requestedStatus !== 'in_progress' || Object.keys(body).some(key => !['status'].includes(key))) {
-          forbidden('Mitarbeiter dürfen ihre eigene Aufgabe nur als begonnen markieren.');
-        }
-      } else if (!canManageAssignments(ctx)) {
-        forbidden();
-      }
-
-      const allowedStatuses = employeeSelf ? new Set(['in_progress']) : new Set(['assigned','in_progress','cancelled']);
-      if (requestedStatus !== undefined && !allowedStatuses.has(requestedStatus)) return badRequest('Status ist nicht erlaubt.');
+      if (requestedStatus !== undefined && requestedStatus !== 'cancelled') return badRequest('Über diese API darf nur cancelled gesetzt werden.');
       const dueAt = body.dueAt === undefined ? undefined : parseDate(body.dueAt);
       if (dueAt === false) return badRequest('Fälligkeitsdatum ist ungültig.');
-      if (employeeSelf && dueAt !== undefined) forbidden();
+      const passPercent = body.passPercent === undefined ? undefined : normalisePercent(body.passPercent);
+      if (passPercent === false) return badRequest('passPercent muss zwischen 0 und 100 liegen.');
 
+      const allowedKeys = new Set(['status','dueAt','testRequired','passPercent']);
+      if (Object.keys(body).some(key => !allowedKeys.has(key))) return badRequest('Diese Änderung ist für Assignments nicht erlaubt.');
       const fields = [];
-      const req = pool.request()
-        .input('companyId', sql.NVarChar(80), ctx.companyId)
-        .input('id', sql.NVarChar(80), id);
-      if (requestedStatus !== undefined) {
-        req.input('status', sql.NVarChar(40), requestedStatus);
-        fields.push('status=@status');
-      }
-      if (dueAt !== undefined) {
-        req.input('dueAt', sql.DateTime2, dueAt || null);
-        fields.push('dueAt=@dueAt');
-      }
-      if (body.note !== undefined) {
-        if (employeeSelf) forbidden();
-        req.input('note', sql.NVarChar(1000), clean(body.note, 1000));
-        fields.push('note=@note');
-      }
+      const req = pool.request().input('companyId', sql.NVarChar(80), ctx.companyId).input('id', sql.NVarChar(80), id);
+      if (requestedStatus !== undefined) { req.input('status', sql.NVarChar(40), requestedStatus); fields.push('status=@status'); }
+      if (dueAt !== undefined) { req.input('dueAt', sql.DateTime2, dueAt || null); fields.push('dueAt=@dueAt'); }
+      if (body.testRequired !== undefined) { req.input('testRequired', sql.Bit, body.testRequired === false ? 0 : 1); fields.push('testRequired=@testRequired'); }
+      if (passPercent !== undefined) { req.input('passPercent', sql.Int, passPercent); fields.push('passPercent=@passPercent'); }
       if (!fields.length) return badRequest('Keine Änderung angegeben.');
       fields.push('updatedAt=SYSUTCDATETIME()');
-      await req.query(`UPDATE dbo.TrainingAssignments SET ${fields.join(', ')} WHERE companyId=@companyId AND id=@id`);
-      await writeAudit(pool, ctx, 'assignment.updated', 'trainingAssignment', id, {
+      await req.query(`UPDATE dbo.TrainingAssignments SET ${fields.join(', ')} WHERE companyId=@companyId AND id=@id AND status<>'completed'`);
+      await writeAudit(pool, ctx, requestedStatus === 'cancelled' ? 'assignment.cancelled' : 'assignment.updated', 'trainingAssignment', id, {
         status: requestedStatus,
         dueAt: dueAt instanceof Date ? dueAt.toISOString() : dueAt,
-        noteChanged: body.note !== undefined
+        testRequired: body.testRequired,
+        passPercent
       });
       return json({ ok: true });
+    } catch (err) {
+      return serverError(err, context);
+    }
+  }
+});
+
+app.http('assignmentReminder', {
+  methods: ['POST'],
+  authLevel: 'anonymous',
+  route: 'assignments/{id}/send-reminder',
+  handler: async (request, context) => {
+    try {
+      const ctx = await getAuthorizedContext(request);
+      assertRole(ctx, [Roles.SYSTEM_ADMIN, Roles.COMPANY_ADMIN, Roles.HSE, Roles.LINE_MANAGER]);
+      const pool = await getPool();
+      const scope = await getEmployeeScope(pool, ctx);
+      const id = clean(request.params.id, 80);
+      const assignment = await loadAssignment(pool, ctx.companyId, id);
+      if (!assignment) return notFound('Unterweisungsaufgabe nicht gefunden.');
+      assertEmployeeAllowed(scope, assignment.employeeId);
+      if (!['assigned','in_progress'].includes(assignment.status)) return badRequest('Nur offene Assignments können erinnert werden.');
+      if (!assignment.employeeEmail) return badRequest('Für diesen Mitarbeiter ist keine E-Mail-Adresse hinterlegt.');
+
+      const settings = await loadCompanyMailMode(pool, ctx.companyId);
+      const mailDraft = reminderDraft(assignment, settings);
+      if (settings.mailMode === 'manual' || settings.mailMode === 'outlook') {
+        await writeAudit(pool, ctx, 'assignment.reminderPrepared', 'trainingAssignment', id, { mailMode: settings.mailMode });
+        return json({ ok: true, sent: false, prepared: true, mailMode: settings.mailMode, mailDraft });
+      }
+
+      try {
+        const sent = await sendGraphMail({
+          to: mailDraft.to,
+          subject: mailDraft.subject,
+          html: mailDraft.html,
+          text: mailDraft.text,
+          from: settings.mailFromEmail || undefined
+        });
+        await pool.request()
+          .input('companyId', sql.NVarChar(80), ctx.companyId)
+          .input('id', sql.NVarChar(80), id)
+          .query(`UPDATE dbo.TrainingAssignments
+                  SET lastReminderAt=SYSUTCDATETIME(), reminderCount=reminderCount+1, updatedAt=SYSUTCDATETIME()
+                  WHERE companyId=@companyId AND id=@id AND status IN ('assigned','in_progress')`);
+        await writeMailLog(pool, ctx, {
+          companyId: ctx.companyId,
+          relatedEntityType: 'trainingAssignment',
+          relatedEntityId: id,
+          provider: sent.provider,
+          fromEmail: sent.from,
+          to: sent.to,
+          cc: sent.cc,
+          subject: mailDraft.subject,
+          bodyPreview: mailDraft.text,
+          status: 'sent'
+        });
+        await writeAudit(pool, ctx, 'assignment.reminderSent', 'trainingAssignment', id, { mailMode: 'graph' });
+        return json({ ok: true, sent: true, prepared: false, mailMode: 'graph' });
+      } catch (mailErr) {
+        await writeMailLog(pool, ctx, {
+          companyId: ctx.companyId,
+          relatedEntityType: 'trainingAssignment',
+          relatedEntityId: id,
+          provider: 'microsoft-graph',
+          to: mailDraft.to,
+          subject: mailDraft.subject,
+          bodyPreview: mailDraft.text,
+          status: 'failed',
+          errorMessage: mailErr.message || String(mailErr)
+        });
+        throw mailErr;
+      }
     } catch (err) {
       return serverError(err, context);
     }
