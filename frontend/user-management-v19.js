@@ -1,6 +1,8 @@
 // v0.19: Benutzer/Rechte je Firma sauber verwalten.
 // Firmen-Admin sieht nur eigene Firma. System-Admin kann den geöffneten Mandanten verwalten.
 
+let focusedUserRowId='';
+
 function canEditUsers(){
   const roles = state.me?.roles || [];
   return roles.includes('system_admin') || roles.includes('company_admin');
@@ -42,6 +44,15 @@ function userRoleOptions(selected='employee'){
   return options.map(([value,label])=>`<option value="${value}" ${selected===value?'selected':''}>${label}</option>`).join('');
 }
 
+function focusUserRow(id){
+  focusedUserRowId=String(id||'');
+  document.querySelectorAll('#users tr[data-user-row]').forEach(row=>{
+    const selected=row.dataset.userRow===focusedUserRowId;
+    row.classList.toggle('is-focused',selected);
+    row.setAttribute('aria-selected',selected?'true':'false');
+  });
+}
+
 function renderUsers(){
   const rows = state.users || [];
   const editable = canEditUsers();
@@ -74,7 +85,7 @@ function userActionButtons(user, editable=false){
 
 function userTable(rows, editable=false){
   if(!rows.length) return '<p class="muted">Keine Benutzer geladen oder keine Berechtigung.</p>';
-  return `<div class="table-wrap"><table><thead><tr><th>Name</th><th>E-Mail</th><th>Rolle</th><th>Status</th><th>Login</th><th>Letzter Zugriff</th><th>Provider</th><th>Aktion</th></tr></thead><tbody>${rows.map(u=>`<tr>
+  return `<div class="table-wrap user-table-wrap"><table class="user-table"><thead><tr><th>Name</th><th>E-Mail</th><th>Rolle</th><th>Status</th><th>Login</th><th>Letzter Zugriff</th><th>Provider</th><th>Aktion</th></tr></thead><tbody>${rows.map(u=>`<tr data-user-row="${esc(u.id||'')}" class="${focusedUserRowId===String(u.id||'')?'is-focused':''}" aria-selected="${focusedUserRowId===String(u.id||'')?'true':'false'}">
     <td><b>${esc(u.displayName||u.email)}</b><br><span class="muted">${esc(u.id||'')}</span></td>
     <td>${esc(u.email||'—')}</td>
     <td>${roleBadge(u.role)}</td>
@@ -82,7 +93,7 @@ function userTable(rows, editable=false){
     <td>${passwordBadge(u)}</td>
     <td>${fmtDate(u.lastSeenAt)}</td>
     <td>${esc(u.provider||'aad')}</td>
-    <td>${userActionButtons(u, editable)}</td>
+    <td><div class="user-actions">${userActionButtons(u, editable)}</div></td>
   </tr>`).join('')}</tbody></table></div>`;
 }
 
@@ -223,7 +234,15 @@ async function toggleUser(id, active){
   }
 }
 
+document.addEventListener('focusin',event=>{
+  const row=event.target?.closest?.('#users tr[data-user-row]');
+  if(row) focusUserRow(row.dataset.userRow);
+});
+
 document.addEventListener('click',event=>{
+  const row=event.target?.closest?.('#users tr[data-user-row]');
+  if(row) focusUserRow(row.dataset.userRow);
+
   const diagnosticsButton=event.target?.closest?.('[data-diagnostics-permission]');
   if(diagnosticsButton){
     event.preventDefault();
