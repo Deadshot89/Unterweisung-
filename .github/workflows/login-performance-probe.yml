@@ -1,0 +1,106 @@
+name: Login-Performanceanalyse
+
+on:
+  push:
+    branches:
+      - diag-login-performance
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Abhängigkeiten installieren
+        run: npm install --omit=dev
+      - name: Produktions-Anmeldezeiten anonym auswerten
+        env:
+          SQL_CONNECTION_STRING: ${{ secrets.SQL_CONNECTION_STRING }}
+        run: |
+          node --input-type=module <<'NODE'
+          import sql from 'mssql';
+          import crypto from 'node:crypto';
+          import { promisify } from 'node:util';
+
+          const connectionString = String(process.env.SQL_CONNECTION_STRING || '');
+          if (!connectionString) throw new Error('SQL_CONNECTION_STRING fehlt.');
+          const pool = await sql.connect(connectionString);
+
+          const result = await pool.request().query(`
+            WITH Successes AS (
+              SELECT TOP 50 actorUserId, createdAt
+              FROM SecurityEvents
+              WHERE eventType='auth.password.succeeded'
+                AND actorUserId IS NOT NULL
+                AND createdAt >= DATEADD(DAY,-14,SYSUTCDATETIME())
+              ORDER BY createdAt DESC
+            ), Paired AS (
+              SELECT s.createdAt AS loginAcceptedAt,
+                     m.createdAt AS meLoadedAt,
+                     DATEDIFF_BIG(MILLISECOND,s.createdAt,m.createdAt) AS gapMs
+              FROM Successes s
+              OUTER APPLY (
+                SELECT TOP 1 createdAt
+                FROM SecurityEvents m
+                WHERE m.eventType='auth.me.loaded'
+                  AND m.actorUserId=s.actorUserId
+                  AND m.createdAt>=s.createdAt
+                  AND m.createdAt<DATEADD(MINUTE,5,s.createdAt)
+                ORDER BY m.createdAt
+              ) m
+            )
+            SELECT
+              COUNT(*) AS loginCount,
+              SUM(CASE WHEN meLoadedAt IS NOT NULL THEN 1 ELSE 0 END) AS pairedCount,
+              CAST(AVG(CASE WHEN meLoadedAt IS NOT NULL THEN CAST(gapMs AS FLOAT) END) AS BIGINT) AS avgGapMs,
+              MIN(CASE WHEN meLoadedAt IS NOT NULL THEN gapMs END) AS minGapMs,
+              MAX(CASE WHEN meLoadedAt IS NOT NULL THEN gapMs END) AS maxGapMs
+            FROM Paired;
+
+            WITH Successes AS (
+              SELECT TOP 10 actorUserId, createdAt
+              FROM SecurityEvents
+              WHERE eventType='auth.password.succeeded'
+                AND actorUserId IS NOT NULL
+                AND createdAt >= DATEADD(DAY,-14,SYSUTCDATETIME())
+              ORDER BY createdAt DESC
+            )
+            SELECT TOP 10
+              DATEDIFF_BIG(MILLISECOND,s.createdAt,m.createdAt) AS gapMs
+            FROM Successes s
+            OUTER APPLY (
+              SELECT TOP 1 createdAt
+              FROM SecurityEvents m
+              WHERE m.eventType='auth.me.loaded'
+                AND m.actorUserId=s.actorUserId
+                AND m.createdAt>=s.createdAt
+                AND m.createdAt<DATEADD(MINUTE,5,s.createdAt)
+              ORDER BY m.createdAt
+            ) m
+            WHERE m.createdAt IS NOT NULL
+            ORDER BY s.createdAt DESC;
+          `);
+
+          const summary = result.recordsets?.[0]?.[0] || {};
+          const recent = (result.recordsets?.[1] || []).map(row => Number(row.gapMs || 0));
+          console.log(`LOGIN_ACCEPTED_TO_ME_LOADED_COUNT: ${Number(summary.pairedCount || 0)}/${Number(summary.loginCount || 0)}`);
+          console.log(`LOGIN_ACCEPTED_TO_ME_LOADED_AVG_MS: ${Number(summary.avgGapMs || 0)}`);
+          console.log(`LOGIN_ACCEPTED_TO_ME_LOADED_MIN_MS: ${Number(summary.minGapMs || 0)}`);
+          console.log(`LOGIN_ACCEPTED_TO_ME_LOADED_MAX_MS: ${Number(summary.maxGapMs || 0)}`);
+          console.log(`LOGIN_ACCEPTED_TO_ME_LOADED_RECENT_MS: ${recent.join(',') || 'keine'}`);
+
+          const scryptAsync = promisify(crypto.scrypt);
+          const timings = [];
+          for (let i = 0; i < 3; i++) {
+            const start = performance.now();
+            await scryptAsync('nur-performance-probe-kein-echtes-passwort', crypto.randomBytes(24), 64, { N:16384, r:8, p:1, maxmem:128*1024*1024 });
+            timings.push(Math.round(performance.now()-start));
+          }
+          console.log(`SCRYPT_LOCAL_MS: ${timings.join(',')}`);
+          await pool.close();
+          NODE
