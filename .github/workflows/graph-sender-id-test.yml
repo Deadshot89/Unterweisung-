@@ -6,30 +6,17 @@ on:
       - fix-graph-sender-id
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: fix-graph-sender-id
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Minimalen Produktpatch anwenden
-        run: node scripts/apply-graph-sender-id-fix.mjs
-      - name: GREEN Graph Sender ID
-        run: node --test tests/graph-sender-id.test.js
-      - name: Geprüften Produktpatch committen
-        run: |
-          git config user.name "Deadshot89"
-          git config user.email "86518220+Deadshot89@users.noreply.github.com"
-          git add api/src/lib/graphMail.js api/src/lib/runtime-settings.js scripts/prepare-managed-api-settings.js package.json
-          if git diff --cached --quiet; then
-            echo "Kein neuer Produktpatch erforderlich."
-          else
-            git commit -m "fix: Graph-Absenderkennung von Mailadresse trennen"
-            git push origin HEAD:fix-graph-sender-id
-          fi
+      - name: Abhängigkeiten installieren
+        run: npm install
+      - name: Vollständige Tests
+        run: npm test
