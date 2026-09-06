@@ -4,18 +4,20 @@ import fs from 'node:fs';
 
 function read(path){ return fs.existsSync(path) ? fs.readFileSync(path,'utf8') : ''; }
 const index = read('frontend/index.html');
-const entry = read('frontend/diagnostics-entry-v37.js');
+const portal = read('frontend/portal-shell.js');
 const users = read('frontend/user-management-v19.js');
 const app = read('frontend/app.js');
-const guard = read('frontend/role-guard-v20.js');
 
-test('main UI exposes diagnostics only with systemadmin or diagnostics.view permission', () => {
-  assert.match(index, /data-view="diagnostics"/);
-  assert.match(index, /id="diagnostics" class="view"/);
-  assert.match(index, /diagnostics-entry-v37\.js/);
-  assert.match(entry, /diagnostics\.view/);
-  assert.match(entry, /system_admin/);
-  assert.match(guard, /canOpenDiagnostics/);
+test('v0.40 exposes diagnostics only as permission-gated admin subview', () => {
+  assert.doesNotMatch(index, /data-view="diagnostics"/);
+  assert.doesNotMatch(index, /id="diagnostics" class="view"/);
+  assert.doesNotMatch(index, /diagnostics-entry-v37\.js/);
+  assert.match(portal, /function\s+portalCanDiagnose\s*\(/);
+  assert.match(portal, /diagnostics\.view/);
+  assert.match(portal, /system_admin/);
+  assert.match(portal, /if\(portalCanDiagnose\(\)\)\s+rows\.push\(\['diagnostics','Fehlerdiagnose'\]\)/);
+  assert.match(portal, /if\(active === 'diagnostics'\)\s+renderDiagnosticsPortal\(\)/);
+  assert.match(portal, /href="\/diagnostics\.html"/);
 });
 
 test('systemadmin can grant and revoke diagnostics access per company user', () => {
