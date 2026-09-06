@@ -4,6 +4,7 @@ import { getPool, sql } from '../lib/db.js';
 import { json, badRequest, serverError } from '../lib/http.js';
 import { getAuthorizedContext, assertRole, Roles } from '../lib/auth.js';
 import { writeAudit } from '../lib/audit.js';
+import { resolveEmployeeScope, assertEmployeeAllowed, assertEmployeeIdsAllowed, filterRowsByEmployeeScope } from '../lib/employeeScope.js';
 
 function addMonths(date, months) {
   const d = new Date(date);
@@ -27,11 +28,13 @@ app.http('records', {
     try {
       const ctx = await getAuthorizedContext(request);
       const pool = await getPool();
+      const scope = await resolveEmployeeScope(pool, ctx);
 
       if (request.method === 'GET') {
         const url = new URL(request.url);
         const employeeId = url.searchParams.get('employeeId');
         const typeId = url.searchParams.get('typeId');
+        if (employeeId) assertEmployeeAllowed(scope, employeeId);
         const req = pool.request().input('companyId', sql.NVarChar(80), ctx.companyId);
         let where = 'WHERE r.companyId=@companyId';
         if (employeeId) { req.input('employeeId', sql.NVarChar(80), employeeId); where += ' AND r.employeeId=@employeeId'; }
@@ -45,18 +48,21 @@ app.http('records', {
                   LEFT JOIN Employees ins ON ins.id=r.instructorId AND ins.companyId=r.companyId
                   LEFT JOIN Files f ON f.id=r.certificateFileId AND f.companyId=r.companyId
                   ${where} ORDER BY r.conductedAt DESC`);
-        return json(result.recordset);
+        return json(filterRowsByEmployeeScope(scope, result.recordset));
       }
 
       assertRole(ctx, [Roles.COMPANY_ADMIN, Roles.HSE, Roles.LINE_MANAGER]);
       const body = await request.json();
       if (!body.typeId && !body.instructionTypeId) return badRequest('typeId is required');
       const typeId = body.typeId || body.instructionTypeId;
-      const employeeIds = Array.isArray(body.employeeIds) ? body.employeeIds : [body.employeeId].filter(Boolean);
+      const employeeIds = [...new Set((Array.isArray(body.employeeIds) ? body.employeeIds : [body.employeeId]).filter(Boolean))];
       if (!employeeIds.length) return badRequest('employeeId or employeeIds is required');
+      assertEmployeeIdsAllowed(scope, employeeIds);
       const conductedAt = body.conductedAt ? new Date(body.conductedAt) : new Date();
+      if (Number.isNaN(conductedAt.getTime())) return badRequest('conductedAt ist ungültig');
       const intervalMonths = await getInterval(pool, ctx.companyId, typeId);
       const validUntil = body.validUntil ? new Date(body.validUntil) : addMonths(conductedAt, intervalMonths);
+      if (Number.isNaN(validUntil.getTime())) return badRequest('validUntil ist ungültig');
       const groupId = body.groupId || (employeeIds.length > 1 ? uuidv4() : null);
       const created = [];
 
