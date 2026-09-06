@@ -24,6 +24,7 @@ jobs:
           node --input-type=module <<'NODE'
           import assert from 'node:assert/strict';
           import { resolveMx } from 'node:dns/promises';
+          import { randomBytes } from 'node:crypto';
 
           const xml = String(process.env.FUNCTION_PUBLISH_PROFILE || '');
           if (!xml) throw new Error('Function-Publish-Profil fehlt.');
@@ -93,19 +94,29 @@ jobs:
           });
           console.log(`GRAPH_ABSENDER_AUFLOESUNG_STATUS: ${resolveResponse.status}`);
           console.log(`GRAPH_ABSENDER_AUFLOESBAR: ${resolveResponse.status === 200 ? 'ja' : 'nicht-bestaetigt'}`);
-          if (resolveResponse.status === 200) {
-            const resolved = await resolveResponse.json();
-            const id = String(resolved.id || '');
-            const upn = String(resolved.userPrincipalName || '').trim();
-            const mail = String(resolved.mail || '').trim();
-            if (id) console.log(`::add-mask::${id}`);
-            if (upn) console.log(`::add-mask::${upn}`);
-            if (mail) console.log(`::add-mask::${mail}`);
-            console.log(`GRAPH_UPN_GLEICH_MAIL_FROM: ${upn.toLowerCase() === mailFrom.toLowerCase() ? 'ja' : 'nein'}`);
-            console.log(`GRAPH_MAIL_GLEICH_MAIL_FROM: ${mail.toLowerCase() === mailFrom.toLowerCase() ? 'ja' : 'nein'}`);
-          } else {
-            await resolveResponse.text();
+          await resolveResponse.text();
+
+          const fakeSender = `unterweisungsmanager-probe-${Date.now()}-${randomBytes(6).toString('hex')}@${domain}`;
+          console.log(`::add-mask::${fakeSender}`);
+
+          async function probeInvalidSend(sender) {
+            const result = await fetch(`https://graph.microsoft.com/v1.0/users/${encodeURIComponent(sender)}/sendMail`, {
+              method: 'POST',
+              headers: {
+                authorization: `Bearer ${token}`,
+                'content-type': 'application/json'
+              },
+              body: '{}',
+              signal: AbortSignal.timeout(30000)
+            });
+            await result.text();
+            return result.status;
           }
 
+          const configuredStatus = await probeInvalidSend(mailFrom);
+          const nonexistentStatus = await probeInvalidSend(fakeSender);
+          console.log(`GRAPH_UNGUELTIGE_NACHRICHT_KONFIGURIERTER_ABSENDER: ${configuredStatus}`);
+          console.log(`GRAPH_UNGUELTIGE_NACHRICHT_NICHTEXISTENTER_ABSENDER: ${nonexistentStatus}`);
+          console.log(`GRAPH_ABSENDER_UNTERSCHEIDBAR: ${configuredStatus !== nonexistentStatus ? 'ja' : 'nein'}`);
           console.log('TESTMAIL_GESENDET: nein');
           NODE
