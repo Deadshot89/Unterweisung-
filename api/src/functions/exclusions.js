@@ -6,6 +6,18 @@ import { getAuthorizedContext, assertRole, Roles } from '../lib/auth.js';
 import { writeAudit } from '../lib/audit.js';
 import { resolveEmployeeScope, assertEmployeeAllowed, filterRowsByEmployeeScope } from '../lib/employeeScope.js';
 
+async function assertCompanyEmployee(pool, companyId, employeeId) {
+  const result = await pool.request()
+    .input('companyId', sql.NVarChar(80), companyId)
+    .input('employeeId', sql.NVarChar(80), employeeId)
+    .query('SELECT TOP 1 id FROM Employees WHERE companyId=@companyId AND id=@employeeId AND active=1');
+  if (!result.recordset.length) {
+    const error = new Error('Mitarbeiter gehört nicht zur aktiven Firma oder ist inaktiv.');
+    error.status = 403;
+    throw error;
+  }
+}
+
 app.http('exclusions', {
   methods: ['GET', 'POST', 'DELETE'],
   authLevel: 'anonymous',
@@ -28,6 +40,7 @@ app.http('exclusions', {
       if (request.method === 'POST') {
         const body = await request.json();
         if (!body.employeeId || !body.instructionTypeId) return badRequest('employeeId and instructionTypeId are required');
+        await assertCompanyEmployee(pool, ctx.companyId, body.employeeId);
         assertEmployeeAllowed(scope, body.employeeId);
         const id = body.id || uuidv4();
         await pool.request()
