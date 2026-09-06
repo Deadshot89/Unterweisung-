@@ -1,0 +1,26 @@
+name: Finalen Benutzerlayout-Stand pruefen
+
+on:
+  push:
+    branches:
+      - verify-user-layout-final
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 8c57189611be300f39122d807df8b40315b9ad79
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Abhaengigkeiten installieren
+        run: npm install --no-audit --no-fund
+      - name: Exakten finalen Stand testen
+        run: |
+          test "$(git rev-parse HEAD)" = "8c57189611be300f39122d807df8b40315b9ad79"
+          npm test
