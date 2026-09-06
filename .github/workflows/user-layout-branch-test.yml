@@ -1,0 +1,23 @@
+name: Benutzerlayout Branch-Test
+
+on:
+  push:
+    branches:
+      - fix-user-table-nav-focus
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Abhaengigkeiten installieren
+        run: npm ci
+      - name: Vollstaendige Tests ausfuehren
+        run: npm test
