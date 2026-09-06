@@ -82,7 +82,7 @@
       const response=await fetch('/api/auth/password/login',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify({email:document.getElementById('authLoginEmail')?.value||'',password:document.getElementById('authLoginPassword')?.value||''})});
       const data=await response.json().catch(()=>({}));
       if(!response.ok)throw new Error(data.error||'Anmeldung fehlgeschlagen.');
-      location.reload();
+      document.dispatchEvent(new CustomEvent('um:password-authenticated',{detail:data}));
     }catch(error){
       if(result)result.innerHTML=`<div class="notice dangerbox">${escapeHtml(error.message||error)}</div>`;
       if(submit)submit.disabled=false;

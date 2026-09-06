@@ -118,17 +118,39 @@ function renderServiceUnavailable(message=''){
 
 async function loadCompanyData(){
   if(!state.companyId) throw new Error('Bitte zuerst eine Firma auswählen.');
-  state.data = await api('/bootstrap');
+  const companyIdAtStart = state.companyId;
+  const bootstrapPromise = api('/bootstrap');
+  const secondaryPromise = Promise.allSettled([
+    api('/instruction-status'),
+    api('/mail/config'),
+    api('/users')
+  ]);
+
+  const gate = $('companySelectionGate');
+  if(gate){
+    gate.hidden = false;
+    gate.innerHTML = '<section class="card"><h2>Angemeldet</h2><p class="muted">Firmendaten werden geladen …</p></section>';
+  }
+  setCoreWorkspaceVisible(false);
+  updateCompanyLabel();
+  renderUserInfo(true);
+
+  const bootstrap = await bootstrapPromise;
+  if(state.companyId !== companyIdAtStart) return;
+  state.data = bootstrap;
   state.apiAvailable = true;
   state.source = 'api';
-  try { state.statusRows = await api('/instruction-status'); } catch { state.statusRows = buildLocalStatusRows(); }
-  try { state.mailConfig = await api('/mail/config'); } catch { state.mailConfig = { configured:false, missing:['mail/config nicht erreichbar'] }; }
-  try { state.users = await api('/users'); } catch { state.users = []; }
-  const gate = $('companySelectionGate');
   if(gate){ gate.hidden = true; gate.innerHTML = ''; }
   setCoreWorkspaceVisible(true);
   updateCompanyLabel();
   renderUserInfo(true);
+  renderAll();
+
+  const [statusResult, mailResult, usersResult] = await secondaryPromise;
+  if(state.companyId !== companyIdAtStart) return;
+  state.statusRows = statusResult.status === 'fulfilled' ? statusResult.value : buildLocalStatusRows();
+  state.mailConfig = mailResult.status === 'fulfilled' ? mailResult.value : { configured:false, missing:['mail/config nicht erreichbar'] };
+  state.users = usersResult.status === 'fulfilled' ? usersResult.value : [];
   renderAll();
 }
 
@@ -197,6 +219,7 @@ function setView(id){
   render(id);
 }
 
+document.addEventListener('um:password-authenticated',()=>loadData());
 document.querySelectorAll('.tabs button').forEach(b=>b.addEventListener('click',()=>setView(b.dataset.view)));
 
 function employees(){return state.data?.employees || []}
