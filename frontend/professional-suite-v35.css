@@ -46,15 +46,20 @@ body.app-shell-v35 .system-strip{
 body.app-shell-v35 .primary-tabs.pro-navigation{
   grid-column:1;
   grid-row:2;
-  position:sticky;
+  position:fixed;
   top:94px;
+  left:max(24px,calc((100vw - 1760px)/2 + 24px));
+  width:272px;
   display:flex;
   flex-direction:column;
   flex-wrap:nowrap;
   gap:6px;
-  max-height:calc(100vh - 118px);
+  max-height:calc(100dvh - 118px);
   overflow-x:hidden;
   overflow-y:auto;
+  overscroll-behavior-y:contain;
+  scrollbar-width:none;
+  scrollbar-gutter:stable;
   min-width:0;
   margin:0;
   padding:14px;
@@ -62,7 +67,18 @@ body.app-shell-v35 .primary-tabs.pro-navigation{
   background:rgba(255,255,255,.88);
   box-shadow:var(--suite-shadow-soft);
   backdrop-filter:blur(14px);
+  z-index:2;
 }
+
+body.app-shell-v35 .primary-tabs.pro-navigation:hover,
+body.app-shell-v35 .primary-tabs.pro-navigation:focus-within{
+  scrollbar-width:thin;
+}
+
+body.app-shell-v35 .primary-tabs.pro-navigation::-webkit-scrollbar{width:0}
+body.app-shell-v35 .primary-tabs.pro-navigation:hover::-webkit-scrollbar,
+body.app-shell-v35 .primary-tabs.pro-navigation:focus-within::-webkit-scrollbar{width:9px}
+body.app-shell-v35 .primary-tabs.pro-navigation::-webkit-scrollbar-thumb{background:#c7d7e2;border-radius:999px;border:2px solid transparent;background-clip:padding-box}
 
 body.app-shell-v35 .primary-tabs.pro-navigation::before{
   flex-shrink:0;
@@ -199,6 +215,62 @@ body.app-shell-v35 .btn.primary{
   box-shadow:0 10px 22px rgba(15,111,143,.18);
 }
 
+/* Benutzer/Rechte: kompakt, ohne horizontales Scrollen, mit persistenter Fokuszeile. */
+#users .user-table-wrap{
+  max-height:calc(100vh - 300px);
+  overflow-x:hidden;
+  overflow-y:auto;
+}
+#users .user-table{
+  width:100%;
+  min-width:0;
+  table-layout:fixed;
+}
+#users .user-table th,
+#users .user-table td{
+  padding:9px 8px;
+  white-space:normal;
+  overflow-wrap:anywhere;
+  vertical-align:middle;
+}
+#users .user-table th:nth-child(1){width:11%}
+#users .user-table th:nth-child(2){width:16%}
+#users .user-table th:nth-child(3){width:11%}
+#users .user-table th:nth-child(4){width:7%}
+#users .user-table th:nth-child(5){width:9%}
+#users .user-table th:nth-child(6){width:9%}
+#users .user-table th:nth-child(7){width:6%}
+#users .user-table th:nth-child(8){width:31%}
+#users .user-table .actions-cell{white-space:normal;text-align:left}
+#users .user-actions{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:6px;
+  align-items:stretch;
+}
+#users .user-actions button{
+  width:100%;
+  min-width:0;
+  margin:0;
+  padding:7px 8px;
+  white-space:normal;
+  overflow-wrap:anywhere;
+  line-height:1.2;
+  font-size:11px;
+}
+#users .user-table tbody tr{cursor:default}
+#users .user-table tbody tr:hover td{background:#f7fbfd}
+#users .user-table tbody tr.is-focused td,
+#users .user-table tbody tr:focus-within td{
+  background:#eaf7fb;
+}
+#users .user-table tbody tr.is-focused td:first-child,
+#users .user-table tbody tr:focus-within td:first-child{
+  box-shadow:inset 4px 0 0 var(--suite-brand);
+}
+#users .user-table tbody tr.is-focused td strong,
+#users .user-table tbody tr:focus-within td strong{color:var(--suite-brand-dark)}
+
 /* Bounded participant selector; do not inherit full-width form input styling. */
 #planning .planning-participants{min-width:0}
 #planning .participant-toolbar{display:flex;align-items:end;gap:12px;flex-wrap:wrap;margin-bottom:10px}
@@ -227,6 +299,18 @@ body.app-shell-v35 .btn.primary{
 #instructions .instruction-detail-actions{display:flex;flex-wrap:wrap;gap:8px}
 #instructions .instruction-detail-actions button{max-width:100%;white-space:normal}
 
+@media(max-width:1380px){
+  #users .user-actions{grid-template-columns:1fr}
+  #users .user-table th:nth-child(1){width:12%}
+  #users .user-table th:nth-child(2){width:17%}
+  #users .user-table th:nth-child(3){width:11%}
+  #users .user-table th:nth-child(4){width:8%}
+  #users .user-table th:nth-child(5){width:10%}
+  #users .user-table th:nth-child(6){width:10%}
+  #users .user-table th:nth-child(7){width:7%}
+  #users .user-table th:nth-child(8){width:25%}
+}
+
 @media(max-width:1180px){
   body.app-shell-v35 main.pro-shell-grid{
     display:block;
@@ -238,8 +322,12 @@ body.app-shell-v35 .btn.primary{
   }
   body.app-shell-v35 .primary-tabs.pro-navigation{
     position:static;
+    left:auto;
+    width:auto;
     flex-direction:row;
     overflow:auto;
+    overscroll-behavior:auto;
+    scrollbar-width:auto;
     max-height:none;
     margin-bottom:16px;
     border-radius:20px;
@@ -253,6 +341,7 @@ body.app-shell-v35 .btn.primary{
     white-space:nowrap;
     flex:0 0 auto;
   }
+  #users .user-table-wrap{max-height:none}
 }
 
 @media(max-width:720px){
