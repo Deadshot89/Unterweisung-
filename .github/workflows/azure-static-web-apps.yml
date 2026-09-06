@@ -82,17 +82,19 @@ jobs:
           GRAPH_CLIENT_ID: ${{ secrets.GRAPH_CLIENT_ID || vars.GRAPH_CLIENT_ID }}
           GRAPH_CLIENT_SECRET: ${{ secrets.GRAPH_CLIENT_SECRET }}
           MAIL_FROM: ${{ secrets.MAIL_FROM || vars.MAIL_FROM }}
+          GRAPH_SENDER_ID: ${{ secrets.GRAPH_SENDER_ID || vars.GRAPH_SENDER_ID }}
         run: |
           node --input-type=module <<'NODE'
           import { appendFileSync } from 'node:fs';
 
-          const keys = ['GRAPH_TENANT_ID','GRAPH_CLIENT_ID','GRAPH_CLIENT_SECRET','MAIL_FROM'];
+          const requiredKeys = ['GRAPH_TENANT_ID','GRAPH_CLIENT_ID','GRAPH_CLIENT_SECRET','MAIL_FROM'];
+          const optionalKeys = ['GRAPH_SENDER_ID'];
+          const keys = [...requiredKeys, ...optionalKeys];
           const settings = Object.fromEntries(keys.map(key => [key, String(process.env[key] || '')]));
-          const complete = () => keys.every(key => !!settings[key]);
+          const complete = () => requiredKeys.every(key => !!settings[key]);
 
-          if (!complete()) {
-            const xml = String(process.env.FUNCTION_PUBLISH_PROFILE || '');
-            if (!xml) throw new Error('Graph-Mail ist unvollständig und das Function-Publish-Profil fehlt.');
+          const xml = String(process.env.FUNCTION_PUBLISH_PROFILE || '');
+          if (keys.some(key => !settings[key]) && xml) {
             const attr = (name) => {
               const match = xml.match(new RegExp(`${name}="([^"]*)"`, 'i'));
               return match?.[1] || '';
@@ -113,14 +115,19 @@ jobs:
             }
           }
 
-          if (!complete()) throw new Error('Microsoft-Graph-Mailkonfiguration ist weiterhin unvollständig.');
+          if (!complete()) {
+            if (!xml) throw new Error('Graph-Mail ist unvollständig und das Function-Publish-Profil fehlt.');
+            throw new Error('Microsoft-Graph-Mailkonfiguration ist weiterhin unvollständig.');
+          }
           for (const key of keys) {
             const value = settings[key];
+            if (!value) continue;
             if (/\r|\n/.test(value)) throw new Error(`Ungültige mehrzeilige Konfiguration für ${key}.`);
             console.log(`::add-mask::${value}`);
             appendFileSync(process.env.GITHUB_ENV, `${key}=${value}\n`, 'utf8');
           }
           console.log('GRAPH_MAIL_COMPLETE: ja');
+          console.log(`GRAPH_SENDER_ID_PRESENT: ${settings.GRAPH_SENDER_ID ? 'ja' : 'nein (MAIL_FROM-Fallback)'}`);
           NODE
 
       - name: Prepare managed API runtime settings
