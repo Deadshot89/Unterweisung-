@@ -16,5 +16,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: RED/GREEN Vertragstest
-        run: node --test tests/login-sql-warmup.test.js
+      - name: Abhängigkeiten installieren
+        run: npm install
+      - name: Gesamttests
+        run: npm test
