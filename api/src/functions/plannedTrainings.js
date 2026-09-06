@@ -5,6 +5,7 @@ import { json, badRequest, notFound, serverError } from '../lib/http.js';
 import { getAuthorizedContext, assertRole, Roles } from '../lib/auth.js';
 import { writeAudit } from '../lib/audit.js';
 import { resolveEmployeeScope, employeeAllowed, assertEmployeeIdsAllowed } from '../lib/employeeScope.js';
+import { completeAssignmentsForRecord } from '../lib/assignmentLifecycle.js';
 
 function clean(value, max) {
   const text = String(value ?? '').trim();
@@ -163,6 +164,7 @@ async function completeTraining(pool, ctx, training, body, participants) {
       .input('createdBy', sql.NVarChar(120), ctx.userId)
       .query(`INSERT INTO InstructionRecords(id,companyId,employeeId,typeId,conductedAt,validUntil,status,source,instructorId,durationMinutes,groupId,confirmationText,createdBy)
               VALUES(@id,@companyId,@employeeId,@typeId,@conductedAt,@validUntil,@status,@source,@instructorId,@durationMinutes,@groupId,@confirmationText,@createdBy)`);
+    await completeAssignmentsForRecord(pool, ctx.companyId, employeeId, training.instructionTypeId, recordId, conductedAt);
     created.push(recordId);
   }
 
